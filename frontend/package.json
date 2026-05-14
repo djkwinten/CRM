@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "tsc -b && vite build",
+    "build": "node ../scripts/build-frontend.mjs",
     "preview": "vite preview",
     "deploy": "npm run build && nxcode deploy --type static --dir dj-booking-app/frontend/dist"
   },

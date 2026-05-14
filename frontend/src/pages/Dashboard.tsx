@@ -700,15 +700,6 @@ function BackupModal({ onClose, onImported }: { onClose: () => void; onImported:
 
       const endpoint = `${API_ROOT}/api/export/import`
 
-      // In local dev, API_ROOT is intentionally empty and Vite proxies /api to the backend.
-      // In a separately deployed static frontend, API_ROOT must point to the backend Worker.
-      const isLikelyStaticWorker = !API_ROOT && window.location.hostname.endsWith('.workers.dev')
-      if (isLikelyStaticWorker) {
-        setImportError('Geen backend-URL ingesteld voor deze deployment. Bouw de frontend opnieuw met VITE_API_URL=<jouw backend Worker URL>.')
-        setImporting(false)
-        return
-      }
-
       const bookingsToImport = extractBookingsFromBackupBody(json)
       if (!bookingsToImport || bookingsToImport.length === 0) {
         setImportError('Geen boekingen gevonden in het bestand. Ondersteunde formaten: { "bookings": [...] }, een directe array [...], { "data": [...] } of { "data": { "bookings": [...] } }.')
