@@ -46,31 +46,45 @@ type Bindings = {
 
 export const bookingsRoutes = new Hono<{ Bindings: Bindings }>()
 
-const bookingListColumnDefinitions: Record<string, string> = {
-  naam_partner1: 'TEXT',
-  naam_partner2: 'TEXT',
-  slug: 'TEXT',
-  access_token: 'TEXT',
-  portal_title: 'TEXT',
-  is_aanvraag: 'INTEGER DEFAULT 0',
-  is_afgewezen: 'INTEGER DEFAULT 0',
-  afgewezen_reden: 'TEXT',
-  vragenlijst_updated_at: 'TEXT',
-  vragenlijst_first_submitted_at: 'TEXT',
-  aanvraag_reminder_sent_at: 'TEXT',
-  review_sent_at: 'TEXT',
-  feest_herinnering_sent_at: 'TEXT',
-  vragenlijst_diff: 'TEXT',
+const bookingListColumns: Record<string, string> = {
+  id: '0',
+  feest_datum: "''",
+  type_feest: "'Algemeen'",
+  status_contract: '0',
+  status_voorschot: '0',
+  status_vragenlijst: '0',
+  naam_organisator: "''",
+  naam_partner1: 'NULL',
+  naam_partner2: 'NULL',
+  email: "''",
+  telefoon: "''",
+  locatie_naam: 'NULL',
+  aantal_gasten: 'NULL',
+  thema: 'NULL',
+  einduur: 'NULL',
+  slug: 'NULL',
+  access_token: 'NULL',
+  portal_title: 'NULL',
+  is_aanvraag: '0',
+  is_afgewezen: '0',
+  afgewezen_reden: 'NULL',
+  created_at: 'NULL',
+  vragenlijst_updated_at: 'NULL',
+  vragenlijst_first_submitted_at: 'NULL',
+  aanvraag_reminder_sent_at: 'NULL',
+  review_sent_at: 'NULL',
+  feest_herinnering_sent_at: 'NULL',
+  vragenlijst_diff: 'NULL',
 }
 
-async function ensureBookingListColumns(env: Bindings) {
+async function bookingListSelectSql(env: Bindings) {
   const rows = await query<{ name: string }>(env, 'PRAGMA table_info(bookings)')
   const existing = new Set(rows.map(r => r.name))
-  for (const [name, definition] of Object.entries(bookingListColumnDefinitions)) {
-    if (!existing.has(name)) {
-      await execute(env, `ALTER TABLE bookings ADD COLUMN ${name} ${definition}`)
-    }
-  }
+  const fields = Object.entries(bookingListColumns).map(([name, fallback]) =>
+    existing.has(name) ? name : `${fallback} AS ${name}`
+  )
+  const orderBy = existing.has('feest_datum') ? 'ORDER BY feest_datum ASC' : 'ORDER BY id ASC'
+  return `SELECT ${fields.join(', ')} FROM bookings ${orderBy}`
 }
 
 // Initialize tables
@@ -258,7 +272,6 @@ bookingsRoutes.post('/init', async (c) => {
     for (const m of migrations) {
       try { await execute(c.env, m) } catch { /* column already exists */ }
     }
-    await ensureBookingListColumns(c.env)
     // Contract Info tabel — korte, aparte input voor contract/PDF/factuur flows
     await execute(c.env, `
       CREATE TABLE IF NOT EXISTS booking_contract_info (
@@ -306,15 +319,8 @@ bookingsRoutes.post('/init', async (c) => {
 // Get all bookings
 bookingsRoutes.get('/', async (c) => {
   try {
-    await ensureBookingListColumns(c.env)
-    const bookings = await query(c.env, `
-      SELECT id, feest_datum, type_feest, status_contract, status_voorschot, status_vragenlijst,
-             naam_organisator, naam_partner1, naam_partner2, email, telefoon, locatie_naam,
-             aantal_gasten, thema, einduur, slug, access_token, portal_title, is_aanvraag, is_afgewezen, afgewezen_reden, created_at,
-             vragenlijst_updated_at, vragenlijst_first_submitted_at, aanvraag_reminder_sent_at, review_sent_at, feest_herinnering_sent_at, vragenlijst_diff
-      FROM bookings
-      ORDER BY feest_datum ASC
-    `)
+    const sql = await bookingListSelectSql(c.env)
+    const bookings = await query(c.env, sql)
     return c.json({ bookings })
   } catch (e: any) {
     return c.json({ bookings: [], error: e?.message || 'Database query failed' }, 500)
