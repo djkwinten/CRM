@@ -46,6 +46,33 @@ type Bindings = {
 
 export const bookingsRoutes = new Hono<{ Bindings: Bindings }>()
 
+const bookingListColumnDefinitions: Record<string, string> = {
+  naam_partner1: 'TEXT',
+  naam_partner2: 'TEXT',
+  slug: 'TEXT',
+  access_token: 'TEXT',
+  portal_title: 'TEXT',
+  is_aanvraag: 'INTEGER DEFAULT 0',
+  is_afgewezen: 'INTEGER DEFAULT 0',
+  afgewezen_reden: 'TEXT',
+  vragenlijst_updated_at: 'TEXT',
+  vragenlijst_first_submitted_at: 'TEXT',
+  aanvraag_reminder_sent_at: 'TEXT',
+  review_sent_at: 'TEXT',
+  feest_herinnering_sent_at: 'TEXT',
+  vragenlijst_diff: 'TEXT',
+}
+
+async function ensureBookingListColumns(env: Bindings) {
+  const rows = await query<{ name: string }>(env, 'PRAGMA table_info(bookings)')
+  const existing = new Set(rows.map(r => r.name))
+  for (const [name, definition] of Object.entries(bookingListColumnDefinitions)) {
+    if (!existing.has(name)) {
+      await execute(env, `ALTER TABLE bookings ADD COLUMN ${name} ${definition}`)
+    }
+  }
+}
+
 // Initialize tables
 bookingsRoutes.post('/init', async (c) => {
   // Venues tabel aanmaken (vóór bookings zodat FK constraint klopt)
@@ -231,6 +258,7 @@ bookingsRoutes.post('/init', async (c) => {
     for (const m of migrations) {
       try { await execute(c.env, m) } catch { /* column already exists */ }
     }
+    await ensureBookingListColumns(c.env)
     // Contract Info tabel — korte, aparte input voor contract/PDF/factuur flows
     await execute(c.env, `
       CREATE TABLE IF NOT EXISTS booking_contract_info (
@@ -278,6 +306,7 @@ bookingsRoutes.post('/init', async (c) => {
 // Get all bookings
 bookingsRoutes.get('/', async (c) => {
   try {
+    await ensureBookingListColumns(c.env)
     const bookings = await query(c.env, `
       SELECT id, feest_datum, type_feest, status_contract, status_voorschot, status_vragenlijst,
              naam_organisator, naam_partner1, naam_partner2, email, telefoon, locatie_naam,
