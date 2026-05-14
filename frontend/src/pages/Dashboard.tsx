@@ -578,7 +578,31 @@ function extractBookingsFromBackupBody(body: unknown): unknown[] | null {
   return null
 }
 
-function chunkBookingsBySize(bookings: unknown[], maxPayloadBytes = 350_000): unknown[][] {
+const LARGE_IMPORT_FIELDS = new Set([
+  // Generated documents / binary-ish base64 fields. These can be regenerated and often make old backups too large to upload.
+  'contract_pdf',
+  'billit_factuur_pdf',
+  'handtekening_klant',
+  'vragenlijst_diff',
+])
+
+function sanitizeBookingForImport(booking: unknown): unknown {
+  if (!booking || typeof booking !== 'object' || Array.isArray(booking)) return booking
+
+  const cleaned: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(booking as Record<string, unknown>)) {
+    if (LARGE_IMPORT_FIELDS.has(key)) continue
+
+    // Unknown old versions sometimes stored large data URLs/base64 blobs in extra fields.
+    // The backend ignores unknown columns anyway, so dropping very large strings is safer than hitting 413.
+    if (typeof value === 'string' && value.length > 75_000) continue
+
+    cleaned[key] = value
+  }
+  return cleaned
+}
+
+function chunkBookingsBySize(bookings: unknown[], maxPayloadBytes = 75_000): unknown[][] {
   const chunks: unknown[][] = []
   let current: unknown[] = []
   let currentSize = 20 // wrapper overhead for {"bookings":[]}
@@ -666,7 +690,8 @@ function BackupModal({ onClose, onImported }: { onClose: () => void; onImported:
         return
       }
 
-      const chunks = chunkBookingsBySize(bookingsToImport)
+      const sanitizedBookings = bookingsToImport.map(sanitizeBookingForImport)
+      const chunks = chunkBookingsBySize(sanitizedBookings)
       let imported = 0
       let skipped = 0
       const errors: string[] = []
