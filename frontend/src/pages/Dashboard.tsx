@@ -11,6 +11,7 @@ import { Booking } from '../types/booking'
 import { format, parseISO } from 'date-fns'
 import { nl } from 'date-fns/locale'
 import { BottomTabBar } from '../components/BottomTabBar'
+import { importLocalBookings } from '../lib/localStore'
 
 function displayNaam(b: Booking): string {
   if (b.type_feest === 'Trouw' && (b.naam_partner1 || b.naam_partner2)) {
@@ -653,6 +654,31 @@ function BackupModal({ onClose, onImported }: { onClose: () => void; onImported:
   const [importError, setImportError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const downloadTextFile = (filename: string, content: string, type: string) => {
+    const blob = new Blob([content], { type })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(url)
+  }
+
+  const handleLocalJsonExport = async () => {
+    const data = await getBookings()
+    downloadTextFile(`dj-kwinten-crm-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ exported_at: new Date().toISOString(), bookings: data }, null, 2), 'application/json')
+  }
+
+  const handleLocalCsvExport = async () => {
+    const data = await getBookings()
+    const fields = ['id','feest_datum','type_feest','naam_organisator','naam_partner1','naam_partner2','email','telefoon','locatie_naam','status_contract','status_voorschot','status_vragenlijst','is_aanvraag']
+    const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`
+    const csv = [fields.join(','), ...data.map(b => fields.map(f => esc((b as any)[f])).join(','))].join('\n')
+    downloadTextFile(`dj-kwinten-crm-backup-${new Date().toISOString().slice(0, 10)}.csv`, csv, 'text/csv;charset=utf-8')
+  }
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -696,18 +722,27 @@ function BackupModal({ onClose, onImported }: { onClose: () => void; onImported:
       let skipped = 0
       const errors: string[] = []
 
-      for (let i = 0; i < chunks.length; i++) {
-        const result = await postImportChunk(endpoint, chunks[i])
-        imported += result.imported || 0
-        skipped += result.skipped || 0
-        errors.push(...(result.errors || []))
+      try {
+        for (let i = 0; i < chunks.length; i++) {
+          const result = await postImportChunk(endpoint, chunks[i])
+          imported += result.imported || 0
+          skipped += result.skipped || 0
+          errors.push(...(result.errors || []))
+        }
+      } catch (serverErr) {
+        // D1 is currently unavailable on this Nxcode workspace. Fall back to browser-local restore.
+        const localResult = importLocalBookings(sanitizedBookings)
+        imported = localResult.imported
+        skipped = localResult.skipped
+        errors.push(...localResult.errors)
+        errors.push('Cloud database niet beschikbaar; backup is lokaal in deze browser hersteld.')
       }
 
       setImportResult({ imported, skipped, errors: errors.slice(0, 10) })
       onImported() // herlaad de dashboard-lijst
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Onbekende fout'
-      setImportError(`Verbindingsfout — controleer of de backend bereikbaar is. ${message}`)
+      setImportError(`Importfout. ${message}`)
     }
     setImporting(false)
     // reset file input zodat je hetzelfde bestand opnieuw kan kiezen
@@ -739,20 +774,20 @@ function BackupModal({ onClose, onImported }: { onClose: () => void; onImported:
             <p className="text-sm font-semibold text-gray-800 mb-1">📦 Backup downloaden</p>
             <p className="text-xs text-gray-500 mb-3">Download alle boekingen als bestand. Bewaar regelmatig een kopie.</p>
             <div className="flex gap-2">
-              <a
-                href={`${API_ROOT}/api/export/bookings.json`}
-                target="_blank" rel="noopener noreferrer"
+              <button
+                type="button"
+                onClick={handleLocalJsonExport}
                 className="flex-1 flex items-center justify-center gap-1.5 bg-gray-900 hover:bg-gray-700 text-white px-3 py-2 rounded-lg text-xs font-semibold transition-colors"
               >
                 <Download size={13} /> JSON
-              </a>
-              <a
-                href={`${API_ROOT}/api/export/bookings.csv`}
-                target="_blank" rel="noopener noreferrer"
+              </button>
+              <button
+                type="button"
+                onClick={handleLocalCsvExport}
                 className="flex-1 flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-xs font-semibold transition-colors"
               >
                 <FileDown size={13} /> Excel / CSV
-              </a>
+              </button>
             </div>
           </div>
 

@@ -8,15 +8,6 @@ ENVIRONMENT = "production"
 SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = "587"
 SMTP_USER = "djkwinten@gmail.com"
-# Replace this after deploying the frontend to your own Cloudflare account.
 APP_URL = "https://thr-849231d5-djkwinten-crm.nxcode-io.workers.dev"
 
-# After creating resources in your own Cloudflare account, add bindings like:
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "dj-booking-db"
-# database_id = "YOUR_D1_DATABASE_ID"
-#
-# [[r2_buckets]]
-# binding = "STORAGE"
-# bucket_name = "dj-booking-fotos"
+# D1/R2 bindings must be added after nxcode d1/r2 resource creation succeeds.
