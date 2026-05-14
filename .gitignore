@@ -24,3 +24,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+.dev.vars*
+!.dev.vars.example
+!.env.example
