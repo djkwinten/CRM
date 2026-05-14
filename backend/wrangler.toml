@@ -1,0 +1,11 @@
+name = "djkwinten-app-api"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "production"
+SMTP_HOST = "smtp.gmail.com"
+SMTP_PORT = "587"
+SMTP_USER = "djkwinten@gmail.com"
+APP_URL = "https://thr-849231d5-djkwinten-app.nxcode-io.workers.dev"

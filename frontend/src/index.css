@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+/* ── Apple Light Design System ── */
+:root {
+  --color-bg-primary:    #F2F2F7;
+  --color-bg-card:       #FFFFFF;
+  --color-bg-input:      #F2F2F7;
+  --color-text-primary:  #1C1C1E;
+  --color-text-secondary:#3C3C43;
+  --color-text-tertiary: #8E8E93;
+  --color-border:        #E5E5EA;
+  --color-blue:          #007AFF;
+  --color-blue-dark:     #0066CC;
+  --color-green:         #34C759;
+  --color-red:           #FF3B30;
+  --color-orange:        #FF9500;
+}
+
+/* ── Safe area utility ── */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* ── Base typography ── */
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+  background-color: #F2F2F7;
+  color: #1C1C1E;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── Print styles for Gig Sheet ── */
+@media print {
+  @page {
+    size: A4;
+    margin: 15mm 15mm 15mm 15mm;
+  }
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+/* ── Time input — light-mode icon ── */
+input[type="time"]::-webkit-calendar-picker-indicator {
+  opacity: 0.4;
+  cursor: pointer;
+}
+
+/* ── Scrollbar — light mode ── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #C7C7CC; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #8E8E93; }
