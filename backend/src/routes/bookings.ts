@@ -166,7 +166,7 @@ const bookingDetailColumns: Record<string, string> = {
   updated_at: 'NULL',
 }
 
-async function bookingDetailSelectSql(env: Bindings) {
+async function bookingDetailSelectFields(env: Bindings) {
   const existing = await bookingColumnSet(env)
   const fields = Object.entries(bookingDetailColumns).map(([name, fallback]) =>
     existing.has(name) ? name : `${fallback} AS ${name}`
@@ -177,7 +177,13 @@ async function bookingDetailSelectSql(env: Bindings) {
   fields.push(existing.has('billit_factuur_pdf')
     ? `CASE WHEN billit_factuur_pdf IS NOT NULL AND billit_factuur_pdf != '' THEN 1 ELSE 0 END as has_billit_factuur_pdf`
     : `0 as has_billit_factuur_pdf`)
-  return { select: fields.join(', '), existing }
+  return { fields, existing }
+}
+
+function chunkArray<T>(items: T[], size: number): T[][] {
+  const chunks: T[][] = []
+  for (let i = 0; i < items.length; i += size) chunks.push(items.slice(i, i + size))
+  return chunks
 }
 
 // Initialize tables
@@ -611,18 +617,34 @@ bookingsRoutes.get('/:ref', async (c) => {
   const ref = c.req.param('ref')
   const isNumeric = /^\d+$/.test(ref)
   try {
-    const { select, existing } = await bookingDetailSelectSql(c.env)
-    let booking = null
+    const { fields, existing } = await bookingDetailSelectFields(c.env)
+    let where = ''
+    let params: unknown[] = []
     if (isNumeric) {
-      booking = await queryOne(c.env, `SELECT ${select} FROM bookings WHERE id = ?`, [ref])
+      where = 'id = ?'
+      params = [ref]
     } else if (existing.has('slug') && existing.has('access_token')) {
-      booking = await queryOne(c.env, `SELECT ${select} FROM bookings WHERE slug = ? OR access_token = ?`, [ref, ref])
+      where = 'slug = ? OR access_token = ?'
+      params = [ref, ref]
     } else if (existing.has('slug')) {
-      booking = await queryOne(c.env, `SELECT ${select} FROM bookings WHERE slug = ?`, [ref])
+      where = 'slug = ?'
+      params = [ref]
     } else if (existing.has('access_token')) {
-      booking = await queryOne(c.env, `SELECT ${select} FROM bookings WHERE access_token = ?`, [ref])
+      where = 'access_token = ?'
+      params = [ref]
+    } else {
+      return c.json({ error: 'Not found' }, 404)
     }
-    if (!booking) return c.json({ error: 'Not found' }, 404)
+
+    // D1/SQLite can reject very wide result sets. Fetch details in smaller
+    // chunks and merge them into one object, so old wide CRM databases still open.
+    const chunks = chunkArray(fields, 55)
+    let booking: Record<string, unknown> | null = null
+    for (const chunk of chunks) {
+      const row = await queryOne<Record<string, unknown>>(c.env, `SELECT ${chunk.join(', ')} FROM bookings WHERE ${where}`, params)
+      if (!row) return c.json({ error: 'Not found' }, 404)
+      booking = { ...(booking || {}), ...row }
+    }
     return c.json({ booking })
   } catch (e: any) {
     return c.json({ error: e?.message || 'Database query failed' }, 500)
