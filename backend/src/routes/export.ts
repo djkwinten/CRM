@@ -5,6 +5,36 @@ type Bindings = {
   DB?: D1Database
 }
 
+function extractBookingsFromImportBody(body: unknown): unknown[] | null {
+  if (Array.isArray(body)) return body
+  if (!body || typeof body !== 'object') return null
+
+  const obj = body as Record<string, unknown>
+
+  // Current export format: { bookings: [...] }
+  if (Array.isArray(obj.bookings)) return obj.bookings
+
+  // Common older/alternate backup wrappers
+  if (Array.isArray(obj.data)) return obj.data
+  if (Array.isArray(obj.items)) return obj.items
+  if (Array.isArray(obj.records)) return obj.records
+  if (Array.isArray(obj.rows)) return obj.rows
+
+  // Nested wrappers: { data: { bookings: [...] } }, { backup: { bookings: [...] } }
+  for (const key of ['data', 'backup', 'export', 'payload']) {
+    const nested = obj[key]
+    if (nested && typeof nested === 'object') {
+      const nestedObj = nested as Record<string, unknown>
+      if (Array.isArray(nestedObj.bookings)) return nestedObj.bookings
+      if (Array.isArray(nestedObj.items)) return nestedObj.items
+      if (Array.isArray(nestedObj.records)) return nestedObj.records
+      if (Array.isArray(nestedObj.rows)) return nestedObj.rows
+    }
+  }
+
+  return null
+}
+
 export const exportRoutes = new Hono<{ Bindings: Bindings }>()
 
 // GET /api/export/bookings.json — volledige backup van alle boekingen
@@ -118,22 +148,27 @@ exportRoutes.post('/import', async (c) => {
     'created_at', 'updated_at',
   ])
 
-  let body: { bookings?: unknown[]; version?: number }
+  let body: unknown
   try {
     body = await c.req.json()
   } catch {
     return c.json({ success: false, error: 'Ongeldig JSON-bestand' }, 400)
   }
 
-  if (!Array.isArray(body.bookings) || body.bookings.length === 0) {
-    return c.json({ success: false, error: 'Geen boekingen gevonden in het bestand' }, 400)
+  const bookingsToImport = extractBookingsFromImportBody(body)
+
+  if (!Array.isArray(bookingsToImport) || bookingsToImport.length === 0) {
+    return c.json({
+      success: false,
+      error: 'Geen boekingen gevonden in het bestand. Ondersteunde formaten: { "bookings": [...] }, een directe array [...], { "data": [...] } of { "data": { "bookings": [...] } }.',
+    }, 400)
   }
 
   let imported = 0
   let skipped = 0
   const errors: string[] = []
 
-  for (const raw of body.bookings) {
+  for (const raw of bookingsToImport) {
     const booking = raw as Record<string, unknown>
 
     if (!booking.feest_datum) {
@@ -166,6 +201,6 @@ exportRoutes.post('/import', async (c) => {
     imported,
     skipped,
     errors: errors.slice(0, 10), // max 10 foutmeldingen teruggeven
-    total: body.bookings.length,
+    total: bookingsToImport.length,
   })
 })
