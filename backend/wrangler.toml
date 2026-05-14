@@ -9,7 +9,7 @@ SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = "587"
 SMTP_USER = "djkwinten@gmail.com"
 # Replace this after deploying the frontend to your own Cloudflare account.
-APP_URL = "https://djkwinten-bookingmanager.YOUR_WORKERS_SUBDOMAIN.workers.dev"
+APP_URL = "https://thr-849231d5-djkwinten-crm.nxcode-io.workers.dev"
 
 # After creating resources in your own Cloudflare account, add bindings like:
 # [[d1_databases]]
