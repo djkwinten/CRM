@@ -46,6 +46,56 @@ Then run the database schema:
 nxcode d1 execute YOUR_D1_DATABASE_ID --file backend/schema.sql
 ```
 
+## GitHub → Cloudflare fix for white screen
+
+If Cloudflare shows a white screen and the HTML contains:
+
+```html
+<script type="module" src="/src/main.tsx"></script>
+```
+
+then Cloudflare is serving the Vite source files instead of the production build. Fix the Cloudflare project settings like this.
+
+### Option A: Cloudflare project root is repository root
+
+Use these settings:
+
+```text
+Root directory:       /
+Build command:        npm run build
+Build output/assets:  dist
+```
+
+The repository root contains `package.json` and `wrangler.toml` for this setup. The root build script builds `frontend/` and copies `frontend/dist` to root `dist/`.
+
+### Option B: Cloudflare project root is `frontend`
+
+Use these settings:
+
+```text
+Root directory:       frontend
+Build command:        npm install && npm run build
+Build output/assets:  dist
+```
+
+The `frontend/wrangler.toml` file is configured to serve `dist/` with SPA fallback.
+
+### Required frontend environment variable
+
+Set this in Cloudflare before building if you want the deployed frontend to call the deployed backend:
+
+```text
+VITE_API_URL=https://YOUR-BACKEND-WORKER.workers.dev
+```
+
+For the Nxcode deployment made during development, that backend was:
+
+```text
+VITE_API_URL=https://thr-849231d5-djkwinten-bookingmanager-api.nxcode-io.workers.dev
+```
+
+After redeploying, the live HTML must reference `/assets/index-....js`, not `/src/main.tsx`.
+
 ## Deployment order
 
 Deploy backend first, because the frontend needs the backend URL at build time.
