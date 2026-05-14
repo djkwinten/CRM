@@ -1,4 +1,4 @@
-name = "djkwinten-app-api"
+name = "djkwinten-bookingmanager-api"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
@@ -8,4 +8,15 @@ ENVIRONMENT = "production"
 SMTP_HOST = "smtp.gmail.com"
 SMTP_PORT = "587"
 SMTP_USER = "djkwinten@gmail.com"
-APP_URL = "https://thr-849231d5-djkwinten-app.nxcode-io.workers.dev"
+# Replace this after deploying the frontend to your own Cloudflare account.
+APP_URL = "https://djkwinten-bookingmanager.YOUR_WORKERS_SUBDOMAIN.workers.dev"
+
+# After creating resources in your own Cloudflare account, add bindings like:
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "dj-booking-db"
+# database_id = "YOUR_D1_DATABASE_ID"
+#
+# [[r2_buckets]]
+# binding = "STORAGE"
+# bucket_name = "dj-booking-fotos"
