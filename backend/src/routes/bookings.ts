@@ -277,15 +277,19 @@ bookingsRoutes.post('/init', async (c) => {
 
 // Get all bookings
 bookingsRoutes.get('/', async (c) => {
-  const bookings = await query(c.env, `
-    SELECT id, feest_datum, type_feest, status_contract, status_voorschot, status_vragenlijst,
-           naam_organisator, naam_partner1, naam_partner2, email, telefoon, locatie_naam,
-           aantal_gasten, thema, einduur, slug, access_token, portal_title, is_aanvraag, is_afgewezen, afgewezen_reden, created_at,
-           vragenlijst_updated_at, vragenlijst_first_submitted_at, aanvraag_reminder_sent_at, review_sent_at, feest_herinnering_sent_at, vragenlijst_diff
-    FROM bookings
-    ORDER BY feest_datum ASC
-  `)
-  return c.json({ bookings })
+  try {
+    const bookings = await query(c.env, `
+      SELECT id, feest_datum, type_feest, status_contract, status_voorschot, status_vragenlijst,
+             naam_organisator, naam_partner1, naam_partner2, email, telefoon, locatie_naam,
+             aantal_gasten, thema, einduur, slug, access_token, portal_title, is_aanvraag, is_afgewezen, afgewezen_reden, created_at,
+             vragenlijst_updated_at, vragenlijst_first_submitted_at, aanvraag_reminder_sent_at, review_sent_at, feest_herinnering_sent_at, vragenlijst_diff
+      FROM bookings
+      ORDER BY feest_datum ASC
+    `)
+    return c.json({ bookings })
+  } catch (e: any) {
+    return c.json({ bookings: [], error: e?.message || 'Database query failed' }, 500)
+  }
 })
 
 
