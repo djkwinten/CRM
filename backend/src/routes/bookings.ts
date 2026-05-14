@@ -77,14 +77,107 @@ const bookingListColumns: Record<string, string> = {
   vragenlijst_diff: 'NULL',
 }
 
-async function bookingListSelectSql(env: Bindings) {
+async function bookingColumnSet(env: Bindings) {
   const rows = await query<{ name: string }>(env, 'PRAGMA table_info(bookings)')
-  const existing = new Set(rows.map(r => r.name))
+  return new Set(rows.map(r => r.name))
+}
+
+async function bookingListSelectSql(env: Bindings) {
+  const existing = await bookingColumnSet(env)
   const fields = Object.entries(bookingListColumns).map(([name, fallback]) =>
     existing.has(name) ? name : `${fallback} AS ${name}`
   )
   const orderBy = existing.has('feest_datum') ? 'ORDER BY feest_datum ASC' : 'ORDER BY id ASC'
   return `SELECT ${fields.join(', ')} FROM bookings ${orderBy}`
+}
+
+const bookingDetailColumns: Record<string, string> = {
+  ...bookingListColumns,
+  bedrijfsnaam: 'NULL',
+  btw_nr: 'NULL',
+  adres_organisator: 'NULL',
+  locatie_adres: 'NULL',
+  publiek_leeftijd: 'NULL',
+  parkeren_info: 'NULL',
+  gelijkvloers: '1',
+  backup_contact_naam: 'NULL',
+  backup_contact_telefoon: 'NULL',
+  verzoeknummers: "'Ja'",
+  uur_ceremonie: 'NULL',
+  uur_receptie: 'NULL',
+  uur_receptie_einde: 'NULL',
+  uur_receptie2: 'NULL',
+  uur_receptie2_einde: 'NULL',
+  uur_diner: 'NULL',
+  uur_dessert: 'NULL',
+  uur_dansfeest: 'NULL',
+  uur_midnightsnack: 'NULL',
+  planning_extra: 'NULL',
+  einde_feest: 'NULL',
+  top_genres: 'NULL',
+  top_genres_extra: 'NULL',
+  flop_genres: 'NULL',
+  flop_genres_extra: 'NULL',
+  must_play: 'NULL',
+  do_not_play: 'NULL',
+  spotify_link: 'NULL',
+  muziek_receptie: 'NULL',
+  muziek_receptie_extra: 'NULL',
+  muziek_diner: 'NULL',
+  muziek_diner_extra: 'NULL',
+  intrede_zaal_nummer: 'NULL',
+  intrede_eretafel_nummer: 'NULL',
+  intrede_bridesmaids_nummer: 'NULL',
+  intrede_groomsmen_nummer: 'NULL',
+  intrede_koppel_nummer: 'NULL',
+  intrede_anders_nummer: 'NULL',
+  intrede_taart_nummer: 'NULL',
+  openingsdans_nummer: 'NULL',
+  tweede_dans_nummer: 'NULL',
+  boeket_werpen_nummer: 'NULL',
+  verjaardag_naam_leeftijd: 'NULL',
+  zaal_contact: 'NULL',
+  geluidsbeperking_info: 'NULL',
+  wifi_code: 'NULL',
+  speakers_aanwezig: '0',
+  licht_aanwezig: '0',
+  micro_aanwezig: '0',
+  dj_booth_aanwezig: '0',
+  uplights_aanwezig: '0',
+  speakers_buiten: '0',
+  ceremonie_set: '0',
+  digital_booth: '0',
+  retro_booth: '0',
+  draadloze_speaker: '0',
+  karaoke: '0',
+  toestemming_foto: 'NULL',
+  opmerkingen: 'NULL',
+  zaal_fotos: 'NULL',
+  uitnodiging_files: 'NULL',
+  handtekening_klant: 'NULL',
+  totaalprijs: '0',
+  basisprijs: '0',
+  extra_prijzen: 'NULL',
+  voorschot_instructies: 'NULL',
+  billit_factuur_naam: 'NULL',
+  venue_id: 'NULL',
+  feedback_vragenlijst: 'NULL',
+  feedback_herkomst: 'NULL',
+  updated_at: 'NULL',
+}
+
+async function bookingDetailSelectSql(env: Bindings) {
+  const existing = await bookingColumnSet(env)
+  const fields = Object.entries(bookingDetailColumns).map(([name, fallback]) =>
+    existing.has(name) ? name : `${fallback} AS ${name}`
+  )
+  fields.push(existing.has('contract_pdf')
+    ? `CASE WHEN contract_pdf IS NOT NULL AND contract_pdf != '' THEN 1 ELSE 0 END as has_contract_pdf`
+    : `0 as has_contract_pdf`)
+  fields.push(existing.has('billit_factuur_pdf')
+    ? `CASE WHEN billit_factuur_pdf IS NOT NULL AND billit_factuur_pdf != '' THEN 1 ELSE 0 END as has_billit_factuur_pdf`
+    : `0 as has_billit_factuur_pdf`)
+  return { select: fields.join(', '), existing }
 }
 
 // Initialize tables
@@ -516,41 +609,24 @@ bookingsRoutes.put('/:id/contract-info', async (c) => {
 // Get single booking — accepts either numeric id OR slug OR access_token
 bookingsRoutes.get('/:ref', async (c) => {
   const ref = c.req.param('ref')
-  // Try numeric id first, then slug, then access_token
   const isNumeric = /^\d+$/.test(ref)
-  // Kolommen zonder grote PDF blobs
-  const BOOKING_COLS = `id, access_token, slug, portal_title, feest_datum, type_feest, is_aanvraag,
-    status_contract, status_voorschot, status_vragenlijst,
-    naam_organisator, naam_partner1, naam_partner2, bedrijfsnaam, btw_nr, email, telefoon,
-    adres_organisator, locatie_naam, locatie_adres, aantal_gasten, thema, publiek_leeftijd,
-    parkeren_info, gelijkvloers, backup_contact_naam, backup_contact_telefoon, verzoeknummers,
-    uur_ceremonie, uur_receptie, uur_receptie_einde, uur_receptie2, uur_receptie2_einde,
-    uur_diner, uur_dessert, uur_dansfeest, uur_midnightsnack, einduur, planning_extra, einde_feest,
-    top_genres, top_genres_extra, flop_genres, flop_genres_extra,
-    must_play, do_not_play, spotify_link,
-    muziek_receptie, muziek_receptie_extra, muziek_diner, muziek_diner_extra,
-    intrede_zaal_nummer, intrede_eretafel_nummer, intrede_bridesmaids_nummer,
-    intrede_groomsmen_nummer, intrede_koppel_nummer, intrede_anders_nummer, intrede_taart_nummer,
-    openingsdans_nummer, tweede_dans_nummer, boeket_werpen_nummer, verjaardag_naam_leeftijd,
-    zaal_contact, geluidsbeperking_info, wifi_code,
-    speakers_aanwezig, licht_aanwezig, micro_aanwezig, dj_booth_aanwezig, uplights_aanwezig, speakers_buiten,
-    ceremonie_set, digital_booth, retro_booth, draadloze_speaker, karaoke,
-    toestemming_foto, opmerkingen, zaal_fotos, uitnodiging_files, handtekening_klant,
-    totaalprijs, basisprijs, extra_prijzen, voorschot_instructies, billit_factuur_naam,
-    venue_id, feedback_vragenlijst, feedback_herkomst,
-    created_at, updated_at, vragenlijst_updated_at, vragenlijst_first_submitted_at,
-    aanvraag_reminder_sent_at, review_sent_at, feest_herinnering_sent_at, vragenlijst_diff,
-    CASE WHEN contract_pdf IS NOT NULL AND contract_pdf != '' THEN 1 ELSE 0 END as has_contract_pdf,
-    CASE WHEN billit_factuur_pdf IS NOT NULL AND billit_factuur_pdf != '' THEN 1 ELSE 0 END as has_billit_factuur_pdf`
-
-  let booking = null
-  if (isNumeric) {
-    booking = await queryOne(c.env, `SELECT ${BOOKING_COLS} FROM bookings WHERE id = ?`, [ref])
-  } else {
-    booking = await queryOne(c.env, `SELECT ${BOOKING_COLS} FROM bookings WHERE slug = ? OR access_token = ?`, [ref, ref])
+  try {
+    const { select, existing } = await bookingDetailSelectSql(c.env)
+    let booking = null
+    if (isNumeric) {
+      booking = await queryOne(c.env, `SELECT ${select} FROM bookings WHERE id = ?`, [ref])
+    } else if (existing.has('slug') && existing.has('access_token')) {
+      booking = await queryOne(c.env, `SELECT ${select} FROM bookings WHERE slug = ? OR access_token = ?`, [ref, ref])
+    } else if (existing.has('slug')) {
+      booking = await queryOne(c.env, `SELECT ${select} FROM bookings WHERE slug = ?`, [ref])
+    } else if (existing.has('access_token')) {
+      booking = await queryOne(c.env, `SELECT ${select} FROM bookings WHERE access_token = ?`, [ref])
+    }
+    if (!booking) return c.json({ error: 'Not found' }, 404)
+    return c.json({ booking })
+  } catch (e: any) {
+    return c.json({ error: e?.message || 'Database query failed' }, 500)
   }
-  if (!booking) return c.json({ error: 'Not found' }, 404)
-  return c.json({ booking })
 })
 
 // Get PDF on demand (by numeric id, slug or access_token) — returns base64
