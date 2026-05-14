@@ -570,21 +570,40 @@ function BackupModal({ onClose, onImported }: { onClose: () => void; onImported:
         return
       }
 
-      const res = await fetch(`${API_ROOT}/api/export/import`, {
+      const endpoint = `${API_ROOT}/api/export/import`
+
+      // In local dev, API_ROOT is intentionally empty and Vite proxies /api to the backend.
+      // In a separately deployed static frontend, API_ROOT must point to the backend Worker.
+      const isLikelyStaticWorker = !API_ROOT && window.location.hostname.endsWith('.workers.dev')
+      if (isLikelyStaticWorker) {
+        setImportError('Geen backend-URL ingesteld voor deze deployment. Bouw de frontend opnieuw met VITE_API_URL=<jouw backend Worker URL>.')
+        setImporting(false)
+        return
+      }
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(json),
       })
-      const result = await res.json() as { success: boolean; imported: number; skipped: number; errors: string[]; error?: string }
 
-      if (!result.success) {
-        setImportError(result.error || 'Import mislukt')
+      const responseText = await res.text()
+      let result: { success: boolean; imported?: number; skipped?: number; errors?: string[]; error?: string }
+      try {
+        result = JSON.parse(responseText)
+      } catch {
+        throw new Error(`Backend gaf geen JSON terug (${res.status}). Endpoint: ${endpoint}. Antwoord: ${responseText.slice(0, 160)}`)
+      }
+
+      if (!res.ok || !result.success) {
+        setImportError(result.error || `Import mislukt (${res.status})`)
       } else {
-        setImportResult({ imported: result.imported, skipped: result.skipped, errors: result.errors || [] })
+        setImportResult({ imported: result.imported || 0, skipped: result.skipped || 0, errors: result.errors || [] })
         onImported() // herlaad de dashboard-lijst
       }
-    } catch {
-      setImportError('Verbindingsfout — controleer of de backend bereikbaar is.')
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Onbekende fout'
+      setImportError(`Verbindingsfout — controleer of de backend bereikbaar is. ${message}`)
     }
     setImporting(false)
     // reset file input zodat je hetzelfde bestand opnieuw kan kiezen
