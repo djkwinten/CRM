@@ -11,6 +11,7 @@ type Bindings = {
   SMTP_PORT?: string
   SMTP_USER?: string
   SMTP_PASS?: string
+  BREVO_API_KEY?: string
   SMTP_FROM?: string
   APP_URL?: string
 }
@@ -24,9 +25,9 @@ function getSmtpConfig(env: Bindings): SmtpConfig {
     host: env.SMTP_HOST || 'smtp.gmail.com',
     port: parseInt(env.SMTP_PORT || '587'),
     user: env.SMTP_USER || '',
-    pass: env.SMTP_PASS || '',
+    pass: env.BREVO_API_KEY || env.SMTP_PASS || '',
     from: env.SMTP_FROM || env.SMTP_USER || '',
-    brevoApiKey: env.SMTP_PASS || ''  // SMTP_PASS holds the Brevo API key
+    brevoApiKey: env.BREVO_API_KEY || env.SMTP_PASS || ''
   }
 }
 
@@ -336,7 +337,7 @@ remindersRoutes.post('/smtp-test', async (c) => {
   const ok = await verifySmtpConnection(cfg)
   return c.json({
     connected: ok,
-    message: ok ? 'E-mail service bereikbaar (Brevo API)' : 'Brevo API niet bereikbaar — controleer de SMTP_PASS (Brevo API key)',
+    message: ok ? 'E-mail service bereikbaar (Brevo API)' : 'Brevo API niet bereikbaar — controleer BREVO_API_KEY of SMTP_PASS (Brevo API key)',
     user: cfg.user || '(niet ingesteld)'
   })
 })

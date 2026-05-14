@@ -18,7 +18,7 @@ For full production functionality, create these resources in your own Cloudflare
 
 1. D1 database, for bookings and app data
 2. R2 bucket, for uploads/files
-3. Secret for the Brevo/API mail key
+3. Secret for the Brevo/API mail key (`BREVO_API_KEY`)
 
 Suggested names:
 
@@ -97,3 +97,22 @@ VITE_API_URL="https://your-backend-url" ./deploy.sh
 ## Current local preview
 
 For local development, the frontend uses relative `/api` requests and the Vite proxy sends them to the backend dev server on port `3001`.
+
+## Brevo e-mail secret
+
+The backend uses the Brevo HTTP API for e-mail. Set the API key as a Worker secret; do **not** commit it to `wrangler.toml`.
+
+Preferred secret name:
+
+```bash
+nxcode secret set djkwinten-bookingmanager-api BREVO_API_KEY 'xkeysib-...'
+```
+
+The old name `SMTP_PASS` is still supported for compatibility:
+
+```bash
+nxcode secret set djkwinten-bookingmanager-api SMTP_PASS 'xkeysib-...'
+```
+
+For local development, create `backend/.env` from `backend/.env.example` and fill in `BREVO_API_KEY`.
+Restart the backend dev server after changing `.env`.

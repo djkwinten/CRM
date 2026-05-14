@@ -11,6 +11,7 @@ type Bindings = {
   SMTP_PORT?: string
   SMTP_USER?: string
   SMTP_PASS?: string
+  BREVO_API_KEY?: string
   SMTP_FROM?: string
   APP_URL?: string
 }
@@ -128,9 +129,9 @@ function getSmtpConfig(env: Bindings): SmtpConfig {
     host: env.SMTP_HOST || 'smtp.gmail.com',
     port: parseInt(env.SMTP_PORT || '587'),
     user: env.SMTP_USER || '',
-    pass: env.SMTP_PASS || '',
+    pass: env.BREVO_API_KEY || env.SMTP_PASS || '',
     from: env.SMTP_FROM || env.SMTP_USER || '',
-    brevoApiKey: env.SMTP_PASS || ''
+    brevoApiKey: env.BREVO_API_KEY || env.SMTP_PASS || ''
   }
 }
 
