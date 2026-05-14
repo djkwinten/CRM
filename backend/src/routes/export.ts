@@ -9,6 +9,10 @@ export const exportRoutes = new Hono<{ Bindings: Bindings }>()
 
 // GET /api/export/bookings.json — volledige backup van alle boekingen
 exportRoutes.get('/bookings.json', async (c) => {
+  if (!c.env.DB) {
+    return c.json({ success: false, error: 'Database niet geconfigureerd. Koppel eerst een D1 database aan deze Worker.' }, 500)
+  }
+
   const bookings = await query(c.env, `SELECT * FROM bookings ORDER BY feest_datum ASC`)
   const exportData = {
     exported_at: new Date().toISOString(),
@@ -27,6 +31,10 @@ exportRoutes.get('/bookings.json', async (c) => {
 
 // GET /api/export/bookings.csv — CSV voor Excel/Numbers
 exportRoutes.get('/bookings.csv', async (c) => {
+  if (!c.env.DB) {
+    return c.json({ success: false, error: 'Database niet geconfigureerd. Koppel eerst een D1 database aan deze Worker.' }, 500)
+  }
+
   const bookings = await query(c.env, `
     SELECT id, feest_datum, type_feest, is_aanvraag,
            naam_organisator, naam_partner1, naam_partner2,
@@ -73,6 +81,13 @@ exportRoutes.get('/bookings.csv', async (c) => {
 
 // POST /api/export/import — herstel database vanuit JSON-backup
 exportRoutes.post('/import', async (c) => {
+  if (!c.env.DB) {
+    return c.json({
+      success: false,
+      error: 'Database niet geconfigureerd. De import kan niet worden opgeslagen. Koppel eerst een D1 database aan deze Worker.',
+    }, 500)
+  }
+
   // Alle geldige kolomnamen (whitelist — voorkomt SQL-injectie via kolomnamen)
   const ALLOWED_COLUMNS = new Set([
     'id', 'access_token', 'slug', 'feest_datum', 'type_feest', 'is_aanvraag',

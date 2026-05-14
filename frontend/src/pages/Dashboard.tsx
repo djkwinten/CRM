@@ -471,7 +471,7 @@ function NewBookingModal({ onClose, onCreated }: { onClose: () => void; onCreate
 
 function CalendarSubscribeModal({ onClose }: { onClose: () => void }) {
   const [copied, setCopied] = useState(false)
-  const API_ROOT = import.meta.env.VITE_API_URL || 'https://thr-15383d5e-djkwinten-app-api.nxcode-io.workers.dev'
+  const API_ROOT = import.meta.env.VITE_API_URL || ''
   const icsUrl = `${API_ROOT}/api/calendar/bookings.ics`
   const webcalUrl = icsUrl.replace(/^https?:/, 'webcal:')
 
@@ -545,7 +545,7 @@ function CalendarSubscribeModal({ onClose }: { onClose: () => void }) {
 }
 
 function BackupModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
-  const API_ROOT = import.meta.env.VITE_API_URL || 'https://thr-15383d5e-djkwinten-app-api.nxcode-io.workers.dev'
+  const API_ROOT = import.meta.env.VITE_API_URL || ''
   const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
