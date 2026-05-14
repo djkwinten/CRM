@@ -13,6 +13,7 @@ type Bindings = {
   DB?: D1Database
   CACHE?: KVNamespace
   STORAGE?: R2Bucket
+  ASSETS?: Fetcher
   ENVIRONMENT: string
 }
 
@@ -37,5 +38,18 @@ app.route('/api/calendar', calendarRoutes)
 app.route('/api/export', exportRoutes)
 app.route('/api/venues', venuesRoutes)
 app.route('/api/templates', templatesRoutes)
+
+// When this API is deployed together with the frontend assets, let React handle
+// all non-API routes such as /event/:slug, /vragenlijst/:slug, /agenda, etc.
+app.notFound((c) => {
+  const path = new URL(c.req.url).pathname
+  if (path.startsWith('/api/') || path === '/health') {
+    return c.json({ error: 'Not found' }, 404)
+  }
+  if (c.env.ASSETS) {
+    return c.env.ASSETS.fetch(c.req.raw)
+  }
+  return c.text('Not found', 404)
+})
 
 export default app

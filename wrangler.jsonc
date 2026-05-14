@@ -1,15 +1,31 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "crm",
+  "main": "backend/src/index.ts",
   "compatibility_date": "2026-05-14",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "observability": {
     "enabled": true
   },
   "assets": {
     "directory": "frontend",
+    "binding": "ASSETS",
     "not_found_handling": "single-page-application"
   },
-  "compatibility_flags": [
-    "nodejs_compat"
+  "vars": {
+    "ENVIRONMENT": "production",
+    "SMTP_HOST": "smtp.gmail.com",
+    "SMTP_PORT": "587",
+    "SMTP_USER": "djkwinten@gmail.com",
+    "APP_URL": "https://crm.dentandtkwinten.workers.dev"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "dj-booking-db",
+      "database_id": "25eee93e-26c4-4789-8cbc-3fd5f3a8c93d"
+    }
   ]
 }
