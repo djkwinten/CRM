@@ -544,6 +544,84 @@ function CalendarSubscribeModal({ onClose }: { onClose: () => void }) {
   )
 }
 
+type ImportApiResult = {
+  success: boolean
+  imported?: number
+  skipped?: number
+  total?: number
+  errors?: string[]
+  error?: string
+}
+
+function extractBookingsFromBackupBody(body: unknown): unknown[] | null {
+  if (Array.isArray(body)) return body
+  if (!body || typeof body !== 'object') return null
+
+  const obj = body as Record<string, unknown>
+  if (Array.isArray(obj.bookings)) return obj.bookings
+  if (Array.isArray(obj.data)) return obj.data
+  if (Array.isArray(obj.items)) return obj.items
+  if (Array.isArray(obj.records)) return obj.records
+  if (Array.isArray(obj.rows)) return obj.rows
+
+  for (const key of ['data', 'backup', 'export', 'payload']) {
+    const nested = obj[key]
+    if (nested && typeof nested === 'object') {
+      const nestedObj = nested as Record<string, unknown>
+      if (Array.isArray(nestedObj.bookings)) return nestedObj.bookings
+      if (Array.isArray(nestedObj.items)) return nestedObj.items
+      if (Array.isArray(nestedObj.records)) return nestedObj.records
+      if (Array.isArray(nestedObj.rows)) return nestedObj.rows
+    }
+  }
+
+  return null
+}
+
+function chunkBookingsBySize(bookings: unknown[], maxPayloadBytes = 350_000): unknown[][] {
+  const chunks: unknown[][] = []
+  let current: unknown[] = []
+  let currentSize = 20 // wrapper overhead for {"bookings":[]}
+
+  for (const booking of bookings) {
+    const bookingSize = JSON.stringify(booking).length + 2
+
+    if (current.length > 0 && currentSize + bookingSize > maxPayloadBytes) {
+      chunks.push(current)
+      current = []
+      currentSize = 20
+    }
+
+    current.push(booking)
+    currentSize += bookingSize
+  }
+
+  if (current.length > 0) chunks.push(current)
+  return chunks
+}
+
+async function postImportChunk(endpoint: string, bookings: unknown[]): Promise<ImportApiResult> {
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ bookings }),
+  })
+
+  const responseText = await res.text()
+  let result: ImportApiResult
+  try {
+    result = JSON.parse(responseText) as ImportApiResult
+  } catch {
+    throw new Error(`Backend gaf geen JSON terug (${res.status}). Endpoint: ${endpoint}. Antwoord: ${responseText.slice(0, 160)}`)
+  }
+
+  if (!res.ok || !result.success) {
+    throw new Error(result.error || `Import mislukt (${res.status})`)
+  }
+
+  return result
+}
+
 function BackupModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
   const API_ROOT = import.meta.env.VITE_API_URL || ''
   const [importing, setImporting] = useState(false)
@@ -581,26 +659,27 @@ function BackupModal({ onClose, onImported }: { onClose: () => void; onImported:
         return
       }
 
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(json),
-      })
-
-      const responseText = await res.text()
-      let result: { success: boolean; imported?: number; skipped?: number; errors?: string[]; error?: string }
-      try {
-        result = JSON.parse(responseText)
-      } catch {
-        throw new Error(`Backend gaf geen JSON terug (${res.status}). Endpoint: ${endpoint}. Antwoord: ${responseText.slice(0, 160)}`)
+      const bookingsToImport = extractBookingsFromBackupBody(json)
+      if (!bookingsToImport || bookingsToImport.length === 0) {
+        setImportError('Geen boekingen gevonden in het bestand. Ondersteunde formaten: { "bookings": [...] }, een directe array [...], { "data": [...] } of { "data": { "bookings": [...] } }.')
+        setImporting(false)
+        return
       }
 
-      if (!res.ok || !result.success) {
-        setImportError(result.error || `Import mislukt (${res.status})`)
-      } else {
-        setImportResult({ imported: result.imported || 0, skipped: result.skipped || 0, errors: result.errors || [] })
-        onImported() // herlaad de dashboard-lijst
+      const chunks = chunkBookingsBySize(bookingsToImport)
+      let imported = 0
+      let skipped = 0
+      const errors: string[] = []
+
+      for (let i = 0; i < chunks.length; i++) {
+        const result = await postImportChunk(endpoint, chunks[i])
+        imported += result.imported || 0
+        skipped += result.skipped || 0
+        errors.push(...(result.errors || []))
       }
+
+      setImportResult({ imported, skipped, errors: errors.slice(0, 10) })
+      onImported() // herlaad de dashboard-lijst
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Onbekende fout'
       setImportError(`Verbindingsfout — controleer of de backend bereikbaar is. ${message}`)
