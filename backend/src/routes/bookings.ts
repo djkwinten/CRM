@@ -999,6 +999,9 @@ bookingsRoutes.patch('/:id/basisinfo', async (c) => {
 // Delete booking
 bookingsRoutes.delete('/:id', async (c) => {
   const id = c.req.param('id')
+  // Ruim gekoppelde records eerst op, zodat oude D1 databases met FK constraints niet falen.
+  try { await execute(c.env, 'DELETE FROM booking_files WHERE booking_id = ?', [id]) } catch { /* table may not exist */ }
+  try { await execute(c.env, 'DELETE FROM booking_contract_info WHERE booking_id = ?', [id]) } catch { /* table may not exist */ }
   await execute(c.env, 'DELETE FROM bookings WHERE id = ?', [id])
   return c.json({ success: true })
 })
