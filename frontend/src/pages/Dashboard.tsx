@@ -223,7 +223,7 @@ function MailPreviewModal({ booking, templateKey, onClose, onSent }: { booking: 
 }
 
 function NewBookingModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [form, setForm] = useState<{ is_aanvraag: boolean; feest_datum: string; type_feest: 'Trouw' | 'Algemeen'; is_verjaardag: boolean; naam_organisator: string; naam_partner1: string; naam_partner2: string; naam_jarige: string; email: string; telefoon: string; adres_organisator: string; basisprijs: string; locatie_naam: string; locatie_adres: string; venue_id: number | null; speakers_aanwezig: boolean; licht_aanwezig: boolean; dj_booth_aanwezig: boolean; opmerkingen: string }>({ is_aanvraag: true, feest_datum: '', type_feest: 'Algemeen', is_verjaardag: false, naam_organisator: '', naam_partner1: '', naam_partner2: '', naam_jarige: '', email: '', telefoon: '', adres_organisator: '', basisprijs: '', locatie_naam: '', locatie_adres: '', venue_id: null, speakers_aanwezig: false, licht_aanwezig: false, dj_booth_aanwezig: false, opmerkingen: '' })
+  const [form, setForm] = useState<{ is_aanvraag: boolean; feest_datum: string; type_feest: 'Trouw' | 'Algemeen'; is_verjaardag: boolean; naam_organisator: string; naam_partner1: string; naam_partner2: string; naam_jarige: string; email: string; telefoon: string; adres_organisator: string; btw_nr: string; basisprijs: string; locatie_naam: string; locatie_adres: string; venue_id: number | null; speakers_aanwezig: boolean; licht_aanwezig: boolean; dj_booth_aanwezig: boolean; opmerkingen: string }>({ is_aanvraag: true, feest_datum: '', type_feest: 'Algemeen', is_verjaardag: false, naam_organisator: '', naam_partner1: '', naam_partner2: '', naam_jarige: '', email: '', telefoon: '', adres_organisator: '', btw_nr: '', basisprijs: '', locatie_naam: '', locatie_adres: '', venue_id: null, speakers_aanwezig: false, licht_aanwezig: false, dj_booth_aanwezig: false, opmerkingen: '' })
   const [loading, setLoading] = useState(false)
   const [venueSuggestions, setVenueSuggestions] = useState<VenueSuggestion[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -241,6 +241,7 @@ function NewBookingModal({ onClose, onCreated }: { onClose: () => void; onCreate
     }
     const payload: Record<string, unknown> = { feest_datum: form.feest_datum, type_feest: form.type_feest, naam_organisator: naamOrganisator, email: form.email, telefoon: form.telefoon, is_aanvraag: form.is_aanvraag ? 1 : 0 }
     if (form.adres_organisator) payload.adres_organisator = form.adres_organisator
+    if (form.btw_nr) payload.btw_nr = form.btw_nr
     if (form.basisprijs) payload.basisprijs = parseFloat(form.basisprijs)
     if (form.naam_partner1) payload.naam_partner1 = form.naam_partner1
     if (form.naam_partner2) payload.naam_partner2 = form.naam_partner2
@@ -355,6 +356,11 @@ function NewBookingModal({ onClose, onCreated }: { onClose: () => void; onCreate
           <div>
             <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Adres klant/opdrachtgever</label>
             <input type="text" placeholder="Straat nr, postcode gemeente" value={form.adres_organisator} onChange={e => setForm(p => ({...p, adres_organisator: e.target.value}))}
+              className="mt-1 w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-3 py-2.5 focus:outline-none focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/20 placeholder-gray-400 transition-all" />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">BTW-nummer <span className="normal-case text-gray-400">optioneel</span></label>
+            <input type="text" placeholder="BE 0123.456.789" value={form.btw_nr} onChange={e => setForm(p => ({...p, btw_nr: e.target.value}))}
               className="mt-1 w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-3 py-2.5 focus:outline-none focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/20 placeholder-gray-400 transition-all" />
           </div>
           <div className="relative">

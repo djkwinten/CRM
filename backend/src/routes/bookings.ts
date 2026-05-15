@@ -727,9 +727,9 @@ bookingsRoutes.post('/', async (c) => {
     if (match) venueId = match.id
   }
   const result = await execute(c.env, `
-    INSERT INTO bookings (feest_datum, type_feest, naam_organisator, naam_partner1, naam_partner2, email, telefoon, adres_organisator, access_token, slug, basisprijs, verjaardag_naam_leeftijd, is_aanvraag, locatie_naam, locatie_adres, speakers_aanwezig, licht_aanwezig, dj_booth_aanwezig, opmerkingen, venue_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [datum, type, naam, body.naam_partner1 ?? null, body.naam_partner2 ?? null, body.email || '', body.telefoon || '', body.adres_organisator ?? null, token, finalSlug, body.basisprijs ?? null, body.verjaardag_naam_leeftijd ?? null, isAanvraag, body.locatie_naam ?? null, body.locatie_adres ?? null, body.speakers_aanwezig ? 1 : 0, body.licht_aanwezig ? 1 : 0, body.dj_booth_aanwezig ? 1 : 0, body.opmerkingen ?? null, venueId])
+    INSERT INTO bookings (feest_datum, type_feest, naam_organisator, naam_partner1, naam_partner2, email, telefoon, adres_organisator, btw_nr, access_token, slug, basisprijs, verjaardag_naam_leeftijd, is_aanvraag, locatie_naam, locatie_adres, speakers_aanwezig, licht_aanwezig, dj_booth_aanwezig, opmerkingen, venue_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `, [datum, type, naam, body.naam_partner1 ?? null, body.naam_partner2 ?? null, body.email || '', body.telefoon || '', body.adres_organisator ?? null, body.btw_nr ?? null, token, finalSlug, body.basisprijs ?? null, body.verjaardag_naam_leeftijd ?? null, isAanvraag, body.locatie_naam ?? null, body.locatie_adres ?? null, body.speakers_aanwezig ? 1 : 0, body.licht_aanwezig ? 1 : 0, body.dj_booth_aanwezig ? 1 : 0, body.opmerkingen ?? null, venueId])
   return c.json({ success: true, id: result.lastRowId, slug: finalSlug, access_token: token })
 })
 
