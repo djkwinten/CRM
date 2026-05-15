@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { verifySmtpConnection, SmtpConfig } from '../lib/mailer'
+import { checkBrevoConnection, SmtpConfig } from '../lib/mailer'
 
 type Bindings = {
   ENVIRONMENT: string
@@ -44,16 +44,18 @@ mailRoutes.get('/status', async (c) => {
     }, 200)
   }
 
-  const verified = await verifySmtpConnection(cfg)
+  const status = await checkBrevoConnection(cfg)
   return c.json({
-    ok: verified,
+    ok: status.ok,
     provider: 'brevo',
-    configured: true,
+    configured: status.configured,
     has_api_key: true,
     has_sender: true,
     sender: cfg.from,
-    message: verified
+    brevo_status: status.status || null,
+    brevo_error: status.error || null,
+    message: status.ok
       ? 'Brevo API key is geldig en bereikbaar.'
       : 'Brevo API key is aanwezig, maar Brevo accepteert hem niet of de API is niet bereikbaar.',
-  }, verified ? 200 : 502)
+  }, status.ok ? 200 : 502)
 })

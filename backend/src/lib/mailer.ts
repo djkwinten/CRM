@@ -50,17 +50,39 @@ export async function sendViaBrevo(
   }
 }
 
-export async function verifySmtpConnection(cfg: SmtpConfig): Promise<boolean> {
-  // Test by calling the Brevo account endpoint — no email sent
+export interface BrevoConnectionStatus {
+  ok: boolean
+  configured: boolean
+  status?: number
+  error?: string
+}
+
+export async function checkBrevoConnection(cfg: SmtpConfig): Promise<BrevoConnectionStatus> {
+  // Test by calling the Brevo account endpoint — no email sent.
+  const apiKey = cfg.brevoApiKey || cfg.pass
+  if (!apiKey) return { ok: false, configured: false, error: 'BREVO_API_KEY ontbreekt' }
+
   try {
-    const apiKey = cfg.brevoApiKey || cfg.pass
     const res = await fetch('https://api.brevo.com/v3/account', {
       headers: { 'api-key': apiKey },
     })
-    return res.ok
-  } catch {
-    return false
+    if (res.ok) return { ok: true, configured: true, status: res.status }
+
+    const body = await res.text().catch(() => '')
+    let message = body.slice(0, 300)
+    try {
+      const parsed = JSON.parse(body) as { message?: string; code?: string }
+      message = [parsed.code, parsed.message].filter(Boolean).join(': ') || message
+    } catch { /* keep raw body */ }
+    return { ok: false, configured: true, status: res.status, error: message || `Brevo HTTP ${res.status}` }
+  } catch (e: any) {
+    return { ok: false, configured: true, error: e?.message || 'Brevo API niet bereikbaar' }
   }
+}
+
+export async function verifySmtpConnection(cfg: SmtpConfig): Promise<boolean> {
+  const status = await checkBrevoConnection(cfg)
+  return status.ok
 }
 
 export interface ReminderMailOptions {

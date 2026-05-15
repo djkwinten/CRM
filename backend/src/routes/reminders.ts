@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { query, queryOne, execute } from '../lib/db'
-import { sendReminderEmail, sendAanvraagReminderEmail, sendReviewEmail, sendFeestHerinneringEmail, verifySmtpConnection, SmtpConfig } from '../lib/mailer'
+import { sendReminderEmail, sendAanvraagReminderEmail, sendReviewEmail, sendFeestHerinneringEmail, checkBrevoConnection, verifySmtpConnection, SmtpConfig } from '../lib/mailer'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
 
@@ -334,10 +334,17 @@ remindersRoutes.post('/feest-herinnering-send/:id', async (c) => {
 
 remindersRoutes.post('/smtp-test', async (c) => {
   const cfg = getSmtpConfig(c.env)
-  const ok = await verifySmtpConnection(cfg)
+  const status = await checkBrevoConnection(cfg)
   return c.json({
-    connected: ok,
-    message: ok ? 'E-mail service bereikbaar (Brevo API)' : 'Brevo API niet bereikbaar — controleer BREVO_API_KEY of SMTP_PASS (Brevo API key)',
+    connected: status.ok,
+    configured: status.configured,
+    brevo_status: status.status || null,
+    brevo_error: status.error || null,
+    message: status.ok
+      ? 'E-mail service bereikbaar (Brevo API)'
+      : !status.configured
+        ? 'BREVO_API_KEY secret ontbreekt op de Cloudflare Worker.'
+        : 'Brevo API key aanwezig, maar Brevo accepteert hem niet of de API is niet bereikbaar.',
     user: cfg.user || '(niet ingesteld)'
-  })
+  }, status.ok || !status.configured ? 200 : 502)
 })
