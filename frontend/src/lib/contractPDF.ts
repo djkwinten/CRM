@@ -19,7 +19,7 @@ const VOORSCHOT = 100
 const EXTRA_LABELS: Record<string, string> = {
   ceremonie_set: 'Ceremonie Set',
   digital_booth: 'Digitale Photobooth',
-  retro_booth: 'Photobooth met Prints',
+  retro_booth: 'Luxe Photobooth met prints',
   draadloze_speaker: 'Extra Luidspreker Receptie',
   karaoke: 'Karaoke',
 }
@@ -212,45 +212,8 @@ function _buildContractPDF(booking: Booking): jsPDF {
 
   y = (doc as any).lastAutoTable.finalY + 5
 
-  // Planning
-  const planningItems = [
-    ['Ceremonie', fmt(booking.uur_ceremonie)],
-    ['Receptie', fmt(booking.uur_receptie)],
-    ['Diner', fmt(booking.uur_diner)],
-    ['Dessert', fmt(booking.uur_dessert)],
-    ['Dansfeest', fmt(booking.uur_dansfeest)],
-    ['Midnight Snack', fmt(booking.uur_midnightsnack)],
-    ['Einduur', fmt(booking.einduur)],
-  ].filter(([, v]) => v !== '—')
-
-  if (planningItems.length > 0) {
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(8.5)
-    doc.setTextColor(80, 80, 80)
-    doc.text('Planning', margin, y + 4)
-    y += 6
-
-    const half = Math.ceil(planningItems.length / 2)
-    const left = planningItems.slice(0, half)
-    const right = planningItems.slice(half)
-    const rows = left.map((l, i) => [...l, ...(right[i] || ['', ''])])
-
-    autoTable(doc, {
-      startY: y,
-      margin: { left: margin, right: margin },
-      theme: 'plain',
-      styles: { fontSize: 8, cellPadding: { top: 2, bottom: 2, left: 4, right: 4 } },
-      columnStyles: {
-        0: { fontStyle: 'bold', textColor: [80, 80, 80], cellWidth: 35 },
-        1: { fontStyle: 'bold', textColor: [0, 100, 200], cellWidth: 25 },
-        2: { fontStyle: 'bold', textColor: [80, 80, 80], cellWidth: 35 },
-        3: { fontStyle: 'bold', textColor: [0, 100, 200], cellWidth: 25 },
-      },
-      body: rows,
-      alternateRowStyles: { fillColor: [245, 248, 255] },
-    })
-    y = (doc as any).lastAutoTable.finalY + 5
-  }
+  // Tijdschema bewust niet opnemen in het contract.
+  // Het contract bevat enkel de basis eventgegevens, financiële afspraken en voorwaarden.
 
   // ── SECTIE 3: FINANCIËLE AFSPRAKEN ───────────────────────────────────────
   doc.setTextColor(0, 122, 255)

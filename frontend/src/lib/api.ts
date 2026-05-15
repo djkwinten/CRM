@@ -154,6 +154,8 @@ export async function saveContractInfo(id: number, payload: Partial<BookingContr
   saveLocalContractInfo(id, payload)
   updateLocalBooking(id, {
     basisprijs: payload.basisprijs ?? undefined,
+    aantal_gasten: payload.aantal_gasten ?? undefined,
+    uur_dansfeest: payload.uur_dansfeest ?? undefined,
     extra_prijzen: payload.extra_prijzen ?? undefined,
     ceremonie_set: payload.ceremonie_set,
     digital_booth: payload.digital_booth,

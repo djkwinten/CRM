@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { Save } from 'lucide-react'
 import { BookingContractInfo } from '../types'
-import { saveContractInfo } from '../../../lib/api'
+import { saveContractInfo, suggestVenues } from '../../../lib/api'
 import { AutosaveIndicator } from './AutosaveIndicator'
 
 
 const EXTRA_OPTIONS = [
-  { key: 'ceremonie_set', label: 'Ceremonie set' },
-  { key: 'digital_booth', label: 'Digital booth' },
-  { key: 'retro_booth', label: 'Retro booth met prints' },
-  { key: 'draadloze_speaker', label: 'Draadloze speaker' },
-  { key: 'karaoke', label: 'Karaoke' },
+  { key: 'ceremonie_set', label: 'Ceremonie set', link: 'https://djkwinten.be/formules/ceremonie', description: 'Ceremonie met aparte set-up voor muziek en microfoon.' },
+  { key: 'digital_booth', label: 'Digitale Photobooth', link: 'https://djkwinten.be/formules/photobooth', description: 'Digitale photobooth zonder prints, ideaal om foto’s digitaal te delen.' },
+  { key: 'retro_booth', label: 'Luxe Photobooth met prints', link: 'https://djkwinten.be/formules/photobooth', description: 'Luxe photobooth inclusief prints voor gasten.' },
+  { key: 'draadloze_speaker', label: 'Draadloze speaker', link: '', description: 'Extra draadloze speaker voor receptie, ceremonie of aparte ruimte.' },
+  { key: 'karaoke', label: 'Karaoke', link: 'https://djkwinten.be/formules/karaoke', description: 'Karaokeformule als extra animatie tijdens het feest.' },
 ] as const
 
 type ExtraKey = typeof EXTRA_OPTIONS[number]['key']
@@ -75,6 +75,16 @@ export function ContractInfoForm({
     update('extra_prijzen', JSON.stringify(next))
   }
 
+  const handleVenueBlur = async () => {
+    if (readOnly || form.locatie_adres?.trim() || !form.locatie_naam?.trim()) return
+    try {
+      const venues = await suggestVenues(form.locatie_naam)
+      const exact = venues.find(v => v.naam.toLowerCase() === form.locatie_naam.toLowerCase())
+      const match = exact || venues[0]
+      if (match?.adres) update('locatie_adres', match.adres)
+    } catch { /* geen automatische zaal gevonden */ }
+  }
+
   const Toggle = ({ value, onChange, children }: { value: boolean; onChange: (v: boolean) => void; children: React.ReactNode }) => (
     <button
       type="button"
@@ -121,8 +131,10 @@ export function ContractInfoForm({
         <div className="grid sm:grid-cols-2 gap-3">
           <div><label className={label}>Event type *</label><input value={form.event_type || ''} onChange={e => update('event_type', e.target.value)} className={input} disabled={readOnly} /></div>
           <div><label className={label}>Datum *</label><input type="date" value={form.event_datum || ''} onChange={e => update('event_datum', e.target.value)} className={input} disabled={readOnly} /></div>
-          <div><label className={label}>Locatie naam *</label><input value={form.locatie_naam || ''} onChange={e => update('locatie_naam', e.target.value)} className={input} disabled={readOnly} /></div>
-          <div><label className={label}>Locatie adres *</label><input value={form.locatie_adres || ''} onChange={e => update('locatie_adres', e.target.value)} className={input} disabled={readOnly} /></div>
+          <div><label className={label}>Locatie naam *</label><input value={form.locatie_naam || ''} onChange={e => update('locatie_naam', e.target.value)} onBlur={handleVenueBlur} className={input} disabled={readOnly} placeholder="Typ een gekende zaalnaam" /></div>
+          <div><label className={label}>Locatie adres *</label><input value={form.locatie_adres || ''} onChange={e => update('locatie_adres', e.target.value)} className={input} disabled={readOnly} placeholder="Wordt automatisch ingevuld bij gekende zaal" /></div>
+          <div><label className={label}>Aantal gasten</label><input type="number" min="0" value={form.aantal_gasten ?? ''} onChange={e => update('aantal_gasten', e.target.value === '' ? null : Number(e.target.value))} className={input} disabled={readOnly} placeholder="Bijv. 150" /></div>
+          <div><label className={label}>Gewenste start dansfeest</label><input type="time" value={form.uur_dansfeest || ''} onChange={e => update('uur_dansfeest', e.target.value)} className={input} disabled={readOnly} /></div>
         </div>
       </section>
 
@@ -139,17 +151,30 @@ export function ContractInfoForm({
         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Extra's</p>
         <p className="text-xs text-gray-400">Kies hier eventuele extra opties. Deze worden opgeslagen op de boeking en meegenomen in de overeenkomst.</p>
         <div className="grid sm:grid-cols-2 gap-2">
-          {EXTRA_OPTIONS.map(extra => (
-            <div key={extra.key} className="space-y-2">
-              <Toggle value={!!form[extra.key]} onChange={v => update(extra.key, v ? 1 : 0)}>{extra.label}</Toggle>
-              {showFinancial && !!form[extra.key] && (
-                <div>
-                  <label className={label}>Prijs {extra.label}</label>
-                  <input type="number" min="0" step="0.01" value={extraPrices[extra.key] ?? ''} onChange={e => updateExtraPrice(extra.key, e.target.value)} className={input} disabled={readOnly} placeholder="0.00" />
-                </div>
-              )}
-            </div>
-          ))}
+          {EXTRA_OPTIONS.map(extra => {
+            const prijs = extraPrices[extra.key]
+            return (
+              <div key={extra.key} className="space-y-2 rounded-2xl border border-gray-200 bg-gray-50 p-3">
+                <Toggle value={!!form[extra.key]} onChange={v => update(extra.key, v ? 1 : 0)}>
+                  <span className="flex flex-col items-start text-left">
+                    <span>{extra.label}{prijs !== undefined ? ` · €${Number(prijs).toFixed(2).replace('.', ',')}` : ''}</span>
+                    <span className="text-[11px] font-normal opacity-75 mt-0.5">{extra.description}</span>
+                  </span>
+                </Toggle>
+                {extra.link && (
+                  <a href={extra.link} target="_blank" rel="noopener noreferrer" className="inline-flex text-xs font-semibold text-[#007AFF] hover:underline">
+                    Meer info over {extra.label}
+                  </a>
+                )}
+                {showFinancial && !!form[extra.key] && (
+                  <div>
+                    <label className={label}>Prijs {extra.label}</label>
+                    <input type="number" min="0" step="0.01" value={extraPrices[extra.key] ?? ''} onChange={e => updateExtraPrice(extra.key, e.target.value)} className={input} disabled={readOnly} placeholder="0.00" />
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       </section>
 

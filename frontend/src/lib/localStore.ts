@@ -192,6 +192,8 @@ export function deriveContractInfo(b: Booking): BookingContractInfo {
     event_datum: b.feest_datum || '',
     locatie_naam: b.locatie_naam || '',
     locatie_adres: b.locatie_adres || '',
+    aantal_gasten: b.aantal_gasten || null,
+    uur_dansfeest: b.uur_dansfeest || '',
     geluid_voorzien: b.speakers_aanwezig ? 1 : 0,
     licht_voorzien: b.licht_aanwezig ? 1 : 0,
     dj_booth_nodig: b.dj_booth_aanwezig ? 1 : 0,

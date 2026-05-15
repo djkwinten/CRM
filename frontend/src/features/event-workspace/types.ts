@@ -21,6 +21,8 @@ export interface BookingContractInfo {
   event_datum: string
   locatie_naam: string
   locatie_adres: string
+  aantal_gasten?: number | null
+  uur_dansfeest?: string | null
   geluid_voorzien: number
   licht_voorzien: number
   dj_booth_nodig: number

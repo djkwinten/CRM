@@ -442,6 +442,8 @@ bookingsRoutes.get('/:id/contract-info', async (c) => {
       event_datum TEXT,
       locatie_naam TEXT,
       locatie_adres TEXT,
+      aantal_gasten INTEGER,
+      uur_dansfeest TEXT,
       geluid_voorzien INTEGER DEFAULT 0,
       licht_voorzien INTEGER DEFAULT 0,
       dj_booth_nodig INTEGER DEFAULT 0,
@@ -455,6 +457,8 @@ bookingsRoutes.get('/:id/contract-info', async (c) => {
     )
   `)
   try { await execute(c.env, `ALTER TABLE booking_contract_info ADD COLUMN klant_adres TEXT`) } catch { /* already exists */ }
+  try { await execute(c.env, `ALTER TABLE booking_contract_info ADD COLUMN aantal_gasten INTEGER`) } catch { /* already exists */ }
+  try { await execute(c.env, `ALTER TABLE booking_contract_info ADD COLUMN uur_dansfeest TEXT`) } catch { /* already exists */ }
 
   const existing = await queryOne(c.env, `SELECT * FROM booking_contract_info WHERE booking_id = ?`, [id])
   if (existing) return c.json({ contract_info: existing })
@@ -474,6 +478,8 @@ bookingsRoutes.get('/:id/contract-info', async (c) => {
     speakers_aanwezig: number | null
     licht_aanwezig: number | null
     dj_booth_aanwezig: number | null
+    aantal_gasten: number | null
+    uur_dansfeest: string | null
     totaalprijs: number | null
     basisprijs: number | null
     extra_prijzen: string | null
@@ -485,7 +491,7 @@ bookingsRoutes.get('/:id/contract-info', async (c) => {
   }>(c.env, `
     SELECT id, naam_organisator, naam_partner1, naam_partner2, email, telefoon, adres_organisator,
            type_feest, feest_datum, locatie_naam, locatie_adres,
-           speakers_aanwezig, licht_aanwezig, dj_booth_aanwezig, totaalprijs, basisprijs, extra_prijzen,
+           speakers_aanwezig, licht_aanwezig, dj_booth_aanwezig, aantal_gasten, uur_dansfeest, totaalprijs, basisprijs, extra_prijzen,
            ceremonie_set, digital_booth, retro_booth, draadloze_speaker, karaoke
     FROM bookings WHERE id = ?
   `, [id])
@@ -506,6 +512,8 @@ bookingsRoutes.get('/:id/contract-info', async (c) => {
       event_datum: b.feest_datum || '',
       locatie_naam: b.locatie_naam || '',
       locatie_adres: b.locatie_adres || '',
+      aantal_gasten: b.aantal_gasten || null,
+      uur_dansfeest: b.uur_dansfeest || '',
       geluid_voorzien: b.speakers_aanwezig ? 1 : 0,
       licht_voorzien: b.licht_aanwezig ? 1 : 0,
       dj_booth_nodig: b.dj_booth_aanwezig ? 1 : 0,
@@ -541,6 +549,8 @@ bookingsRoutes.put('/:id/contract-info', async (c) => {
       event_datum TEXT,
       locatie_naam TEXT,
       locatie_adres TEXT,
+      aantal_gasten INTEGER,
+      uur_dansfeest TEXT,
       geluid_voorzien INTEGER DEFAULT 0,
       licht_voorzien INTEGER DEFAULT 0,
       dj_booth_nodig INTEGER DEFAULT 0,
@@ -554,13 +564,15 @@ bookingsRoutes.put('/:id/contract-info', async (c) => {
     )
   `)
   try { await execute(c.env, `ALTER TABLE booking_contract_info ADD COLUMN klant_adres TEXT`) } catch { /* already exists */ }
+  try { await execute(c.env, `ALTER TABLE booking_contract_info ADD COLUMN aantal_gasten INTEGER`) } catch { /* already exists */ }
+  try { await execute(c.env, `ALTER TABLE booking_contract_info ADD COLUMN uur_dansfeest TEXT`) } catch { /* already exists */ }
 
   await execute(c.env, `
     INSERT INTO booking_contract_info (
       booking_id, naam, email, gsm, klant_adres, event_type, event_datum, locatie_naam, locatie_adres,
-      geluid_voorzien, licht_voorzien, dj_booth_nodig, afgesproken_prijs, voorschot_bedrag,
+      aantal_gasten, uur_dansfeest, geluid_voorzien, licht_voorzien, dj_booth_nodig, afgesproken_prijs, voorschot_bedrag,
       contract_ready, notes, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     ON CONFLICT(booking_id) DO UPDATE SET
       naam = excluded.naam,
       email = excluded.email,
@@ -570,6 +582,8 @@ bookingsRoutes.put('/:id/contract-info', async (c) => {
       event_datum = excluded.event_datum,
       locatie_naam = excluded.locatie_naam,
       locatie_adres = excluded.locatie_adres,
+      aantal_gasten = excluded.aantal_gasten,
+      uur_dansfeest = excluded.uur_dansfeest,
       geluid_voorzien = excluded.geluid_voorzien,
       licht_voorzien = excluded.licht_voorzien,
       dj_booth_nodig = excluded.dj_booth_nodig,
@@ -588,6 +602,8 @@ bookingsRoutes.put('/:id/contract-info', async (c) => {
     body.event_datum ?? null,
     body.locatie_naam ?? null,
     body.locatie_adres ?? null,
+    body.aantal_gasten === '' || body.aantal_gasten == null ? null : Number(body.aantal_gasten),
+    body.uur_dansfeest ?? null,
     bool(body.geluid_voorzien),
     bool(body.licht_voorzien),
     bool(body.dj_booth_nodig),
@@ -614,6 +630,8 @@ bookingsRoutes.put('/:id/contract-info', async (c) => {
   addText('feest_datum', body.event_datum)
   addText('locatie_naam', body.locatie_naam)
   addText('locatie_adres', body.locatie_adres)
+  addText('uur_dansfeest', body.uur_dansfeest)
+  if (body.aantal_gasten !== undefined) { syncFields.push('aantal_gasten = ?'); syncValues.push(body.aantal_gasten === '' || body.aantal_gasten == null ? null : Number(body.aantal_gasten)) }
   if (body.geluid_voorzien !== undefined) { syncFields.push('speakers_aanwezig = ?'); syncValues.push(bool(body.geluid_voorzien)) }
   if (body.licht_voorzien !== undefined) { syncFields.push('licht_aanwezig = ?'); syncValues.push(bool(body.licht_voorzien)) }
   if (body.dj_booth_nodig !== undefined) { syncFields.push('dj_booth_aanwezig = ?'); syncValues.push(bool(body.dj_booth_nodig)) }
