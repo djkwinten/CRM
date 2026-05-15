@@ -1,16 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft, Mail, RefreshCw, Bell, CheckCircle2, XCircle,
-  Clock, Send, AlertTriangle, Wifi, WifiOff, Play,
+  ArrowLeft, RefreshCw, Bell,
+  Send, Wifi, WifiOff, Play,
   Plus, Trash2, Square, CheckSquare
 } from 'lucide-react'
 import {
-  getReminderStatuses, runReminderCheck, sendReminder, testSmtp,
+  getReminderStatuses, runReminderCheck, testSmtp,
   ReminderStatus
 } from '../lib/api'
-import { format, parseISO } from 'date-fns'
-import { nl } from 'date-fns/locale'
 import { BottomTabBar } from '../components/BottomTabBar'
 
 // ── To-do types & storage ─────────────────────────────────────────────────────
@@ -33,39 +31,12 @@ function saveTodos(todos: Todo[]) {
   localStorage.setItem('dj_todos', JSON.stringify(todos))
 }
 
-// ── Status pill ───────────────────────────────────────────────────────────────
-
-function StatusPill({ needs, sent, done }: { needs: boolean; sent: string | null; done: boolean }) {
-  if (done) return (
-    <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-green-50 text-green-600 border border-green-200">
-      <CheckCircle2 size={11} /> Ingevuld
-    </span>
-  )
-  if (sent) return (
-    <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-blue-50 text-blue-600 border border-blue-200">
-      <Mail size={11} /> Herinnering verstuurd
-    </span>
-  )
-  if (needs) return (
-    <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-orange-50 text-orange-500 border border-orange-200">
-      <AlertTriangle size={11} /> Herinnering nodig
-    </span>
-  )
-  return (
-    <span className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-400 border border-gray-200">
-      <Clock size={11} /> Wacht
-    </span>
-  )
-}
-
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function Reminders() {
   const navigate = useNavigate()
   const [statuses, setStatuses] = useState<ReminderStatus[]>([])
-  const [loading, setLoading] = useState(true)
   const [running, setRunning] = useState(false)
-  const [sendingId, setSendingId] = useState<number | null>(null)
   const [lastResult, setLastResult] = useState<{ sent: number; checked: number } | null>(null)
   const [smtp, setSmtp] = useState<{ connected: boolean; message: string } | null>(null)
   const [testingSmtp, setTestingSmtp] = useState(false)
@@ -75,10 +46,8 @@ export function Reminders() {
   const [newTodo, setNewTodo] = useState('')
 
   const load = useCallback(async () => {
-    setLoading(true)
     const data = await getReminderStatuses()
     setStatuses(data)
-    setLoading(false)
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -116,18 +85,6 @@ export function Reminders() {
       alert('Fout bij uitvoeren van check. Controleer je SMTP-instellingen.')
     }
     setRunning(false)
-  }
-
-  const handleSendOne = async (id: number, naam: string) => {
-    if (!confirm(`Herinnering sturen naar ${naam}?`)) return
-    setSendingId(id)
-    const result = await sendReminder(id)
-    if (result.success) {
-      await load()
-    } else {
-      alert(`Fout: ${result.error}\n\nControleer je SMTP-instellingen in backend/.env`)
-    }
-    setSendingId(null)
   }
 
   const handleSmtpTest = async () => {
@@ -274,83 +231,7 @@ export function Reminders() {
           )}
         </div>
 
-        {/* ── Booking list ── */}
-        <div className="space-y-3">
-          <h2 className="font-semibold text-gray-500 text-sm uppercase tracking-wider">
-            Bevestigde Boekingen ({boekingen.length})
-          </h2>
-
-          {loading ? (
-            <div className="text-center py-12 text-gray-400 animate-pulse">Laden...</div>
-          ) : boekingen.length === 0 ? (
-            <div className="text-center py-12 text-gray-400">Geen bevestigde boekingen gevonden</div>
-          ) : (
-            boekingen.map(s => {
-              const isSending = sendingId === s.id
-              const dateStr = s.feest_datum
-                ? format(parseISO(s.feest_datum), 'd MMM yyyy', { locale: nl })
-                : '—'
-
-              return (
-                <div key={s.id}
-                  className={`bg-white rounded-2xl p-4 transition-all ${
-                    s.needs_reminder
-                      ? 'shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_16px_rgba(0,0,0,0.04)] ring-1 ring-orange-200'
-                      : 'shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_16px_rgba(0,0,0,0.04)]'
-                  }`}>
-                  <div className="flex items-center gap-4">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                        <span className="font-semibold text-gray-900 text-sm">{s.naam || '—'}</span>
-                        <StatusPill needs={s.needs_reminder} sent={s.reminder_sent_at} done={!!s.status_vragenlijst} />
-                      </div>
-                      <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 mt-1">
-                        <span className="text-xs text-gray-400 flex items-center gap-1">
-                          <Clock size={11} /> {dateStr}
-                          {s.days_until > 0
-                            ? <span className={`ml-1 font-medium ${s.days_until <= 30 ? 'text-orange-500' : 'text-gray-400'}`}>
-                                ({s.days_until} dagen)
-                              </span>
-                            : <span className="ml-1 text-red-400">(voorbij)</span>}
-                        </span>
-                        {s.email && (
-                          <span className="text-xs text-gray-400 flex items-center gap-1">
-                            <Mail size={11} /> {s.email}
-                          </span>
-                        )}
-                        {s.reminder_sent_at && (
-                          <span className="text-xs text-gray-400">
-                            Verstuurd: {format(parseISO(s.reminder_sent_at), 'd MMM HH:mm', { locale: nl })}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {!s.status_vragenlijst && s.email && (
-                      <button onClick={() => handleSendOne(s.id, s.naam)} disabled={isSending}
-                        title={s.reminder_sent_at ? 'Opnieuw sturen' : 'Herinnering sturen'}
-                        className={`flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-xl transition-colors disabled:opacity-50 border ${
-                          s.needs_reminder
-                            ? 'bg-orange-50 hover:bg-orange-100 text-orange-600 border-orange-200'
-                            : 'bg-gray-100 hover:bg-gray-200 text-gray-700 border-gray-200'
-                        }`}>
-                        {isSending
-                          ? <RefreshCw size={13} className="animate-spin" />
-                          : <Send size={13} />}
-                        {s.reminder_sent_at ? 'Opnieuw' : 'Stuur'}
-                      </button>
-                    )}
-                    {!s.status_vragenlijst && !s.email && (
-                      <span className="text-xs text-gray-400 flex items-center gap-1">
-                        <XCircle size={12} /> Geen e-mail
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )
-            })
-          )}
-        </div>
+        {/* De lijst met bevestigde boekingen is bewust verborgen op deze tab. */}
       </main>
 
       <BottomTabBar />
