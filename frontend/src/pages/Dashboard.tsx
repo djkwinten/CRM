@@ -223,7 +223,7 @@ function MailPreviewModal({ booking, templateKey, onClose, onSent }: { booking: 
 }
 
 function NewBookingModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [form, setForm] = useState<{ is_aanvraag: boolean; feest_datum: string; type_feest: 'Trouw' | 'Algemeen'; is_verjaardag: boolean; naam_organisator: string; naam_partner1: string; naam_partner2: string; naam_jarige: string; email: string; telefoon: string; adres_organisator: string; btw_nr: string; basisprijs: string; locatie_naam: string; locatie_adres: string; venue_id: number | null; speakers_aanwezig: boolean; licht_aanwezig: boolean; dj_booth_aanwezig: boolean; opmerkingen: string }>({ is_aanvraag: true, feest_datum: '', type_feest: 'Algemeen', is_verjaardag: false, naam_organisator: '', naam_partner1: '', naam_partner2: '', naam_jarige: '', email: '', telefoon: '', adres_organisator: '', btw_nr: '', basisprijs: '', locatie_naam: '', locatie_adres: '', venue_id: null, speakers_aanwezig: false, licht_aanwezig: false, dj_booth_aanwezig: false, opmerkingen: '' })
+  const [form, setForm] = useState<{ is_aanvraag: boolean; feest_datum: string; type_feest: 'Trouw' | 'Algemeen'; is_verjaardag: boolean; naam_organisator: string; naam_partner1: string; naam_partner2: string; naam_jarige: string; email: string; telefoon: string; adres_organisator: string; btw_nr: string; basisprijs: string; locatie_naam: string; locatie_adres: string; venue_id: number | null; speakers_aanwezig: boolean; licht_aanwezig: boolean; dj_booth_aanwezig: boolean; opmerkingen: string }>({ is_aanvraag: true, feest_datum: '', type_feest: 'Algemeen', is_verjaardag: false, naam_organisator: '', naam_partner1: '', naam_partner2: '', naam_jarige: '', email: '', telefoon: '', adres_organisator: '', btw_nr: '', basisprijs: '', locatie_naam: '', locatie_adres: '', venue_id: null, speakers_aanwezig: true, licht_aanwezig: true, dj_booth_aanwezig: true, opmerkingen: '' })
   const [loading, setLoading] = useState(false)
   const [venueSuggestions, setVenueSuggestions] = useState<VenueSuggestion[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -428,9 +428,9 @@ function NewBookingModal({ onClose, onCreated }: { onClose: () => void; onCreate
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 space-y-2">
             <p className="text-xs font-bold text-blue-600 uppercase tracking-wider">Technisch voor Contract Info</p>
             {[
-              ['speakers_aanwezig', 'Is er geluid/installatie voorzien door de zaal?'],
-              ['licht_aanwezig', 'Is er lichtinstallatie voorzien door de zaal?'],
-              ['dj_booth_aanwezig', 'Moet DJ Kwinten een DJ booth meenemen?'],
+              ['speakers_aanwezig', 'DJ Kwinten zorgt voor geluidsinstallatie'],
+              ['licht_aanwezig', 'DJ Kwinten zorgt voor lichtinstallatie'],
+              ['dj_booth_aanwezig', 'DJ Kwinten zorgt voor DJ-booth'],
             ].map(([key, label]) => {
               const checked = !!(form as any)[key]
               return <button key={key} type="button" onClick={() => setForm(p => ({ ...p, [key]: !(p as any)[key] }))}

@@ -4,7 +4,6 @@ import { Booking } from '../types/booking'
 import { format, parseISO } from 'date-fns'
 import { nl } from 'date-fns/locale'
 import logoUrl from '../assets/logo-dj-kwinten.jpg'
-import handtekeningDJUrl from '../assets/handtekening-dj-kwinten.png'
 
 const DJ_INFO = {
   naam: 'Den Tandt Kwinten (DJ Kwinten)',
@@ -319,8 +318,8 @@ function _buildContractPDF(booking: Booking): jsPDF {
   y += 7
 
   const voorwaarden = [
-    ['1. Akkoord via Betaling & Handtekening',
-      'Door betaling van het voorschot van €100,00 én door digitale handtekening verklaart de opdrachtgever zich uitdrukkelijk akkoord met deze volledige overeenkomst.'],
+    ['1. Akkoord via Betaling',
+      'Door betaling van het voorschot van €100,00 verklaart de opdrachtgever zich akkoord met deze volledige overeenkomst.'],
     ['2. Annulering',
       'Als het feest door onvoorziene omstandigheden niet kan plaatsvinden, zal de organisator de DJ zo snel mogelijk op de hoogte brengen.\nKosteloos annuleren tot 21 dagen voor het feest. Het voorschot kan in overleg worden omgezet in een waardebon. Bij latere annulering geldt het voorschot als schadevergoeding (uitgezonderd overmacht).'],
     ['3. Auteursrechten',
@@ -334,7 +333,7 @@ function _buildContractPDF(booking: Booking): jsPDF {
     ['7. Varia',
       'Consumpties voor de DJ dienen voorzien te worden op kosten van de organisator, alsook een warme maaltijd indien het aanvangsuur van de DJ voor 20u ligt.\n\nDe DJ-prestaties zijn ingevolge artikel 44§2,8° van het wetboek vrijgesteld van BTW.'],
     ['8. Beeldmateriaal',
-      `De DJ heeft het recht om tijdens het evenement foto- en video-opnames te maken voor veiligheids- en bewijsdoeleinden. Deze worden niet openbaar gemaakt en enkel gebruikt indien noodzakelijk. De organisator erkent dat deze opnames kunnen dienen als bewijsmateriaal (bijv. bij schade door gasten).\n\nGebruik voor promotionele doeleinden (website, sociale media) enkel met voorafgaande toestemming.\n\nToestemming promotioneel gebruik: ${booking.toestemming_foto === 1 ? '✓ JA' : booking.toestemming_foto === 0 ? '✗ NEE' : '☐ JA     ☐ NEE'}`],
+      'De DJ heeft het recht om tijdens het evenement foto- en video-opnames te maken voor veiligheids- en bewijsdoeleinden. Deze worden niet openbaar gemaakt en enkel gebruikt indien noodzakelijk. De organisator erkent dat deze opnames kunnen dienen als bewijsmateriaal (bijv. bij schade door gasten).\n\nGebruik voor promotionele doeleinden (website, sociale media) gebeurt enkel met voorafgaande toestemming.'],
   ]
 
   autoTable(doc, {
@@ -369,56 +368,11 @@ function _buildContractPDF(booking: Booking): jsPDF {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   doc.setTextColor(60, 60, 60)
-  const akkoordTekst = 'Door betaling van het voorschot van €100,00 én door digitale handtekening bevestigt de opdrachtgever kennis te hebben genomen van en akkoord te gaan met alle bovenstaande voorwaarden. De opdrachtgever begrijpt dat de vermelde prijs een basisprijs is en dat de uiteindelijke prijs kan worden aangepast naargelang bijkomende opties of wijzigingen.'
+  const akkoordTekst = 'Door betaling van het voorschot van €100,00 bevestigt de opdrachtgever kennis te hebben genomen van en akkoord te gaan met alle bovenstaande voorwaarden. De opdrachtgever begrijpt dat de vermelde prijs een basisprijs is en dat de uiteindelijke prijs kan worden aangepast naargelang bijkomende opties of wijzigingen.'
   doc.text(doc.splitTextToSize(akkoordTekst, contentW), margin, y)
   y += 12
 
-  const sigW = (contentW - 10) / 2
-  const sig2X = margin + sigW + 10
-
-  // DJ handtekening
-  doc.setFillColor(248, 248, 252)
-  doc.roundedRect(margin, y, sigW, 28, 2, 2, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(7.5)
-  doc.setTextColor(80, 80, 80)
-  doc.text('DJ Kwinten', margin + 3, y + 6)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7)
-  doc.setTextColor(130, 130, 130)
-  doc.text('Den Tandt Kwinten', margin + 3, y + 11)
-  try {
-    // Handtekening DJ — gebundeld als Vite asset
-    doc.addImage(handtekeningDJUrl, 'PNG', margin + 3, y + 12, sigW - 6, 9)
-  } catch { /* overslaan indien niet beschikbaar */ }
-  doc.setDrawColor(180, 180, 180)
-  doc.setLineWidth(0.3)
-  doc.line(margin + 3, y + 22, margin + sigW - 3, y + 22)
-  doc.setFontSize(6.5)
-  doc.text('Handtekening / Datum', margin + 3, y + 26)
-
-  // Opdrachtgever handtekening
-  doc.setFillColor(248, 248, 252)
-  doc.roundedRect(sig2X, y, sigW, 28, 2, 2, 'F')
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(7.5)
-  doc.setTextColor(80, 80, 80)
-  doc.text('Opdrachtgever', sig2X + 3, y + 6)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7)
-  doc.setTextColor(130, 130, 130)
-  doc.text(fmt(booking.naam_organisator), sig2X + 3, y + 11)
-  if (booking.handtekening_klant) {
-    try {
-      doc.addImage(`data:image/png;base64,${booking.handtekening_klant}`, 'PNG', sig2X + 3, y + 12, sigW - 6, 10)
-    } catch {}
-  }
-  doc.setDrawColor(180, 180, 180)
-  doc.line(sig2X + 3, y + 22, sig2X + sigW - 3, y + 22)
-  doc.setFontSize(6.5)
-  doc.text('Handtekening / Datum', sig2X + 3, y + 26)
-
-  y += 36
+  y += 4
 
   if (booking.billit_factuur_naam) {
     doc.setFillColor(235, 245, 255)

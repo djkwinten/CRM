@@ -32,12 +32,18 @@ export function ContractInfoForm({
   readOnly?: boolean
   onChange?: (info: BookingContractInfo) => void
 }) {
-  const [form, setForm] = useState<BookingContractInfo>(initial)
+  const withDefaultTech = (info: BookingContractInfo): BookingContractInfo => ({
+    ...info,
+    geluid_voorzien: 1,
+    licht_voorzien: 1,
+    dj_booth_nodig: 1,
+  })
+  const [form, setForm] = useState<BookingContractInfo>(() => withDefaultTech(initial))
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const didMount = useRef(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  useEffect(() => { setForm(initial); didMount.current = false }, [initial])
+  useEffect(() => { setForm(withDefaultTech(initial)); didMount.current = false }, [initial])
 
   const update = <K extends keyof BookingContractInfo>(key: K, value: BookingContractInfo[K]) => {
     if (readOnly) return
@@ -141,9 +147,9 @@ export function ContractInfoForm({
       <section className="space-y-3">
         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Technisch — kies duidelijk ja of nee</p>
         <div className="grid sm:grid-cols-3 gap-2">
-          <Toggle value={!!form.geluid_voorzien} onChange={v => update('geluid_voorzien', v ? 1 : 0)}>Is er geluid/installatie voorzien door de zaal?</Toggle>
-          <Toggle value={!!form.licht_voorzien} onChange={v => update('licht_voorzien', v ? 1 : 0)}>Is er lichtinstallatie voorzien door de zaal?</Toggle>
-          <Toggle value={!!form.dj_booth_nodig} onChange={v => update('dj_booth_nodig', v ? 1 : 0)}>Moet DJ Kwinten een DJ booth meenemen?</Toggle>
+          <Toggle value={!!form.geluid_voorzien} onChange={v => update('geluid_voorzien', v ? 1 : 0)}>DJ Kwinten zorgt voor geluidsinstallatie</Toggle>
+          <Toggle value={!!form.licht_voorzien} onChange={v => update('licht_voorzien', v ? 1 : 0)}>DJ Kwinten zorgt voor lichtinstallatie</Toggle>
+          <Toggle value={!!form.dj_booth_nodig} onChange={v => update('dj_booth_nodig', v ? 1 : 0)}>DJ Kwinten zorgt voor DJ-booth</Toggle>
         </div>
       </section>
 

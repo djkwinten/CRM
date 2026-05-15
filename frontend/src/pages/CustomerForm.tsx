@@ -1213,92 +1213,9 @@ function StepExtras({ form, setForm, isTrouw }: { form: FormState; setForm: (u: 
   )
 }
 
-function SignaturePad({ value, onChange }: { value?: string; onChange: (v: string) => void }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const drawing = useRef(false)
-
-  const getPos = (e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) => {
-    const rect = canvas.getBoundingClientRect()
-    const scaleX = canvas.width / rect.width
-    const scaleY = canvas.height / rect.height
-    if ('touches' in e) {
-      return {
-        x: (e.touches[0].clientX - rect.left) * scaleX,
-        y: (e.touches[0].clientY - rect.top) * scaleY,
-      }
-    }
-    return {
-      x: (e.clientX - rect.left) * scaleX,
-      y: (e.clientY - rect.top) * scaleY,
-    }
-  }
-
-  const start = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault()
-    const canvas = canvasRef.current; if (!canvas) return
-    drawing.current = true
-    const ctx = canvas.getContext('2d')!
-    const pos = getPos(e, canvas)
-    ctx.beginPath()
-    ctx.moveTo(pos.x, pos.y)
-  }
-
-  const move = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault()
-    if (!drawing.current) return
-    const canvas = canvasRef.current; if (!canvas) return
-    const ctx = canvas.getContext('2d')!
-    ctx.lineWidth = 2.5
-    ctx.lineCap = 'round'
-    ctx.strokeStyle = '#1a1a2e'
-    const pos = getPos(e, canvas)
-    ctx.lineTo(pos.x, pos.y)
-    ctx.stroke()
-  }
-
-  const stop = () => {
-    drawing.current = false
-    const canvas = canvasRef.current; if (!canvas) return
-    onChange(canvas.toDataURL('image/png').split(',')[1])
-  }
-
-  const clear = () => {
-    const canvas = canvasRef.current; if (!canvas) return
-    canvas.getContext('2d')!.clearRect(0, 0, canvas.width, canvas.height)
-    onChange('')
-  }
-
-  return (
-    <div className="space-y-2">
-      <div className="border-2 border-gray-200 rounded-xl overflow-hidden bg-white relative">
-        <canvas
-          ref={canvasRef}
-          width={600}
-          height={160}
-          className="w-full touch-none cursor-crosshair"
-          onMouseDown={start} onMouseMove={move} onMouseUp={stop} onMouseLeave={stop}
-          onTouchStart={start} onTouchMove={move} onTouchEnd={stop}
-        />
-        {!value && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <span className="text-gray-300 text-sm">Teken hier uw handtekening</span>
-          </div>
-        )}
-      </div>
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-gray-400">Gebruik uw vinger of muis om te tekenen</span>
-        <button type="button" onClick={clear}
-          className="text-xs text-red-400 hover:text-red-600 font-medium transition-colors">
-          Wissen
-        </button>
-      </div>
-    </div>
-  )
-}
-
 const DJ_INFO = { naam: 'Den Tandt Kwinten (DJ Kwinten)', adres: 'Loskaai 26, 9800 Grammene', telefoon: '0498/21 64 48', email: 'DJKWINTEN@gmail.com', btw: 'BE 0726.773.488' }
 const VOORWAARDEN = [
-  { titel: '1. Akkoord via Betaling & Handtekening', tekst: 'Door betaling van het voorschot van €100,00 én door digitale handtekening verklaart de opdrachtgever zich uitdrukkelijk akkoord met deze volledige overeenkomst.' },
+  { titel: '1. Akkoord via Betaling', tekst: 'Door betaling van het voorschot van €100,00 verklaart de opdrachtgever zich akkoord met deze volledige overeenkomst.' },
   { titel: '2. Annulering', tekst: 'Als het feest door onvoorziene omstandigheden niet kan plaatsvinden, zal de organisator de DJ zo snel mogelijk op de hoogte brengen. Kosteloos annuleren tot 21 dagen voor het feest. Het voorschot kan in overleg worden omgezet in een waardebon. Bij latere annulering geldt het voorschot als schadevergoeding (uitgezonderd overmacht).' },
   { titel: '3. Auteursrechten', tekst: 'De organisator is verantwoordelijk voor Sabam/Unisono (meestal gedekt door de zaal bij privéfeesten).' },
   { titel: '4. Aansprakelijkheid', tekst: 'De DJ is niet aansprakelijk voor schade, verlies of diefstal van persoonlijke bezittingen van gasten, noch voor schade aan het evenemententerrein veroorzaakt door derden.' },
@@ -1394,7 +1311,7 @@ function StepBevestiging({ form, setForm, gdprAccepted, setGdprAccepted, questio
         {/* Header */}
         <div className="bg-[#007AFF] px-4 py-3">
           <p className="text-white font-bold text-sm">📄 OVEREENKOMST DJ KWINTEN</p>
-          <p className="text-white/70 text-xs mt-0.5">Lees aandachtig voor u tekent</p>
+          <p className="text-white/70 text-xs mt-0.5">Lees aandachtig voor u akkoord gaat</p>
         </div>
 
         <div className="p-4 space-y-4 bg-white">
@@ -1528,16 +1445,6 @@ function StepBevestiging({ form, setForm, gdprAccepted, setGdprAccepted, questio
             {form.toestemming_foto === 0 ? '❌' : '☐'} Nee, geen toestemming
           </button>
         </div>
-      </div>
-
-      {/* Handtekening — na lezen van contract */}
-      <div className="bg-gray-50 border-2 border-gray-200 rounded-2xl p-4 space-y-3">
-        <p className="text-sm font-semibold text-gray-800">✍️ Digitale Handtekening</p>
-        <p className="text-xs text-gray-500">U heeft bovenstaande overeenkomst gelezen. Teken hieronder om uw akkoord te bevestigen.</p>
-        <SignaturePad value={form.handtekening_klant} onChange={v => setForm({ handtekening_klant: v })} />
-        {!form.handtekening_klant && (
-          <p className="text-xs text-amber-600 font-medium">⚠️ Handtekening vereist om de vragenlijst te versturen</p>
-        )}
       </div>
 
       {/* GDPR */}
