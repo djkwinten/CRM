@@ -17,7 +17,7 @@ export async function sendTemplateEmail(cfg: SmtpConfig, to: string, subject: st
   await sendViaBrevo(cfg, to, subject, html, text)
 }
 
-async function sendViaBrevo(
+export async function sendViaBrevo(
   cfg: SmtpConfig,
   to: string,
   subject: string,

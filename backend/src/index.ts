@@ -8,6 +8,7 @@ import { calendarRoutes } from './routes/calendar'
 import { exportRoutes } from './routes/export'
 import { venuesRoutes } from './routes/venues'
 import { templatesRoutes } from './routes/templates'
+import { mailRoutes } from './routes/mail'
 
 type Bindings = {
   DB?: D1Database
@@ -38,6 +39,7 @@ app.route('/api/calendar', calendarRoutes)
 app.route('/api/export', exportRoutes)
 app.route('/api/venues', venuesRoutes)
 app.route('/api/templates', templatesRoutes)
+app.route('/api/mail', mailRoutes)
 
 // When this API is deployed together with the frontend assets, let React handle
 // all non-API routes such as /event/:slug, /vragenlijst/:slug, /agenda, etc.
