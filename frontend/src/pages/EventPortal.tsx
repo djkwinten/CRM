@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Calendar, CheckCircle2, ClipboardList, FileText, FolderOpen, MessageSquare, ExternalLink, Download, X } from 'lucide-react'
-import { getBooking, getContractInfo, getBookingPDF } from '../lib/api'
+import { bookingFileDownloadUrl, BookingFile, getBooking, getBookingFiles, getContractInfo, getBookingPDF } from '../lib/api'
 import { Booking } from '../types/booking'
 import { BookingContractInfo } from '../features/event-workspace/types'
 import { ContractInfoForm } from '../features/event-workspace/components/ContractInfoForm'
@@ -14,6 +14,7 @@ export function EventPortal() {
   const [pdfLoading, setPdfLoading] = useState<'contract' | 'factuur' | null>(null)
   const [activeSection, setActiveSection] = useState<'contract' | 'vragenlijst' | 'bestanden' | 'communicatie' | null>(null)
   const [showFirstContractPopup, setShowFirstContractPopup] = useState(false)
+  const [manualFiles, setManualFiles] = useState<BookingFile[]>([])
 
   useEffect(() => {
     if (!slug) return
@@ -22,6 +23,7 @@ export function EventPortal() {
       setBooking(b)
       if (b) {
         setContractInfo(await getContractInfo(b.id))
+        setManualFiles(await getBookingFiles(b.id))
         const seenKey = `event-portal-contract-popup-seen-${b.slug || b.id}`
         if (!localStorage.getItem(seenKey)) setShowFirstContractPopup(true)
       }
@@ -116,7 +118,7 @@ export function EventPortal() {
           <button onClick={() => setActiveSection(activeSection === 'bestanden' ? null : 'bestanden')} className="text-left bg-white rounded-2xl p-4 shadow-sm border border-transparent hover:border-[#007AFF] transition-colors">
             <FolderOpen size={20} className="text-[#007AFF] mb-2" />
             <p className="font-bold text-gray-900 text-sm">Bestanden</p>
-            <p className="text-xs text-gray-400 mt-0.5">Contract & factuur</p>
+            <p className="text-xs text-gray-400 mt-0.5">Contract, factuur & bijlagen</p>
           </button>
           <button onClick={() => setActiveSection(activeSection === 'communicatie' ? null : 'communicatie')} className="text-left bg-white rounded-2xl p-4 shadow-sm border border-transparent hover:border-[#007AFF] transition-colors">
             <MessageSquare size={20} className="text-[#007AFF] mb-2" />
@@ -159,7 +161,7 @@ export function EventPortal() {
         {activeSection === 'bestanden' && (
         <section id="bestanden" className="bg-white rounded-2xl shadow-sm p-5">
           <h2 className="font-bold text-gray-900 flex items-center gap-2"><FolderOpen size={18} className="text-[#007AFF]" /> Bestanden</h2>
-          <p className="text-sm text-gray-400 mt-2">Hier komen documenten zoals overeenkomst en voorschotfactuur terecht.</p>
+          <p className="text-sm text-gray-400 mt-2">Hier staan documenten zoals overeenkomst, voorschotfactuur en extra bestanden van DJ Kwinten.</p>
           <div className="space-y-2 mt-4">
             {hasContract ? (
               <button onClick={() => openPDF('contract')} disabled={pdfLoading === 'contract'} className="w-full flex items-center gap-3 p-3 rounded-xl border border-blue-200 bg-blue-50 hover:bg-blue-100 transition-colors text-left disabled:opacity-60">
@@ -175,6 +177,18 @@ export function EventPortal() {
                 <Download size={15} className="text-green-500" />
               </button>
             ) : <div className="text-sm text-gray-400 bg-gray-50 rounded-xl p-3">Voorschotfactuur nog niet beschikbaar.</div>}
+            {manualFiles.length > 0 && (
+              <div className="pt-2 space-y-2">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Extra bestanden</p>
+                {manualFiles.map(file => (
+                  <a key={file.id} href={bookingFileDownloadUrl(file.id)} target="_blank" rel="noopener noreferrer" className="w-full flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors text-left">
+                    <FileText size={18} className="text-gray-600" />
+                    <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-gray-800 truncate">{file.name}</p><p className="text-xs text-gray-400">Downloaden</p></div>
+                    <Download size={15} className="text-gray-500" />
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         </section>
         )}

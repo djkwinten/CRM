@@ -197,6 +197,13 @@ export function deriveContractInfo(b: Booking): BookingContractInfo {
     dj_booth_nodig: b.dj_booth_aanwezig ? 1 : 0,
     afgesproken_prijs: b.totaalprijs || b.basisprijs || null,
     voorschot_bedrag: null,
+    basisprijs: b.basisprijs || null,
+    extra_prijzen: b.extra_prijzen || '{}',
+    ceremonie_set: b.ceremonie_set || 0,
+    digital_booth: b.digital_booth || 0,
+    retro_booth: b.retro_booth || 0,
+    draadloze_speaker: b.draadloze_speaker || 0,
+    karaoke: b.karaoke || 0,
     contract_ready: 0,
     notes: ''
   } as BookingContractInfo

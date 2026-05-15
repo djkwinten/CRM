@@ -1,5 +1,15 @@
 export type WorkspaceTab = 'overzicht' | 'contract' | 'vragenlijst' | 'bestanden' | 'communicatie'
 
+export interface BookingFile {
+  id: number
+  booking_id: number
+  name: string
+  type?: string | null
+  size?: number | null
+  visible_to_customer?: number
+  created_at?: string
+}
+
 export interface BookingContractInfo {
   id?: number
   booking_id: number
@@ -16,6 +26,13 @@ export interface BookingContractInfo {
   dj_booth_nodig: number
   afgesproken_prijs: number | null
   voorschot_bedrag: number | null
+  basisprijs?: number | null
+  extra_prijzen?: string | null
+  ceremonie_set?: number
+  digital_booth?: number
+  retro_booth?: number
+  draadloze_speaker?: number
+  karaoke?: number
   contract_ready?: number
   notes?: string
   created_at?: string

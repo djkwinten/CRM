@@ -152,6 +152,15 @@ export async function getContractInfo(id: number): Promise<BookingContractInfo |
 
 export async function saveContractInfo(id: number, payload: Partial<BookingContractInfo>): Promise<{ success: boolean; error?: string }> {
   saveLocalContractInfo(id, payload)
+  updateLocalBooking(id, {
+    basisprijs: payload.basisprijs ?? undefined,
+    extra_prijzen: payload.extra_prijzen ?? undefined,
+    ceremonie_set: payload.ceremonie_set,
+    digital_booth: payload.digital_booth,
+    retro_booth: payload.retro_booth,
+    draadloze_speaker: payload.draadloze_speaker,
+    karaoke: payload.karaoke,
+  })
   try {
     const res = await fetch(`${BASE}/${id}/contract-info`, {
       method: 'PUT',
@@ -390,4 +399,50 @@ export async function suggestVenues(q: string): Promise<VenueSuggestion[]> {
   } catch {
     return venueSuggestions(q)
   }
+}
+
+// ── Booking files shown on customer portal ─────────────────────────────────
+
+export interface BookingFile {
+  id: number
+  booking_id: number
+  name: string
+  type?: string | null
+  size?: number | null
+  visible_to_customer?: number
+  created_at?: string
+}
+
+export async function getBookingFiles(bookingId: number): Promise<BookingFile[]> {
+  try {
+    const res = await fetch(`${API_ROOT}/api/files/${bookingId}`)
+    const data = await res.json() as { files: BookingFile[] }
+    return data.files || []
+  } catch {
+    return []
+  }
+}
+
+export async function uploadBookingFile(bookingId: number, file: File): Promise<{ success: boolean; error?: string; file?: BookingFile }> {
+  const form = new FormData()
+  form.append('file', file)
+  try {
+    const res = await fetch(`${API_ROOT}/api/files/${bookingId}`, { method: 'POST', body: form })
+    return res.json()
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Upload mislukt' }
+  }
+}
+
+export async function deleteBookingFile(fileId: number): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(`${API_ROOT}/api/files/${fileId}`, { method: 'DELETE' })
+    return res.json()
+  } catch {
+    return { success: false, error: 'Verwijderen mislukt' }
+  }
+}
+
+export function bookingFileDownloadUrl(fileId: number): string {
+  return `${API_ROOT}/api/files/download/${fileId}`
 }

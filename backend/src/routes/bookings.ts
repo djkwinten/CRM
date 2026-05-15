@@ -476,10 +476,17 @@ bookingsRoutes.get('/:id/contract-info', async (c) => {
     dj_booth_aanwezig: number | null
     totaalprijs: number | null
     basisprijs: number | null
+    extra_prijzen: string | null
+    ceremonie_set: number | null
+    digital_booth: number | null
+    retro_booth: number | null
+    draadloze_speaker: number | null
+    karaoke: number | null
   }>(c.env, `
     SELECT id, naam_organisator, naam_partner1, naam_partner2, email, telefoon, adres_organisator,
            type_feest, feest_datum, locatie_naam, locatie_adres,
-           speakers_aanwezig, licht_aanwezig, dj_booth_aanwezig, totaalprijs, basisprijs
+           speakers_aanwezig, licht_aanwezig, dj_booth_aanwezig, totaalprijs, basisprijs, extra_prijzen,
+           ceremonie_set, digital_booth, retro_booth, draadloze_speaker, karaoke
     FROM bookings WHERE id = ?
   `, [id])
   if (!b) return c.json({ error: 'Boeking niet gevonden' }, 404)
@@ -504,6 +511,13 @@ bookingsRoutes.get('/:id/contract-info', async (c) => {
       dj_booth_nodig: b.dj_booth_aanwezig ? 1 : 0,
       afgesproken_prijs: b.totaalprijs || b.basisprijs || null,
       voorschot_bedrag: null,
+      basisprijs: b.basisprijs || null,
+      extra_prijzen: b.extra_prijzen || '{}',
+      ceremonie_set: b.ceremonie_set ? 1 : 0,
+      digital_booth: b.digital_booth ? 1 : 0,
+      retro_booth: b.retro_booth ? 1 : 0,
+      draadloze_speaker: b.draadloze_speaker ? 1 : 0,
+      karaoke: b.karaoke ? 1 : 0,
       contract_ready: 0,
       notes: ''
     }
@@ -603,6 +617,13 @@ bookingsRoutes.put('/:id/contract-info', async (c) => {
   if (body.geluid_voorzien !== undefined) { syncFields.push('speakers_aanwezig = ?'); syncValues.push(bool(body.geluid_voorzien)) }
   if (body.licht_voorzien !== undefined) { syncFields.push('licht_aanwezig = ?'); syncValues.push(bool(body.licht_voorzien)) }
   if (body.dj_booth_nodig !== undefined) { syncFields.push('dj_booth_aanwezig = ?'); syncValues.push(bool(body.dj_booth_nodig)) }
+  if (body.ceremonie_set !== undefined) { syncFields.push('ceremonie_set = ?'); syncValues.push(bool(body.ceremonie_set)) }
+  if (body.digital_booth !== undefined) { syncFields.push('digital_booth = ?'); syncValues.push(bool(body.digital_booth)) }
+  if (body.retro_booth !== undefined) { syncFields.push('retro_booth = ?'); syncValues.push(bool(body.retro_booth)) }
+  if (body.draadloze_speaker !== undefined) { syncFields.push('draadloze_speaker = ?'); syncValues.push(bool(body.draadloze_speaker)) }
+  if (body.karaoke !== undefined) { syncFields.push('karaoke = ?'); syncValues.push(bool(body.karaoke)) }
+  if (body.basisprijs !== undefined) { syncFields.push('basisprijs = ?'); syncValues.push(body.basisprijs === '' || body.basisprijs == null ? null : Number(body.basisprijs)) }
+  if (body.extra_prijzen !== undefined) { syncFields.push('extra_prijzen = ?'); syncValues.push(body.extra_prijzen || '{}') }
   if (syncFields.length > 0) {
     syncFields.push("updated_at = datetime('now')")
     syncValues.push(id)
