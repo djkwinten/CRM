@@ -969,21 +969,50 @@ function parseZaalFotos(raw?: string): ZaalFoto[] {
 const API_ROOT = import.meta.env.VITE_API_URL || ''
 
 async function uploadBestand(file: File): Promise<UploadResponse> {
+  const maxBytes = 10 * 1024 * 1024
+  if (file.size > maxBytes) {
+    throw new Error('Bestand is te groot. Maximum 10 MB per bestand.')
+  }
+
   const fd = new FormData()
   fd.append('file', file)
-  const res = await fetch(`${API_ROOT}/api/uploads`, { method: 'POST', body: fd })
-  let data: UploadResponse = {}
-  try { data = await res.json() as UploadResponse } catch { /* non-json response */ }
-  if (!res.ok || !data.key || !data.naam || !data.type) {
-    throw new Error(data.error || 'Upload mislukt. Probeer later opnieuw of verstuur het bestand apart.')
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), 30000)
+  try {
+    const res = await fetch(`${API_ROOT}/api/uploads`, { method: 'POST', body: fd, signal: controller.signal })
+    let data: UploadResponse = {}
+    try { data = await res.json() as UploadResponse } catch { /* non-json response */ }
+    if (!res.ok || !data.key || !data.naam || !data.type) {
+      throw new Error(data.error || 'Upload mislukt. Probeer later opnieuw of verstuur het bestand apart.')
+    }
+    return data
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      throw new Error('Upload duurt te lang. Probeer een kleiner bestand of verstuur de uitnodiging apart.')
+    }
+    throw error
+  } finally {
+    window.clearTimeout(timeout)
   }
-  return data
 }
 
 function UitnodigingUpload({ form, setForm }: { form: FormState; setForm: (u: Partial<FormState>) => void }) {
-  const bestanden = parseUploadBestanden(form.uitnodiging_files)
+  // Bewaar uitnodigingen bewust in zaal_fotos met category='uitnodiging'.
+  // Zo vermijden we opnieuw problemen met de oudere/mogelijk ontbrekende D1-kolom uitnodiging_files.
+  const alleUploads = parseUploadBestanden(form.zaal_fotos)
+  const bestanden = alleUploads.filter(f => f.category === 'uitnodiging')
+  const overigeUploads = alleUploads.filter(f => f.category !== 'uitnodiging')
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
+
+  const saveBestanden = (nextUitnodigingen: UploadBestand[]) => {
+    const next = [...overigeUploads, ...nextUitnodigingen]
+    setForm({
+      zaal_fotos: next.length ? JSON.stringify(next) : '',
+      // Maak oude lokale/autosave-data leeg zodat dit veld de vragenlijst niet meer kan blokkeren.
+      uitnodiging_files: '',
+    })
+  }
 
   const handleFiles = async (files: FileList | null) => {
     if (!files || uploading) return
@@ -1000,7 +1029,7 @@ function UitnodigingUpload({ form, setForm }: { form: FormState; setForm: (u: Pa
         const data = await uploadBestand(file)
         newFiles.push({ naam: data.naam!, type: data.type!, key: data.key!, category: 'uitnodiging' })
       }
-      setForm({ uitnodiging_files: JSON.stringify([...bestanden, ...newFiles]) })
+      saveBestanden([...bestanden, ...newFiles])
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : 'Upload mislukt. Je kan de vragenlijst wel verder invullen.')
     } finally {
@@ -1009,20 +1038,19 @@ function UitnodigingUpload({ form, setForm }: { form: FormState; setForm: (u: Pa
   }
 
   const remove = (idx: number) => {
-    const updated = bestanden.filter((_, i) => i !== idx)
-    setForm({ uitnodiging_files: updated.length ? JSON.stringify(updated) : '' })
+    saveBestanden(bestanden.filter((_, i) => i !== idx))
   }
 
   return (
     <div className="bg-purple-50 border border-purple-200 rounded-2xl p-4 space-y-3">
       <p className="text-sm font-semibold text-purple-800">💌 Uitnodiging uploaden</p>
       <p className="text-sm text-purple-700 leading-relaxed">
-        Upload hier jullie uitnodiging als foto of PDF. Dit helpt om stijl, namen en timing goed te begrijpen.
+        Upload hier jullie uitnodiging als foto of PDF. Dit is volledig optioneel en helpt om stijl, namen en timing goed te begrijpen.
       </p>
       <label className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-purple-300 hover:border-purple-400 bg-white rounded-xl px-4 py-5 cursor-pointer transition-colors">
         <span className="text-2xl">{uploading ? '⏳' : '📂'}</span>
         <span className="text-sm font-semibold text-purple-700">{uploading ? 'Uploaden...' : 'Upload uitnodiging'}</span>
-        <span className="text-xs text-gray-400">Afbeelding of PDF</span>
+        <span className="text-xs text-gray-400">Afbeelding of PDF · max. 10 MB</span>
         <input type="file" multiple accept="image/*,application/pdf" className="hidden" disabled={uploading} onChange={e => { handleFiles(e.target.files); e.currentTarget.value = '' }} />
       </label>
       {uploadError && (
@@ -1044,7 +1072,9 @@ function UitnodigingUpload({ form, setForm }: { form: FormState; setForm: (u: Pa
 }
 
 function StepZaal({ form, setForm }: { form: FormState; setForm: (u: Partial<FormState>) => void }) {
-  const fotos = parseZaalFotos(form.zaal_fotos)
+  const alleUploads = parseZaalFotos(form.zaal_fotos)
+  const fotos = alleUploads.filter(f => f.category !== 'uitnodiging')
+  const uitnodigingen = alleUploads.filter(f => f.category === 'uitnodiging')
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
 
@@ -1065,7 +1095,7 @@ function StepZaal({ form, setForm }: { form: FormState; setForm: (u: Partial<For
         const data = await uploadBestand(file)
         newFotos.push({ naam: data.naam!, type: data.type!, key: data.key!, category })
       }
-      setForm({ zaal_fotos: JSON.stringify([...fotos, ...newFotos]) })
+      setForm({ zaal_fotos: JSON.stringify([...uitnodigingen, ...fotos, ...newFotos]) })
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : 'Upload mislukt. Je kan de vragenlijst wel verder invullen.')
     } finally {
@@ -1075,7 +1105,8 @@ function StepZaal({ form, setForm }: { form: FormState; setForm: (u: Partial<For
 
   const removeFoto = (idx: number) => {
     const updated = fotos.filter((_, i) => i !== idx)
-    setForm({ zaal_fotos: updated.length ? JSON.stringify(updated) : '' })
+    const next = [...uitnodigingen, ...updated]
+    setForm({ zaal_fotos: next.length ? JSON.stringify(next) : '' })
   }
 
   return (
