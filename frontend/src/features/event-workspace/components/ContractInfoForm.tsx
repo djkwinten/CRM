@@ -25,12 +25,18 @@ export function ContractInfoForm({
   showFinancial = true,
   readOnly = false,
   onChange,
+  requireCompleteBeforeSave = false,
+  saveLabel = 'Opslaan',
+  onSaved,
 }: {
   bookingId: number
   initial: BookingContractInfo
   showFinancial?: boolean
   readOnly?: boolean
   onChange?: (info: BookingContractInfo) => void
+  requireCompleteBeforeSave?: boolean
+  saveLabel?: string
+  onSaved?: (info: BookingContractInfo) => void
 }) {
   const withDefaultTech = (info: BookingContractInfo): BookingContractInfo => ({
     ...info,
@@ -54,20 +60,37 @@ export function ContractInfoForm({
     })
   }
 
+  const requiredComplete = !!(
+    form.naam?.trim() &&
+    form.email?.trim() &&
+    form.gsm?.trim() &&
+    form.klant_adres?.trim() &&
+    form.event_type?.trim() &&
+    form.event_datum?.trim() &&
+    form.locatie_naam?.trim() &&
+    form.locatie_adres?.trim()
+  )
+
   const save = async (current = form) => {
     if (readOnly) return
+    if (requireCompleteBeforeSave && !requiredComplete) {
+      setStatus('error')
+      return
+    }
     setStatus('saving')
     const res = await saveContractInfo(bookingId, current)
     setStatus(res.success ? 'saved' : 'error')
+    if (res.success) onSaved?.(current)
   }
 
   useEffect(() => {
     if (readOnly) return
     if (!didMount.current) { didMount.current = true; return }
+    if (requireCompleteBeforeSave && !requiredComplete) return
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(() => save(form), 750)
     return () => { if (timer.current) clearTimeout(timer.current) }
-  }, [form, readOnly]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [form, readOnly, requireCompleteBeforeSave, requiredComplete]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const input = `mt-1 w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/20 transition-all ${readOnly ? 'opacity-70 cursor-not-allowed' : ''}`
   const label = 'text-xs font-medium text-gray-500 uppercase tracking-wider'
@@ -113,6 +136,11 @@ export function ContractInfoForm({
         <div>
           <h2 className="font-bold text-gray-900">Contract Info</h2>
           <p className="text-xs text-gray-400 mt-0.5">Korte verplichte info voor contract, voorschotfactuur en event-samenvatting.</p>
+          {requireCompleteBeforeSave && !requiredComplete && !readOnly && (
+            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 mt-2">
+              Vul alle velden met * in. Daarna kan je opslaan en verdergaan naar de vragenlijst.
+            </p>
+          )}
           {readOnly && (
             <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 mt-2">
               Contract is aangemaakt — deze gegevens zijn nu vergrendeld.
@@ -163,7 +191,7 @@ export function ContractInfoForm({
               <div key={extra.key} className="space-y-2 rounded-2xl border border-gray-200 bg-gray-50 p-3">
                 <Toggle value={!!form[extra.key]} onChange={v => update(extra.key, v ? 1 : 0)}>
                   <span className="flex flex-col items-start text-left">
-                    <span>{extra.label}{prijs !== undefined ? ` · €${Number(prijs).toFixed(2).replace('.', ',')}` : ''}</span>
+                    <span>{extra.label}{prijs !== undefined ? ` · € ${Number(prijs).toFixed(2).replace('.', ',')}` : ''}</span>
                     <span className="text-[11px] font-normal opacity-75 mt-0.5">{extra.description}</span>
                   </span>
                 </Toggle>
@@ -197,8 +225,12 @@ export function ContractInfoForm({
 
       {!readOnly && (
         <div className="flex justify-end pt-1">
-          <button onClick={() => save()} className="flex items-center gap-2 bg-[#007AFF] hover:bg-[#0066CC] text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors">
-            <Save size={14} /> Opslaan
+          <button
+            onClick={() => save()}
+            disabled={requireCompleteBeforeSave && !requiredComplete}
+            title={requireCompleteBeforeSave && !requiredComplete ? 'Vul eerst alle verplichte velden in' : ''}
+            className="flex items-center gap-2 bg-[#007AFF] hover:bg-[#0066CC] disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors">
+            <Save size={14} /> {saveLabel}
           </button>
         </div>
       )}

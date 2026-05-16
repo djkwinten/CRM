@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Calendar, CheckCircle2, ClipboardList, FileText, FolderOpen, MessageSquare, ExternalLink, Download, X } from 'lucide-react'
+import { Calendar, CheckCircle2, ClipboardList, FileText, FolderOpen, MessageSquare, ExternalLink, Download } from 'lucide-react'
 import { bookingFileDownloadUrl, BookingFile, getBooking, getBookingFiles, getContractInfo, getBookingPDF } from '../lib/api'
 import { Booking } from '../types/booking'
 import { BookingContractInfo } from '../features/event-workspace/types'
@@ -49,6 +49,13 @@ export function EventPortal() {
     contractInfo?.locatie_adres?.trim()
   )
   const contractLocked = !!(booking.status_contract || booking.has_contract_pdf)
+  const completeContractAndOpenQuestionnaire = (info: BookingContractInfo) => {
+    setContractInfo(info)
+    const seenKey = `event-portal-contract-popup-seen-${booking.slug || booking.id}`
+    localStorage.setItem(seenKey, '1')
+    setShowFirstContractPopup(false)
+    setActiveSection('vragenlijst')
+  }
 
   const openBase64PDF = (base64: string) => {
     const byteStr = atob(base64)
@@ -72,11 +79,6 @@ export function EventPortal() {
     }
   }
 
-  const closeFirstContractPopup = () => {
-    const seenKey = `event-portal-contract-popup-seen-${booking.slug || booking.id}`
-    localStorage.setItem(seenKey, '1')
-    setShowFirstContractPopup(false)
-  }
 
   return (
     <div className="min-h-screen bg-[#F2F2F7]">
@@ -133,7 +135,22 @@ export function EventPortal() {
             <FileText size={16} className="text-[#007AFF]" />
             <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Contract Info</h2>
           </div>
-          {contractInfo ? <ContractInfoForm bookingId={booking.id} initial={contractInfo} showFinancial={false} readOnly={contractLocked} onChange={setContractInfo} /> : <div className="text-gray-400">Contract info laden...</div>}
+          {contractInfoComplete && !contractLocked ? (
+            <div className="bg-white rounded-2xl shadow-sm p-5 border border-green-100 space-y-3">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 size={20} className="text-green-600 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-bold text-gray-900">Contract Info is volledig ingevuld.</p>
+                  <p className="text-sm text-gray-500 mt-1">De uitgebreide vragenlijst is nu beschikbaar via de knop hieronder.</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button onClick={() => setActiveSection('vragenlijst')} className="inline-flex items-center gap-2 bg-[#007AFF] hover:bg-[#0066CC] text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors">
+                  <ClipboardList size={15} /> Naar vragenlijst
+                </button>
+              </div>
+            </div>
+          ) : contractInfo ? <ContractInfoForm bookingId={booking.id} initial={contractInfo} showFinancial={false} readOnly={contractLocked} onChange={setContractInfo} requireCompleteBeforeSave onSaved={completeContractAndOpenQuestionnaire} saveLabel="Opslaan" /> : <div className="text-gray-400">Contract info laden...</div>}
           {!contractInfoComplete && (
             <div className="mt-3 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl p-3 text-sm">
               Vul eerst alle verplichte Contract Info velden in. Daarna wordt de vragenlijst beschikbaar.
@@ -214,15 +231,18 @@ export function EventPortal() {
                   <h2 className="font-bold text-gray-900">Eerst even Contract Info controleren</h2>
                   <p className="text-xs text-gray-400 mt-0.5">Dit verschijnt alleen bij het eerste bezoek aan deze klantpagina.</p>
                 </div>
-                <button onClick={closeFirstContractPopup} className="p-2 hover:bg-gray-100 rounded-xl text-gray-400">
-                  <X size={16} />
-                </button>
               </div>
               <div className="p-4">
-                <ContractInfoForm bookingId={booking.id} initial={contractInfo} showFinancial={false} readOnly={contractLocked} onChange={setContractInfo} />
-                <button onClick={closeFirstContractPopup} className="mt-4 w-full bg-[#007AFF] hover:bg-[#0066CC] text-white px-4 py-3 rounded-xl text-sm font-semibold transition-colors">
-                  Klaar / later verdergaan
-                </button>
+                <ContractInfoForm
+                  bookingId={booking.id}
+                  initial={contractInfo}
+                  showFinancial={false}
+                  readOnly={contractLocked}
+                  onChange={setContractInfo}
+                  requireCompleteBeforeSave
+                  onSaved={completeContractAndOpenQuestionnaire}
+                  saveLabel="Opslaan"
+                />
               </div>
             </div>
           </div>

@@ -497,8 +497,8 @@ bookingsRoutes.get('/:id/contract-info', async (c) => {
   `, [id])
   if (!b) return c.json({ error: 'Boeking niet gevonden' }, 404)
 
-  const naam = (b.naam_partner1 && b.naam_partner2)
-    ? `${b.naam_partner1.split(' ')[0]} & ${b.naam_partner2.split(' ')[0]}`
+  const naam = (b.naam_partner1 || b.naam_partner2)
+    ? [b.naam_partner1, b.naam_partner2].filter(Boolean).join(' & ')
     : b.naam_organisator || ''
 
   return c.json({

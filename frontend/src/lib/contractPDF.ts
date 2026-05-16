@@ -23,13 +23,21 @@ const EXTRA_LABELS: Record<string, string> = {
   karaoke: 'Karaoke',
 }
 
+const VOORZIENING_LABELS: Record<string, string> = {
+  speakers_aanwezig: 'Geluidsinstallatie',
+  licht_aanwezig: 'Lichtinstallatie',
+  micro_aanwezig: 'Microfoon',
+  dj_booth_aanwezig: 'DJ-booth / DJ-tafel',
+  uplights_aanwezig: 'Uplights',
+}
+
 function fmt(val?: string | null) {
   return val || '—'
 }
 
 function euroFmt(val?: number | null) {
   if (!val && val !== 0) return '—'
-  return `€${val.toFixed(2).replace('.', ',')}`
+  return `€ ${val.toFixed(2).replace('.', ',')}`
 }
 
 /** Bereken totaal vanuit basisprijs + extra_prijzen JSON — zelfde logica als BookingDetail */
@@ -108,6 +116,12 @@ function _buildContractPDF(booking: Booking): jsPDF {
 
   const { basisprijs, extras, korting, totaal } = berekenTotaal(booking)
   const restbedrag = Math.max(0, totaal - VOORSCHOT)
+  const voorzieningen = Object.entries(VOORZIENING_LABELS)
+    .filter(([key]) => !!(booking as unknown as Record<string, unknown>)[key])
+    .map(([, label]) => label)
+  const geselecteerdeExtras = Object.entries(EXTRA_LABELS)
+    .filter(([key]) => !!(booking as unknown as Record<string, unknown>)[key])
+    .map(([, label]) => label)
 
   // ── HEADER ────────────────────────────────────────────────────────────────
   doc.setFillColor(0, 122, 255)
@@ -203,8 +217,8 @@ function _buildContractPDF(booking: Booking): jsPDF {
     },
     body: [
       ['Datum', datumStr, 'Type Feest', fmt(booking.type_feest)],
-      ['Locatie', fmt(booking.locatie_naam), 'Thema', fmt(booking.thema)],
-      ['Aantal Gasten', booking.aantal_gasten ? `${booking.aantal_gasten} personen` : '—', 'Adres Zaal', fmt(booking.locatie_adres)],
+      ['Locatie', fmt(booking.locatie_naam), 'Adres Zaal', fmt(booking.locatie_adres)],
+      ['Aantal Gasten', booking.aantal_gasten ? `${booking.aantal_gasten} personen` : '—', 'Gewenste start dansfeest', fmt(booking.uur_dansfeest)],
     ],
     alternateRowStyles: { fillColor: [245, 248, 255] },
   })
@@ -213,6 +227,25 @@ function _buildContractPDF(booking: Booking): jsPDF {
 
   // Tijdschema bewust niet opnemen in het contract.
   // Het contract bevat enkel de basis eventgegevens, financiële afspraken en voorwaarden.
+
+  // Voorzieningen en extra's
+  autoTable(doc, {
+    startY: y,
+    margin: { left: margin, right: margin },
+    theme: 'plain',
+    styles: { fontSize: 8, cellPadding: { top: 2.2, bottom: 2.2, left: 4, right: 4 }, overflow: 'linebreak' },
+    columnStyles: {
+      0: { fontStyle: 'bold', textColor: [80, 80, 80], cellWidth: 45 },
+      1: { textColor: [20, 20, 20] },
+    },
+    body: [
+      ['Voorzieningen', voorzieningen.length ? voorzieningen.join(', ') : '—'],
+      ["Extra's", geselecteerdeExtras.length ? geselecteerdeExtras.join(', ') : "Geen extra's geselecteerd"],
+      ["Opmerking", "Deze voorzieningen en extra's zijn gebaseerd op de huidige informatie en kunnen later in onderling overleg nog aangepast worden."],
+    ],
+    alternateRowStyles: { fillColor: [248, 250, 255] },
+  })
+  y = (doc as any).lastAutoTable.finalY + 5
 
   // ── SECTIE 3: FINANCIËLE AFSPRAKEN ───────────────────────────────────────
   doc.setTextColor(0, 122, 255)
@@ -289,7 +322,7 @@ function _buildContractPDF(booking: Booking): jsPDF {
   y += 6
 
   // Betalingsinstructies box
-  const instrText = 'Voor de bevestiging van uw boeking vragen wij een vast voorschot van €100,00. U krijgt hiervan binnenkort een Billit factuur via mail.'
+  const instrText = 'Voor de bevestiging van uw boeking vragen wij een vast voorschot van € 100,00. U krijgt hiervan binnenkort een Billit factuur via mail.'
 
   doc.setFillColor(235, 245, 255)
   doc.setDrawColor(0, 122, 255)
@@ -319,7 +352,7 @@ function _buildContractPDF(booking: Booking): jsPDF {
 
   const voorwaarden = [
     ['1. Akkoord via Betaling',
-      'Door betaling van het voorschot van €100,00 verklaart de opdrachtgever zich akkoord met deze volledige overeenkomst.'],
+      'Door betaling van het voorschot van € 100,00 verklaart de opdrachtgever zich akkoord met deze volledige overeenkomst.'],
     ['2. Annulering',
       'Als het feest door onvoorziene omstandigheden niet kan plaatsvinden, zal de organisator de DJ zo snel mogelijk op de hoogte brengen.\nKosteloos annuleren tot 21 dagen voor het feest. Het voorschot kan in overleg worden omgezet in een waardebon. Bij latere annulering geldt het voorschot als schadevergoeding (uitgezonderd overmacht).'],
     ['3. Auteursrechten',
@@ -368,7 +401,7 @@ function _buildContractPDF(booking: Booking): jsPDF {
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(8)
   doc.setTextColor(60, 60, 60)
-  const akkoordTekst = 'Door betaling van het voorschot van €100,00 bevestigt de opdrachtgever kennis te hebben genomen van en akkoord te gaan met alle bovenstaande voorwaarden. De opdrachtgever begrijpt dat de vermelde prijs een basisprijs is en dat de uiteindelijke prijs kan worden aangepast naargelang bijkomende opties of wijzigingen.'
+  const akkoordTekst = 'Door betaling van het voorschot van € 100,00 bevestigt de opdrachtgever kennis te hebben genomen van en akkoord te gaan met alle bovenstaande voorwaarden. De opdrachtgever begrijpt dat de vermelde prijs een basisprijs is en dat de uiteindelijke prijs kan worden aangepast naargelang bijkomende opties of wijzigingen.'
   doc.text(doc.splitTextToSize(akkoordTekst, contentW), margin, y)
   y += 12
 

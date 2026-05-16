@@ -289,7 +289,7 @@ export function BookingDetail() {
       totaalprijs: contractForm.totaalprijs ? parseFloat(contractForm.totaalprijs) : 0,
       adres_organisator: contractForm.adres_organisator,
       voorschot_instructies: contractForm.voorschot_instructies ||
-        'Voor de bevestiging van uw boeking vragen wij een vast voorschot van €100,00. U kunt dit eenvoudig betalen via de QR-code op de bijgevoegde Billit-factuur.',
+        'Voor de bevestiging van uw boeking vragen wij een vast voorschot van € 100,00. U kunt dit eenvoudig betalen via de QR-code op de bijgevoegde Billit-factuur.',
     }
     await updateContractInfo(booking.id, payload)
     setBooking(prev => prev ? { ...prev, ...payload } : prev)
@@ -671,7 +671,7 @@ export function BookingDetail() {
                   <div className="bg-green-50 border border-green-200 rounded-xl p-3">
                     <label className="text-xs font-bold text-green-700 uppercase tracking-wider">Korting</label>
                     <div className="flex items-center gap-1.5 mt-1.5">
-                      <span className="text-gray-400 text-sm">-€</span>
+                      <span className="text-gray-400 text-sm">- €</span>
                       <input
                         type="number" min="0" step="0.01" placeholder="0.00"
                         value={extraPrijzen['_korting'] || ''}
@@ -699,7 +699,7 @@ export function BookingDetail() {
                             : <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">niet gekozen</span>
                           }
                           <div className="flex items-center gap-1">
-                            <span className="text-gray-400 text-xs">+€</span>
+                            <span className="text-gray-400 text-xs">+ €</span>
                             <input
                               type="number" min="0" step="0.01" placeholder="0"
                               value={extraPrijzen[key] || ''}
@@ -718,17 +718,17 @@ export function BookingDetail() {
                   <div className="flex items-start justify-between mb-2">
                     <div>
                       <p className="text-xs text-gray-400">Totaalprijs (berekend)</p>
-                      <p className="text-2xl font-bold text-white mt-0.5">€{totaal.toFixed(2)}</p>
+                      <p className="text-2xl font-bold text-white mt-0.5">€ {totaal.toFixed(2)}</p>
                     </div>
                     <div className="text-right">
                       <p className="text-xs text-gray-400">Restbedrag na voorschot</p>
-                      <p className="text-lg font-semibold text-[#34C759]">€{Math.max(0, totaal - 100).toFixed(2)}</p>
+                      <p className="text-lg font-semibold text-[#34C759]">€ {Math.max(0, totaal - 100).toFixed(2)}</p>
                     </div>
                   </div>
                   <div className="text-[11px] text-gray-500 space-y-0.5 border-t border-gray-700 pt-2">
-                    <div className="flex justify-between"><span>Basisprijs</span><span>€{basisVal.toFixed(2)}</span></div>
-                    {extrasTotal !== 0 && <div className="flex justify-between"><span>Extra's</span><span>+€{extrasTotal.toFixed(2)}</span></div>}
-                    {kortingVal > 0 && <div className="flex justify-between text-green-400"><span>Korting</span><span>-€{kortingVal.toFixed(2)}</span></div>}
+                    <div className="flex justify-between"><span>Basisprijs</span><span>€ {basisVal.toFixed(2)}</span></div>
+                    {extrasTotal !== 0 && <div className="flex justify-between"><span>Extra's</span><span>+ € {extrasTotal.toFixed(2)}</span></div>}
+                    {kortingVal > 0 && <div className="flex justify-between text-green-400"><span>Korting</span><span>- € {kortingVal.toFixed(2)}</span></div>}
                   </div>
                 </div>
 
@@ -740,7 +740,7 @@ export function BookingDetail() {
           <div className="mb-4">
             <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Betalingsinstructies (zichtbaar voor klant)</label>
             <div className="mt-1 w-full bg-gray-50 border border-gray-200 text-gray-700 rounded-xl px-3 py-2 text-sm">
-              Voor de bevestiging van uw boeking vragen wij een vast voorschot van €100,00. U krijgt hiervan binnenkort een Billit factuur via mail.
+              Voor de bevestiging van uw boeking vragen wij een vast voorschot van € 100,00. U krijgt hiervan binnenkort een Billit factuur via mail.
             </div>
           </div>
 

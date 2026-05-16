@@ -409,7 +409,7 @@ function GigSheetInner() {
                   {basisprijs > 0 && (
                     <tr className="border-b border-gray-100">
                       <td className="py-2.5 text-sm text-gray-700 font-medium">🎧 DJ Kwinten — Basisprijs</td>
-                      <td className="py-2.5 text-sm font-bold text-black text-right">€{basisprijs.toFixed(2)}</td>
+                      <td className="py-2.5 text-sm font-bold text-black text-right">€ {basisprijs.toFixed(2)}</td>
                     </tr>
                   )}
                   {geselecteerd.map(e => {
@@ -420,7 +420,7 @@ function GigSheetInner() {
                         <td className="py-2.5 text-sm font-bold text-right">
                           {e.opAanvraag
                             ? <span className="text-blue-600 italic font-normal">op aanvraag</span>
-                            : <span className="text-black">€{Number(prijs).toFixed(2)}</span>
+                            : <span className="text-black">€ {Number(prijs).toFixed(2)}</span>
                           }
                         </td>
                       </tr>
@@ -429,7 +429,7 @@ function GigSheetInner() {
                   {korting > 0 && (
                     <tr className="border-b border-gray-100">
                       <td className="py-2.5 text-sm text-green-700 font-medium">🎁 Korting</td>
-                      <td className="py-2.5 text-sm font-bold text-green-700 text-right">-€{korting.toFixed(2)}</td>
+                      <td className="py-2.5 text-sm font-bold text-green-700 text-right">- € {korting.toFixed(2)}</td>
                     </tr>
                   )}
                 </tbody>
@@ -441,16 +441,16 @@ function GigSheetInner() {
               <div className="bg-gray-100 border-2 border-gray-300 rounded-xl p-4 mb-6">
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-sm font-semibold text-gray-500">Totaalbedrag</span>
-                  <span className="text-2xl font-black text-gray-900">€{totaal.toFixed(2)}</span>
+                  <span className="text-2xl font-black text-gray-900">€ {totaal.toFixed(2)}</span>
                 </div>
                 <div className="border-t border-gray-300 pt-3 space-y-1.5">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Voorschot (reeds betaald / te betalen)</span>
-                    <span className="font-bold text-gray-800">€100,00</span>
+                    <span className="font-bold text-gray-800">€ 100,00</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-500">Restbedrag</span>
-                    <span className="font-black text-xl text-gray-900">€{restbedrag.toFixed(2)}</span>
+                    <span className="font-black text-xl text-gray-900">€ {restbedrag.toFixed(2)}</span>
                   </div>
                 </div>
               </div>

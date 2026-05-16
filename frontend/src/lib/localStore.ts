@@ -180,7 +180,7 @@ export function saveLocalContractInfo(id: number, payload: Partial<BookingContra
 
 export function deriveContractInfo(b: Booking): BookingContractInfo {
   const naam = b.naam_partner1 || b.naam_partner2
-    ? [b.naam_partner1?.split(' ')[0], b.naam_partner2?.split(' ')[0]].filter(Boolean).join(' & ')
+    ? [b.naam_partner1, b.naam_partner2].filter(Boolean).join(' & ')
     : b.naam_organisator || ''
   return {
     booking_id: b.id,

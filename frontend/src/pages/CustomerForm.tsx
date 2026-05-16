@@ -1198,7 +1198,7 @@ function StepExtras({ form, setForm, isTrouw }: { form: FormState; setForm: (u: 
                   ) : (
                     <>
                       <span className={`text-sm font-bold ${active ? 'text-gray-900' : 'text-gray-400'}`}>
-                        +€{extra.prijs}
+                        + € {extra.prijs}
                       </span>
                       {active && <CheckCircle2 size={16} className="text-[#007AFF]" />}
                     </>
@@ -1215,7 +1215,7 @@ function StepExtras({ form, setForm, isTrouw }: { form: FormState; setForm: (u: 
 
 const DJ_INFO = { naam: 'Den Tandt Kwinten (DJ Kwinten)', adres: 'Loskaai 26, 9800 Grammene', telefoon: '0498/21 64 48', email: 'DJKWINTEN@gmail.com', btw: 'BE 0726.773.488' }
 const VOORWAARDEN = [
-  { titel: '1. Akkoord via Betaling', tekst: 'Door betaling van het voorschot van €100,00 verklaart de opdrachtgever zich akkoord met deze volledige overeenkomst.' },
+  { titel: '1. Akkoord via Betaling', tekst: 'Door betaling van het voorschot van € 100,00 verklaart de opdrachtgever zich akkoord met deze volledige overeenkomst.' },
   { titel: '2. Annulering', tekst: 'Als het feest door onvoorziene omstandigheden niet kan plaatsvinden, zal de organisator de DJ zo snel mogelijk op de hoogte brengen. Kosteloos annuleren tot 21 dagen voor het feest. Het voorschot kan in overleg worden omgezet in een waardebon. Bij latere annulering geldt het voorschot als schadevergoeding (uitgezonderd overmacht).' },
   { titel: '3. Auteursrechten', tekst: 'De organisator is verantwoordelijk voor Sabam/Unisono (meestal gedekt door de zaal bij privéfeesten).' },
   { titel: '4. Aansprakelijkheid', tekst: 'De DJ is niet aansprakelijk voor schade, verlies of diefstal van persoonlijke bezittingen van gasten, noch voor schade aan het evenemententerrein veroorzaakt door derden.' },
@@ -1354,7 +1354,7 @@ function StepBevestiging({ form, setForm, gdprAccepted, setGdprAccepted, questio
             {heeftRichtprijs ? (
               <>
                 {basisprijs > 0 && (
-                  <div className="flex justify-between text-xs"><span className="text-gray-500">Basisprijs</span><span className="font-medium text-gray-800">€{basisprijs.toFixed(2)}</span></div>
+                  <div className="flex justify-between text-xs"><span className="text-gray-500">Basisprijs</span><span className="font-medium text-gray-800">€ {basisprijs.toFixed(2)}</span></div>
                 )}
                 {geselecteerdeExtras.map(e => (
                   <div key={e.key} className="flex justify-between text-xs">
@@ -1363,7 +1363,7 @@ function StepBevestiging({ form, setForm, gdprAccepted, setGdprAccepted, questio
                       <span className="text-blue-500 font-medium italic">op aanvraag</span>
                     ) : (
                       <span className={e.prijs > 0 ? 'text-orange-600 font-medium' : 'text-green-600 font-medium'}>
-                        {e.prijs > 0 ? '+' : ''}€{e.prijs.toFixed(2)}
+                        {e.prijs > 0 ? '+ ' : ''}€ {e.prijs.toFixed(2)}
                       </span>
                     )}
                   </div>
@@ -1371,11 +1371,11 @@ function StepBevestiging({ form, setForm, gdprAccepted, setGdprAccepted, questio
                 {korting > 0 && (
                   <div className="flex justify-between text-xs text-green-600 font-medium">
                     <span>Korting</span>
-                    <span>-€{korting.toFixed(2)}</span>
+                    <span>- € {korting.toFixed(2)}</span>
                   </div>
                 )}
                 <div className="border-t border-gray-200 pt-1.5 mt-1">
-                  <div className="flex justify-between text-xs font-bold"><span className="text-gray-700">Basisprijs totaal</span><span className="text-gray-900">€{totaalPrijs.toFixed(2)}</span></div>
+                  <div className="flex justify-between text-xs font-bold"><span className="text-gray-700">Basisprijs totaal</span><span className="text-gray-900">€ {totaalPrijs.toFixed(2)}</span></div>
                   <p className="text-[10px] text-orange-500 font-medium mt-1">⚠️ Dit is een basisprijs. Bij bijkomende opties of wijzigingen kan de prijs worden aangepast. De uiteindelijke prijs wordt vermeld op het eindoverzicht.</p>
                 </div>
               </>
@@ -1386,7 +1386,7 @@ function StepBevestiging({ form, setForm, gdprAccepted, setGdprAccepted, questio
               </>
             )}
             <div className="border-t border-gray-100 pt-1.5 space-y-1.5 mt-1">
-              <div className="flex justify-between text-xs"><span className="text-gray-500">Voorschot (reservatie)</span><span className="font-bold text-[#007AFF]">€100,00</span></div>
+              <div className="flex justify-between text-xs"><span className="text-gray-500">Voorschot (reservatie)</span><span className="font-bold text-[#007AFF]">€ 100,00</span></div>
               <div className="flex justify-between text-xs"><span className="text-gray-500">Betaling voorschot</span><span className="text-gray-700">Via Billit factuur (QR-code)</span></div>
               <div className="flex justify-between text-xs"><span className="text-gray-500">Restbedrag</span><span className="text-gray-700">Cash op dag of binnen de 14 dagen na het feest</span></div>
             </div>
@@ -1470,7 +1470,7 @@ function StepBevestiging({ form, setForm, gdprAccepted, setGdprAccepted, questio
           {gdprAccepted && <CheckCircle2 size={12} className="text-white" />}
         </div>
         <p className="text-xs text-gray-600 leading-relaxed">
-          Ik bevestig dat ik bovenstaande overeenkomst heb gelezen, dat de gegevens correct zijn, en ga akkoord met de voorwaarden en de voorschotfactuur van <span className="font-bold text-gray-800">€100</span>.{' '}
+          Ik bevestig dat ik bovenstaande overeenkomst heb gelezen, dat de gegevens correct zijn, en ga akkoord met de voorwaarden en de voorschotfactuur van <span className="font-bold text-gray-800">€ 100</span>.{' '}
           Ik begrijp dat de vermelde prijs een <span className="font-semibold text-orange-600">basisprijs</span> is en dat de uiteindelijke prijs kan worden aangepast naargelang bijkomende opties of wijzigingen. De definitieve prijs wordt meegedeeld op het eindoverzicht.
         </p>
       </button>
@@ -1601,7 +1601,7 @@ function CustomerPortal({ booking, onFillForm }: { booking: Booking; onFillForm:
               <span className="text-xl">{booking.status_voorschot ? '✅' : '💶'}</span>
               <div className="flex-1">
                 <div className={`text-sm font-semibold ${booking.status_voorschot ? 'text-green-700' : 'text-gray-500'}`}>
-                  Voorschot €100
+                  Voorschot € 100
                 </div>
                 <div className={`text-xs ${booking.status_voorschot ? 'text-green-600' : 'text-gray-400'}`}>
                   {booking.status_voorschot ? 'Ontvangen ✓' : 'Nog te betalen'}
@@ -1725,21 +1725,50 @@ export function CustomerForm() {
     getBooking(ref).then(async data => {
       if (!data) { setNotFound(true); setLoading(false); return }
       setBooking(data)
+      let contractPatch: Partial<FormState> = {}
       if (directMode) {
         const ci = await getContractInfo(data.id)
         const complete = !!(ci?.naam?.trim() && ci?.email?.trim() && ci?.gsm?.trim() && ci?.klant_adres?.trim() && ci?.event_type?.trim() && ci?.event_datum?.trim() && ci?.locatie_naam?.trim() && ci?.locatie_adres?.trim())
         if (!complete) setContractBlocked(true)
+        if (ci) {
+          const [partner1, partner2] = (ci.naam || '').split(/\s*&\s*/).map(v => v.trim())
+          contractPatch = {
+            email: ci.email || data.email,
+            telefoon: ci.gsm || data.telefoon,
+            adres_organisator: ci.klant_adres || data.adres_organisator,
+            type_feest: (ci.event_type || data.type_feest) as Booking['type_feest'],
+            feest_datum: ci.event_datum || data.feest_datum,
+            locatie_naam: ci.locatie_naam || data.locatie_naam,
+            locatie_adres: ci.locatie_adres || data.locatie_adres,
+            aantal_gasten: ci.aantal_gasten ?? data.aantal_gasten,
+            uur_dansfeest: ci.uur_dansfeest || data.uur_dansfeest,
+            speakers_aanwezig: ci.geluid_voorzien,
+            licht_aanwezig: ci.licht_voorzien,
+            dj_booth_aanwezig: ci.dj_booth_nodig,
+            ceremonie_set: ci.ceremonie_set,
+            digital_booth: ci.digital_booth,
+            retro_booth: ci.retro_booth,
+            draadloze_speaker: ci.draadloze_speaker,
+            karaoke: ci.karaoke,
+          }
+          if (data.type_feest === 'Trouw' && ci.naam) {
+            contractPatch.naam_partner1 = data.naam_partner1 || partner1 || ''
+            contractPatch.naam_partner2 = data.naam_partner2 || partner2 || ''
+          } else {
+            contractPatch.naam_organisator = ci.naam || data.naam_organisator
+          }
+        }
       }
 
       // Try to restore from LocalStorage first
       const saved = loadFromStorage(ref)
       if (saved && Object.keys(saved).length > 5) {
-        // Merge: use saved data on top of DB data
-        setForm({ ...data, ...saved })
+        // Merge: use saved data on top of DB + contract info data
+        setForm({ ...data, ...contractPatch, ...saved })
         setAutoSaveStatus('restored')
         setTimeout(() => setAutoSaveStatus('idle'), 4000)
       } else {
-        setForm(data)
+        setForm({ ...data, ...contractPatch })
       }
       setLoading(false)
     }).catch(() => {
