@@ -1,7 +1,8 @@
 import { serve } from '@hono/node-server'
 import app from './index'
 import Database from 'better-sqlite3'
-import { readFileSync, existsSync } from 'fs'
+import path from 'path'
+import { readFileSync, existsSync, mkdirSync, writeFileSync, readFileSync as readBinaryFileSync } from 'fs'
 
 // Load .env if present
 if (existsSync('./.env')) {
@@ -125,11 +126,77 @@ class MockD1Database {
   }
 }
 
+
+// Local R2-compatible storage for development/preview uploads.
+class LocalR2Bucket {
+  private root = path.resolve('./uploads')
+
+  private safePath(key: string) {
+    const fullPath = path.resolve(this.root, key)
+    if (!fullPath.startsWith(this.root + path.sep)) {
+      throw new Error('Invalid storage key')
+    }
+    return fullPath
+  }
+
+  async put(key: string, value: ArrayBuffer | ArrayBufferView | string, options?: { httpMetadata?: { contentType?: string } }) {
+    const filePath = this.safePath(key)
+    mkdirSync(path.dirname(filePath), { recursive: true })
+    const data = typeof value === 'string'
+      ? Buffer.from(value)
+      : Buffer.from(value instanceof ArrayBuffer ? value : value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength))
+    writeFileSync(filePath, data)
+    if (options?.httpMetadata?.contentType) {
+      writeFileSync(`${filePath}.metadata.json`, JSON.stringify({ contentType: options.httpMetadata.contentType }))
+    }
+    return null
+  }
+
+  async get(key: string) {
+    const filePath = this.safePath(key)
+    if (!existsSync(filePath)) return null
+    let contentType = 'application/octet-stream'
+    const metadataPath = `${filePath}.metadata.json`
+    if (existsSync(metadataPath)) {
+      try {
+        const metadata = JSON.parse(readFileSync(metadataPath, 'utf-8')) as { contentType?: string }
+        if (metadata.contentType) contentType = metadata.contentType
+      } catch { /* ignore invalid metadata */ }
+    }
+    const buffer = readBinaryFileSync(filePath)
+    return {
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(buffer)
+          controller.close()
+        }
+      }),
+      writeHttpMetadata(headers: Headers) {
+        headers.set('Content-Type', contentType)
+      },
+      async arrayBuffer() {
+        return buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength)
+      }
+    }
+  }
+
+  async head(key: string) {
+    return existsSync(this.safePath(key)) ? {} : null
+  }
+
+  async delete(key: string) {
+    const fs = await import('fs')
+    const filePath = this.safePath(key)
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath)
+    if (fs.existsSync(`${filePath}.metadata.json`)) fs.unlinkSync(`${filePath}.metadata.json`)
+  }
+}
+
 // Mock Cloudflare Workers environment
 const mockEnv = {
   DB: db ? (new MockD1Database(db) as any) : undefined,
   CACHE: undefined,
-  STORAGE: undefined,
+  STORAGE: new LocalR2Bucket() as any,
   ENVIRONMENT: 'development'
 }
 

@@ -30,5 +30,11 @@
       "database_name": "dj-booking-db",
       "database_id": "25eee93e-26c4-4789-8cbc-3fd5f3a8c93d"
     }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "STORAGE",
+      "bucket_name": "dj-booking-fotos"
+    }
   ]
 }

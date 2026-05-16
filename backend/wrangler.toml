@@ -15,3 +15,7 @@ APP_URL = "https://thr-849231d5-djkwinten-crm.nxcode-io.workers.dev"
 crons = ["15 8 * * *"]
 
 # D1/R2 bindings must be added after nxcode d1/r2 resource creation succeeds.
+
+[[r2_buckets]]
+binding = "STORAGE"
+bucket_name = "dj-booking-fotos"
