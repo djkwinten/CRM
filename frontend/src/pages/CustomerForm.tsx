@@ -942,37 +942,70 @@ function StepMuziek({ form, setForm, isTrouw }: { form: FormState; setForm: (u: 
 type UploadBestand = { naam: string; type: string; key: string; category?: 'uitnodiging' | 'zaal_foto' | 'grondplan' }
 type ZaalFoto = UploadBestand
 
-function parseZaalFotos(raw?: string): ZaalFoto[] {
-  if (!raw) return []
-  try { return JSON.parse(raw) } catch { return [] }
+type UploadResponse = { success?: boolean; key?: string; naam?: string; type?: string; error?: string }
+
+function isUploadBestand(value: unknown): value is UploadBestand {
+  if (!value || typeof value !== 'object') return false
+  const item = value as Record<string, unknown>
+  return typeof item.naam === 'string' && typeof item.type === 'string' && typeof item.key === 'string'
 }
 
 function parseUploadBestanden(raw?: string): UploadBestand[] {
   if (!raw) return []
-  try { return JSON.parse(raw) } catch { return [] }
+  try {
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) return []
+    // Oude/corrupte uploadwaarden zonder naam/type/key worden genegeerd, zodat de vragenlijst niet crasht.
+    return parsed.filter(isUploadBestand)
+  } catch {
+    return []
+  }
+}
+
+function parseZaalFotos(raw?: string): ZaalFoto[] {
+  return parseUploadBestanden(raw)
 }
 
 const API_ROOT = import.meta.env.VITE_API_URL || ''
 
+async function uploadBestand(file: File): Promise<UploadResponse> {
+  const fd = new FormData()
+  fd.append('file', file)
+  const res = await fetch(`${API_ROOT}/api/uploads`, { method: 'POST', body: fd })
+  let data: UploadResponse = {}
+  try { data = await res.json() as UploadResponse } catch { /* non-json response */ }
+  if (!res.ok || !data.key || !data.naam || !data.type) {
+    throw new Error(data.error || 'Upload mislukt. Probeer later opnieuw of verstuur het bestand apart.')
+  }
+  return data
+}
+
 function UitnodigingUpload({ form, setForm }: { form: FormState; setForm: (u: Partial<FormState>) => void }) {
   const bestanden = parseUploadBestanden(form.uitnodiging_files)
   const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   const handleFiles = async (files: FileList | null) => {
-    if (!files) return
+    if (!files || uploading) return
     const allowed = Array.from(files).filter(f => f.type.startsWith('image/') || f.type === 'application/pdf')
-    if (allowed.length === 0) return
-    setUploading(true)
-    const newFiles: UploadBestand[] = []
-    for (const file of allowed) {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await fetch(`${API_ROOT}/api/uploads`, { method: 'POST', body: fd })
-      const data = await res.json() as { key: string; naam: string; type: string }
-      newFiles.push({ naam: data.naam, type: data.type, key: data.key, category: 'uitnodiging' })
+    if (allowed.length === 0) {
+      setUploadError('Kies een afbeelding of PDF-bestand.')
+      return
     }
-    setForm({ uitnodiging_files: JSON.stringify([...bestanden, ...newFiles]) })
-    setUploading(false)
+    setUploading(true)
+    setUploadError(null)
+    try {
+      const newFiles: UploadBestand[] = []
+      for (const file of allowed) {
+        const data = await uploadBestand(file)
+        newFiles.push({ naam: data.naam!, type: data.type!, key: data.key!, category: 'uitnodiging' })
+      }
+      setForm({ uitnodiging_files: JSON.stringify([...bestanden, ...newFiles]) })
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Upload mislukt. Je kan de vragenlijst wel verder invullen.')
+    } finally {
+      setUploading(false)
+    }
   }
 
   const remove = (idx: number) => {
@@ -990,8 +1023,11 @@ function UitnodigingUpload({ form, setForm }: { form: FormState; setForm: (u: Pa
         <span className="text-2xl">{uploading ? '⏳' : '📂'}</span>
         <span className="text-sm font-semibold text-purple-700">{uploading ? 'Uploaden...' : 'Upload uitnodiging'}</span>
         <span className="text-xs text-gray-400">Afbeelding of PDF</span>
-        <input type="file" multiple accept="image/*,application/pdf" className="hidden" disabled={uploading} onChange={e => handleFiles(e.target.files)} />
+        <input type="file" multiple accept="image/*,application/pdf" className="hidden" disabled={uploading} onChange={e => { handleFiles(e.target.files); e.currentTarget.value = '' }} />
       </label>
+      {uploadError && (
+        <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{uploadError}</p>
+      )}
       {bestanden.length > 0 && (
         <div className="space-y-2">
           {bestanden.map((f, i) => (
@@ -1010,24 +1046,31 @@ function UitnodigingUpload({ form, setForm }: { form: FormState; setForm: (u: Pa
 function StepZaal({ form, setForm }: { form: FormState; setForm: (u: Partial<FormState>) => void }) {
   const fotos = parseZaalFotos(form.zaal_fotos)
   const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   const handleFiles = async (files: FileList | null, category: 'zaal_foto' | 'grondplan' = 'zaal_foto') => {
-    if (!files) return
+    if (!files || uploading) return
     const allowed = Array.from(files).filter(f =>
       f.type.startsWith('image/') || f.type === 'application/pdf'
     )
-    if (allowed.length === 0) return
-    setUploading(true)
-    const newFotos: ZaalFoto[] = []
-    for (const file of allowed) {
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await fetch(`${API_ROOT}/api/uploads`, { method: 'POST', body: fd })
-      const data = await res.json() as { key: string; naam: string; type: string }
-      newFotos.push({ naam: data.naam, type: data.type, key: data.key, category })
+    if (allowed.length === 0) {
+      setUploadError('Kies een afbeelding of PDF-bestand.')
+      return
     }
-    setForm({ zaal_fotos: JSON.stringify([...fotos, ...newFotos]) })
-    setUploading(false)
+    setUploading(true)
+    setUploadError(null)
+    try {
+      const newFotos: ZaalFoto[] = []
+      for (const file of allowed) {
+        const data = await uploadBestand(file)
+        newFotos.push({ naam: data.naam!, type: data.type!, key: data.key!, category })
+      }
+      setForm({ zaal_fotos: JSON.stringify([...fotos, ...newFotos]) })
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Upload mislukt. Je kan de vragenlijst wel verder invullen.')
+    } finally {
+      setUploading(false)
+    }
   }
 
   const removeFoto = (idx: number) => {
@@ -1077,10 +1120,14 @@ function StepZaal({ form, setForm }: { form: FormState; setForm: (u: Partial<For
               <span className="text-2xl">{uploading ? '⏳' : icon}</span>
               <span className="text-sm font-semibold text-blue-700">{uploading ? 'Uploaden...' : title}</span>
               <span className="text-xs text-gray-400">{subtitle}</span>
-              <input type="file" multiple accept="image/*,application/pdf" className="hidden" disabled={uploading} onChange={e => handleFiles(e.target.files, category)} />
+              <input type="file" multiple accept="image/*,application/pdf" className="hidden" disabled={uploading} onChange={e => { handleFiles(e.target.files, category); e.currentTarget.value = '' }} />
             </label>
           ))}
         </div>
+
+        {uploadError && (
+          <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-xl px-3 py-2">{uploadError}</p>
+        )}
 
         {/* Bestandslijst */}
         {fotos.length > 0 && (

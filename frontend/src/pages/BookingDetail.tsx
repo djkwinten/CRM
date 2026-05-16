@@ -1096,7 +1096,12 @@ export function BookingDetail() {
           const API_ROOT = import.meta.env.VITE_API_URL || ''
           type ZaalFoto = { naam: string; type: string; key: string }
           let fotos: ZaalFoto[] = []
-          try { fotos = booking.zaal_fotos ? JSON.parse(booking.zaal_fotos) : [] } catch {}
+          try {
+            const parsed = booking.zaal_fotos ? JSON.parse(booking.zaal_fotos) : []
+            fotos = Array.isArray(parsed)
+              ? parsed.filter((f): f is ZaalFoto => !!f && typeof f.naam === 'string' && typeof f.type === 'string' && typeof f.key === 'string')
+              : []
+          } catch {}
           if (fotos.length === 0) return null
           return (
             <Section title="Zaalfoto's & Plattegrond" icon={<span>📸</span>}>

@@ -10,13 +10,26 @@ export const uploadsRoutes = new Hono<{ Bindings: Bindings }>()
 uploadsRoutes.post('/', async (c) => {
   const storage = c.env.STORAGE
   if (!storage) {
-    return c.json({ error: 'Storage not configured' }, 500)
+    return c.json({
+      success: false,
+      error: 'Uploadopslag is nog niet geconfigureerd. Je kan de vragenlijst zonder foto verder invullen.'
+    }, 503)
   }
 
   const formData = await c.req.formData()
   const file = formData.get('file') as File | null
   if (!file) {
     return c.json({ error: 'No file provided' }, 400)
+  }
+
+  const allowed = file.type.startsWith('image/') || file.type === 'application/pdf'
+  if (!allowed) {
+    return c.json({ success: false, error: 'Enkel afbeeldingen en PDF-bestanden zijn toegestaan.' }, 400)
+  }
+
+  const maxBytes = 10 * 1024 * 1024
+  if (file.size > maxBytes) {
+    return c.json({ success: false, error: 'Bestand is te groot. Maximum 10 MB per bestand.' }, 413)
   }
 
   const ext = file.name.split('.').pop() || 'bin'
