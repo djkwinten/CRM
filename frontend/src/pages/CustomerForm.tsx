@@ -1299,6 +1299,9 @@ function StepBevestiging({ form, setForm, gdprAccepted, setGdprAccepted, questio
       prijs: Number(extraPrijzenDJ[key] ?? EXTRAS_PRIJZEN[key] ?? 0),
       opAanvraag: EXTRAS.find(e => e.key === key)?.prijs === null,
     }))
+  const geselecteerdeVoorzieningen = DJ_VOORZIENINGEN
+    .filter(item => form[item.key as keyof FormState])
+    .map(item => item.label)
   const extrasTotal = geselecteerdeExtras.reduce((s, e) => s + (e.opAanvraag ? 0 : e.prijs), 0)
   const totaalPrijs = Math.max(0, basisprijs + extrasTotal - korting)
   const heeftRichtprijs = basisprijs > 0 || geselecteerdeExtras.some(e => !e.opAanvraag)
@@ -1340,12 +1343,50 @@ function StepBevestiging({ form, setForm, gdprAccepted, setGdprAccepted, questio
           </div>
 
           {/* Feestgegevens */}
-          <div className="bg-gray-50 rounded-xl p-3 space-y-1.5">
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Feestgegevens</p>
-            <div className="flex justify-between text-xs"><span className="text-gray-500">Datum</span><span className="font-medium text-gray-800 capitalize">{datumStr}</span></div>
-            <div className="flex justify-between text-xs"><span className="text-gray-500">Type</span><span className="font-medium text-gray-800">{form.type_feest || '—'}</span></div>
-            {form.locatie_naam && <div className="flex justify-between text-xs"><span className="text-gray-500">Locatie</span><span className="font-medium text-gray-800">{form.locatie_naam}</span></div>}
-            {form.aantal_gasten && <div className="flex justify-between text-xs"><span className="text-gray-500">Gasten</span><span className="font-medium text-gray-800">{form.aantal_gasten} personen</span></div>}
+          <div className="bg-gray-50 rounded-xl p-3 space-y-3">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Feestgegevens</p>
+            <div className="grid sm:grid-cols-2 gap-2">
+              <div className="rounded-lg bg-white/70 border border-gray-100 p-2">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Datum</p>
+                <p className="text-xs font-medium text-gray-800 capitalize mt-0.5">{datumStr}</p>
+              </div>
+              <div className="rounded-lg bg-white/70 border border-gray-100 p-2">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Type feest</p>
+                <p className="text-xs font-medium text-gray-800 mt-0.5">{form.type_feest || '—'}</p>
+              </div>
+              <div className="rounded-lg bg-white/70 border border-gray-100 p-2">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Locatie</p>
+                <p className="text-xs font-medium text-gray-800 mt-0.5">{form.locatie_naam || '—'}</p>
+              </div>
+              <div className="rounded-lg bg-white/70 border border-gray-100 p-2">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Adres zaal</p>
+                <p className="text-xs font-medium text-gray-800 mt-0.5">{form.locatie_adres || '—'}</p>
+              </div>
+              <div className="rounded-lg bg-white/70 border border-gray-100 p-2">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Aantal gasten</p>
+                <p className="text-xs font-medium text-gray-800 mt-0.5">{form.aantal_gasten ? `${form.aantal_gasten} personen` : '—'}</p>
+              </div>
+              <div className="rounded-lg bg-white/70 border border-gray-100 p-2">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Gewenste start dansfeest</p>
+                <p className="text-xs font-medium text-gray-800 mt-0.5">{form.uur_dansfeest || '—'}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Voorzieningen en extra's */}
+          <div className="bg-gray-50 rounded-xl p-3 space-y-3">
+            <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">Voorzieningen & extra's</p>
+            <div>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Voorzieningen</p>
+              <p className="text-xs text-gray-700 leading-relaxed">{geselecteerdeVoorzieningen.length ? geselecteerdeVoorzieningen.join(', ') : '—'}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Extra's</p>
+              <p className="text-xs text-gray-700 leading-relaxed">{geselecteerdeExtras.length ? geselecteerdeExtras.map(e => e.label).join(', ') : "Geen extra's geselecteerd"}</p>
+            </div>
+            <p className="text-[10px] text-orange-500 font-medium leading-relaxed">
+              Deze voorzieningen en extra's zijn gebaseerd op de huidige informatie en kunnen later in onderling overleg nog aangepast worden.
+            </p>
           </div>
 
           {/* Financieel */}
