@@ -228,6 +228,75 @@ export async function sendUpdateNotification(cfg: SmtpConfig, opts: { naam: stri
   await sendViaBrevo(cfg, cfg.user, subject, html, `Vragenlijst ${action} door ${opts.naam} (${datumStr}). Bekijk via ${opts.appUrl}`)
 }
 
+
+
+export interface ContractInfoNotificationOptions {
+  naam: string
+  email?: string
+  gsm?: string
+  eventType: string
+  eventDatum: string
+  locatieNaam: string
+  locatieAdres: string
+  appUrl: string
+  bookingUrl?: string
+}
+
+export async function sendContractInfoNotification(cfg: SmtpConfig, opts: ContractInfoNotificationOptions): Promise<void> {
+  const subject = `📄 Contract Info ingevuld — ${opts.naam}`
+  const datumStr = opts.eventDatum
+    ? new Date(opts.eventDatum).toLocaleDateString('nl-BE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+    : '—'
+  const link = opts.bookingUrl || opts.appUrl
+
+  const html = `
+<!DOCTYPE html><html lang="nl"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f2f2f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:40px 20px;background:#f2f2f7;">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:white;border-radius:18px;overflow:hidden;box-shadow:0 6px 28px rgba(0,0,0,0.10);">
+        <tr><td style="background:linear-gradient(135deg,#007AFF,#5856D6);padding:26px 30px;">
+          <p style="color:white;font-size:21px;font-weight:800;margin:0;">📄 Contract Info ingevuld</p>
+          <p style="color:rgba(255,255,255,0.75);font-size:13px;margin:5px 0 0;">DJ Manager — automatische melding</p>
+        </td></tr>
+        <tr><td style="padding:26px 30px;">
+          <p style="color:#111827;font-size:15px;margin:0 0 16px;">Een klant heeft de verplichte Contract Info volledig ingevuld.</p>
+          <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:14px;padding:16px;border-collapse:separate;">
+            <tr><td style="color:#6b7280;font-size:13px;padding:5px 0;">Klant</td><td style="color:#111827;font-size:13px;font-weight:700;padding:5px 0;text-align:right;">${opts.naam}</td></tr>
+            <tr><td style="color:#6b7280;font-size:13px;padding:5px 0;">E-mail</td><td style="color:#111827;font-size:13px;font-weight:600;padding:5px 0;text-align:right;">${opts.email || '—'}</td></tr>
+            <tr><td style="color:#6b7280;font-size:13px;padding:5px 0;">GSM</td><td style="color:#111827;font-size:13px;font-weight:600;padding:5px 0;text-align:right;">${opts.gsm || '—'}</td></tr>
+            <tr><td style="color:#6b7280;font-size:13px;padding:5px 0;">Type feest</td><td style="color:#111827;font-size:13px;font-weight:600;padding:5px 0;text-align:right;">${opts.eventType || '—'}</td></tr>
+            <tr><td style="color:#6b7280;font-size:13px;padding:5px 0;">Datum</td><td style="color:#111827;font-size:13px;font-weight:600;padding:5px 0;text-align:right;text-transform:capitalize;">${datumStr}</td></tr>
+            <tr><td style="color:#6b7280;font-size:13px;padding:5px 0;">Locatie</td><td style="color:#111827;font-size:13px;font-weight:600;padding:5px 0;text-align:right;">${opts.locatieNaam || '—'}</td></tr>
+            <tr><td style="color:#6b7280;font-size:13px;padding:5px 0;">Adres zaal</td><td style="color:#111827;font-size:13px;font-weight:600;padding:5px 0;text-align:right;">${opts.locatieAdres || '—'}</td></tr>
+          </table>
+          <p style="margin:22px 0 0;"><a href="${link}" style="display:inline-block;background:#007AFF;color:white;font-size:14px;font-weight:700;padding:12px 22px;border-radius:11px;text-decoration:none;">Open CRM →</a></p>
+        </td></tr>
+        <tr><td style="background:#f8fafc;padding:16px 30px;border-top:1px solid #e5e7eb;">
+          <p style="color:#9ca3af;font-size:11px;margin:0;">Deze melding wordt één keer verstuurd zodra alle verplichte Contract Info velden volledig zijn ingevuld.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`
+
+  const text = `
+Contract Info ingevuld
+
+Klant: ${opts.naam}
+E-mail: ${opts.email || '—'}
+GSM: ${opts.gsm || '—'}
+Type feest: ${opts.eventType || '—'}
+Datum: ${datumStr}
+Locatie: ${opts.locatieNaam || '—'}
+Adres zaal: ${opts.locatieAdres || '—'}
+
+Open CRM: ${link}
+  `.trim()
+
+  await sendViaBrevo(cfg, cfg.user, subject, html, text)
+}
+
 export interface AanvraagReminderOptions {
   to: string
   naam: string

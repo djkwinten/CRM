@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { query, queryOne, execute } from '../lib/db'
-import { sendUpdateNotification, SmtpConfig } from '../lib/mailer'
+import { sendContractInfoNotification, sendUpdateNotification, SmtpConfig } from '../lib/mailer'
 import { randomBytes } from 'crypto'
 
 // ── Slug helpers ──────────────────────────────────────────────────────────────
@@ -390,6 +390,7 @@ bookingsRoutes.post('/init', async (c) => {
         afgesproken_prijs REAL,
         voorschot_bedrag REAL,
         contract_ready INTEGER DEFAULT 0,
+        contract_info_notified_at TEXT,
         notes TEXT,
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT DEFAULT (datetime('now')),
@@ -397,6 +398,7 @@ bookingsRoutes.post('/init', async (c) => {
       )
     `)
     try { await execute(c.env, `ALTER TABLE booking_contract_info ADD COLUMN klant_adres TEXT`) } catch { /* already exists */ }
+    try { await execute(c.env, `ALTER TABLE booking_contract_info ADD COLUMN contract_info_notified_at TEXT`) } catch { /* already exists */ }
 
     // Backfill access_token + slug for existing rows that don't have them yet
     const missing = await query<{ id: number; naam_organisator: string; feest_datum: string; type_feest: string }>(
@@ -459,6 +461,7 @@ bookingsRoutes.get('/:id/contract-info', async (c) => {
   try { await execute(c.env, `ALTER TABLE booking_contract_info ADD COLUMN klant_adres TEXT`) } catch { /* already exists */ }
   try { await execute(c.env, `ALTER TABLE booking_contract_info ADD COLUMN aantal_gasten INTEGER`) } catch { /* already exists */ }
   try { await execute(c.env, `ALTER TABLE booking_contract_info ADD COLUMN uur_dansfeest TEXT`) } catch { /* already exists */ }
+  try { await execute(c.env, `ALTER TABLE booking_contract_info ADD COLUMN contract_info_notified_at TEXT`) } catch { /* already exists */ }
 
   const existing = await queryOne(c.env, `SELECT * FROM booking_contract_info WHERE booking_id = ?`, [id])
   if (existing) return c.json({ contract_info: existing })
@@ -566,6 +569,13 @@ bookingsRoutes.put('/:id/contract-info', async (c) => {
   try { await execute(c.env, `ALTER TABLE booking_contract_info ADD COLUMN klant_adres TEXT`) } catch { /* already exists */ }
   try { await execute(c.env, `ALTER TABLE booking_contract_info ADD COLUMN aantal_gasten INTEGER`) } catch { /* already exists */ }
   try { await execute(c.env, `ALTER TABLE booking_contract_info ADD COLUMN uur_dansfeest TEXT`) } catch { /* already exists */ }
+  try { await execute(c.env, `ALTER TABLE booking_contract_info ADD COLUMN contract_info_notified_at TEXT`) } catch { /* already exists */ }
+
+  const existingBeforeSave = await queryOne<{ contract_info_notified_at?: string | null }>(
+    c.env,
+    `SELECT contract_info_notified_at FROM booking_contract_info WHERE booking_id = ?`,
+    [id]
+  )
 
   await execute(c.env, `
     INSERT INTO booking_contract_info (
@@ -646,6 +656,50 @@ bookingsRoutes.put('/:id/contract-info', async (c) => {
     syncFields.push("updated_at = datetime('now')")
     syncValues.push(id)
     await execute(c.env, `UPDATE bookings SET ${syncFields.join(', ')} WHERE id = ?`, syncValues)
+  }
+
+  // Stuur één automatische mail naar DJ zodra het contractformulier volledig is ingevuld.
+  // Belangrijk: ContractInfoForm autosavet na volledige invulling; daarom bewaren we
+  // contract_info_notified_at zodat dezelfde boeking niet bij elke latere autosave opnieuw mailt.
+  const requiredComplete = !!(
+    String(body.naam || '').trim() &&
+    String(body.email || '').trim() &&
+    String(body.gsm || '').trim() &&
+    String(body.klant_adres || '').trim() &&
+    String(body.event_type || '').trim() &&
+    String(body.event_datum || '').trim() &&
+    String(body.locatie_naam || '').trim() &&
+    String(body.locatie_adres || '').trim()
+  )
+
+  const brevoApiKey = c.env.BREVO_API_KEY || c.env.SMTP_PASS
+  const shouldNotifyContractComplete = body._notify_contract_complete === 1 || body._notify_contract_complete === true
+  if (shouldNotifyContractComplete && requiredComplete && !existingBeforeSave?.contract_info_notified_at && c.env.SMTP_USER && brevoApiKey) {
+    try {
+      const cfg: SmtpConfig = {
+        host: c.env.SMTP_HOST || 'smtp.gmail.com',
+        port: parseInt(c.env.SMTP_PORT || '587'),
+        user: c.env.SMTP_USER,
+        pass: brevoApiKey,
+        from: c.env.SMTP_FROM || c.env.SMTP_USER,
+        brevoApiKey,
+      }
+      const appUrl = (c.env.APP_URL || 'https://crm.dentandtkwinten.workers.dev').replace(/\/$/, '')
+      await sendContractInfoNotification(cfg, {
+        naam: String(body.naam || 'Klant'),
+        email: String(body.email || ''),
+        gsm: String(body.gsm || ''),
+        eventType: String(body.event_type || ''),
+        eventDatum: String(body.event_datum || ''),
+        locatieNaam: String(body.locatie_naam || ''),
+        locatieAdres: String(body.locatie_adres || ''),
+        appUrl,
+        bookingUrl: `${appUrl}/boeking/${id}`,
+      })
+      await execute(c.env, `UPDATE booking_contract_info SET contract_info_notified_at = datetime('now') WHERE booking_id = ?`, [id])
+    } catch (e) {
+      console.error('Contract Info notificatie e-mail mislukt:', e)
+    }
   }
 
   return c.json({ success: true })

@@ -150,7 +150,7 @@ export function EventPortal() {
                 </button>
               </div>
             </div>
-          ) : contractInfo ? <ContractInfoForm bookingId={booking.id} initial={contractInfo} showFinancial={false} readOnly={contractLocked} onChange={setContractInfo} requireCompleteBeforeSave onSaved={completeContractAndOpenQuestionnaire} saveLabel="Opslaan" /> : <div className="text-gray-400">Contract info laden...</div>}
+          ) : contractInfo ? <ContractInfoForm bookingId={booking.id} initial={contractInfo} showFinancial={false} readOnly={contractLocked} onChange={setContractInfo} requireCompleteBeforeSave notifyOnComplete onSaved={completeContractAndOpenQuestionnaire} saveLabel="Opslaan" /> : <div className="text-gray-400">Contract info laden...</div>}
           {!contractInfoComplete && (
             <div className="mt-3 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl p-3 text-sm">
               Vul eerst alle verplichte Contract Info velden in. Daarna wordt de vragenlijst beschikbaar.
@@ -240,6 +240,7 @@ export function EventPortal() {
                   readOnly={contractLocked}
                   onChange={setContractInfo}
                   requireCompleteBeforeSave
+                  notifyOnComplete
                   onSaved={completeContractAndOpenQuestionnaire}
                   saveLabel="Opslaan"
                 />
