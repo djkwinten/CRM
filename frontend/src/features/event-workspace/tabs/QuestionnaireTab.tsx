@@ -2,11 +2,11 @@ import { Copy, ExternalLink, CheckCircle2, XCircle } from 'lucide-react'
 import { Booking } from '../../../types/booking'
 
 export function QuestionnaireTab({ booking, onShowChanges }: { booking: Booking; onShowChanges: () => void }) {
-  const path = booking.slug ? `/vragenlijst/${booking.slug}` : `/formulier/${booking.id}`
+  const path = `/event/${booking.slug || booking.id}?section=vragenlijst`
   const copy = () => {
     const url = `${window.location.origin}${path}`
     navigator.clipboard.writeText(url)
-    alert(`Vragenlijst-link gekopieerd!\n\n${url}`)
+    alert(`Klantpagina-link gekopieerd!\n\nDe vragenlijst-sectie opent automatisch.\n\n${url}`)
   }
 
   return (
@@ -21,10 +21,10 @@ export function QuestionnaireTab({ booking, onShowChanges }: { booking: Booking;
       </div>
       <div className="flex flex-col sm:flex-row gap-2">
         <a href={path} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 bg-[#007AFF] hover:bg-[#0066CC] text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors">
-          <ExternalLink size={15} /> Open vragenlijst
+          <ExternalLink size={15} /> Open klantpagina
         </a>
         <button onClick={copy} className="flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors">
-          <Copy size={15} /> Kopieer link
+          <Copy size={15} /> Kopieer klantlink
         </button>
         {booking.vragenlijst_updated_at && booking.vragenlijst_first_submitted_at && (
           <button onClick={onShowChanges} className="flex items-center justify-center gap-2 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors">

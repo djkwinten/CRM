@@ -1009,10 +1009,10 @@ export function Dashboard() {
   }
 
   const copyFormLink = (b: Booking) => {
-    const path = b.slug ? `/vragenlijst/${b.slug}` : `/formulier/${b.id}`
+    const path = `/event/${b.slug || b.id}?section=vragenlijst`
     const url = `${window.location.origin}${path}`
     navigator.clipboard.writeText(url)
-    alert(`Formulier-link gekopieerd!\n\nStuur deze link naar je klant:\n${url}`)
+    alert(`Klantpagina-link gekopieerd!\n\nDe vragenlijst-sectie opent automatisch.\n\nStuur deze link naar je klant:\n${url}`)
   }
 
   const today = new Date().toISOString().slice(0, 10)
@@ -1299,7 +1299,7 @@ export function Dashboard() {
                         <button onClick={() => handleToggleStatus(b, 'status_voorschot')} title="Klik om te wisselen">
                           <StatusBadge value={b.status_voorschot} label="Voorschot" />
                         </button>
-                        <a href={b.slug ? `/vragenlijst/${b.slug}` : `/formulier/${b.id}`} target="_blank" rel="noopener noreferrer" title="Open vragenlijst">
+                        <a href={`/event/${b.slug || b.id}?section=vragenlijst`} target="_blank" rel="noopener noreferrer" title="Open klantpagina bij vragenlijst">
                           <StatusBadge value={b.status_vragenlijst} label="Vragenlijst" updated={!!b.vragenlijst_updated_at && !!b.vragenlijst_first_submitted_at} />
                         </a>
                       </div>

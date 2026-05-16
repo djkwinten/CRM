@@ -176,11 +176,11 @@ function VragenlijstOverzichtModal({ booking, onClose }: { booking: Booking; onC
 
         <div className="p-4 border-t border-gray-100">
           <a
-            href={booking.slug ? `/vragenlijst/${booking.slug}` : `/formulier/${booking.id}`}
+            href={`/event/${booking.slug || booking.id}?section=vragenlijst`}
             target="_blank"
             rel="noopener noreferrer"
             className="w-full flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-white py-2.5 rounded-xl font-semibold text-sm transition-colors">
-            Bekijk volledig formulier →
+            Bekijk via klantpagina →
           </a>
         </div>
       </div>
@@ -522,7 +522,7 @@ export function BookingDetail() {
             <StatusToggle label="Voorschot" value={booking.status_voorschot} onToggle={() => toggleStatus('status_voorschot')} />
             <div className="flex-1 flex gap-2">
               <a
-                href={booking.slug ? `/vragenlijst/${booking.slug}` : `/formulier/${booking.id}`}
+                href={`/event/${booking.slug || booking.id}?section=vragenlijst`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl border font-semibold text-sm transition-colors ${

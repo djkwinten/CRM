@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { Calendar, CheckCircle2, ClipboardList, FileText, FolderOpen, MessageSquare, ExternalLink, Download } from 'lucide-react'
 import { bookingFileDownloadUrl, BookingFile, getBooking, getBookingFiles, getContractInfo, getBookingPDF } from '../lib/api'
 import { Booking } from '../types/booking'
@@ -8,6 +8,7 @@ import { ContractInfoForm } from '../features/event-workspace/components/Contrac
 
 export function EventPortal() {
   const { slug } = useParams<{ slug: string }>()
+  const [searchParams] = useSearchParams()
   const [booking, setBooking] = useState<Booking | null>(null)
   const [contractInfo, setContractInfo] = useState<BookingContractInfo | null>(null)
   const [loading, setLoading] = useState(true)
@@ -15,6 +16,13 @@ export function EventPortal() {
   const [activeSection, setActiveSection] = useState<'contract' | 'vragenlijst' | 'bestanden' | 'communicatie' | null>(null)
   const [showFirstContractPopup, setShowFirstContractPopup] = useState(false)
   const [manualFiles, setManualFiles] = useState<BookingFile[]>([])
+
+  useEffect(() => {
+    const section = searchParams.get('section')
+    if (section === 'contract' || section === 'vragenlijst' || section === 'bestanden' || section === 'communicatie') {
+      setActiveSection(section)
+    }
+  }, [searchParams])
 
   useEffect(() => {
     if (!slug) return
