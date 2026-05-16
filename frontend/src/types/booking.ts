@@ -4,6 +4,7 @@ export interface Booking {
   access_token?: string
   slug?: string
   portal_title?: string
+  contract_info_unlocked?: number
   // Beheer
   feest_datum: string
   type_feest: 'Trouw' | 'Algemeen'

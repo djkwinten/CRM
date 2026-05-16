@@ -21,6 +21,9 @@
     "SMTP_USER": "djkwinten@gmail.com",
     "APP_URL": "https://crm.dentandtkwinten.workers.dev"
   },
+  "triggers": {
+    "crons": ["15 8 * * *"]
+  },
   "d1_databases": [
     {
       "binding": "DB",

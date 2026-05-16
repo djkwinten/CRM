@@ -291,6 +291,58 @@ async function ensureFeestHerinneringColumn(env: Bindings) {
   }
 }
 
+
+
+async function sendDueFeestHerinneringen(env: Bindings): Promise<{ checked: number; sent: number; results: { id: number; naam: string; sent: boolean; reason?: string }[] }> {
+  await ensureFeestHerinneringColumn(env)
+
+  const bookings = await query<{ id: number; feest_datum: string; naam_organisator: string; naam_partner1: string | null; naam_partner2: string | null; email: string; is_aanvraag: number; type_feest: string; slug: string | null; feest_herinnering_sent_at: string | null }>(env, `
+    SELECT id, feest_datum, naam_organisator, naam_partner1, naam_partner2, email, is_aanvraag, type_feest, slug, feest_herinnering_sent_at
+    FROM bookings
+    WHERE is_aanvraag = 0
+      AND email IS NOT NULL
+      AND email != ''
+      AND feest_herinnering_sent_at IS NULL
+    ORDER BY feest_datum ASC
+  `)
+
+  const cfg = getSmtpConfig(env)
+  const results: { id: number; naam: string; sent: boolean; reason?: string }[] = []
+
+  for (const b of bookings) {
+    const days = daysUntil(b.feest_datum)
+    const naam = (b.naam_partner1 && b.naam_partner2)
+      ? `${b.naam_partner1.split(' ')[0]} & ${b.naam_partner2.split(' ')[0]}`
+      : b.naam_organisator || 'klant'
+
+    if (days > 30 || days <= 0) {
+      results.push({ id: b.id, naam, sent: false, reason: `${days} dagen — buiten venster` })
+      continue
+    }
+
+    try {
+      await sendFeestHerinneringEmail(cfg, {
+        to: b.email,
+        naam,
+        feestDatum: formatDate(b.feest_datum),
+        type_feest: (b.type_feest as 'Trouw' | 'Algemeen') || 'Algemeen',
+        formLink: getFormLink(env, b.id, b.slug),
+      })
+      await execute(env, `UPDATE bookings SET feest_herinnering_sent_at = datetime('now') WHERE id = ?`, [b.id])
+      results.push({ id: b.id, naam, sent: true })
+    } catch (e: any) {
+      results.push({ id: b.id, naam, sent: false, reason: e?.message || String(e) })
+    }
+  }
+
+  return { checked: bookings.length, sent: results.filter(r => r.sent).length, results }
+}
+
+remindersRoutes.post('/feest-herinnering-check', async (c) => {
+  const result = await sendDueFeestHerinneringen(c.env)
+  return c.json({ success: true, ...result })
+})
+
 remindersRoutes.post('/feest-herinnering-send/:id', async (c) => {
   await ensureFeestHerinneringColumn(c.env)
 

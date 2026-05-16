@@ -12,5 +12,5 @@ export function ContractInfoTab({ booking }: { booking: Booking }) {
   }, [booking.id])
 
   if (!info) return <div className="text-center py-12 text-gray-400 animate-pulse">Contract info laden...</div>
-  return <ContractInfoForm bookingId={booking.id} initial={info} readOnly={!!(booking.status_contract || booking.has_contract_pdf)} />
+  return <ContractInfoForm bookingId={booking.id} initial={info} readOnly={!!((booking.status_contract || booking.has_contract_pdf) && !booking.contract_info_unlocked)} />
 }

@@ -49,7 +49,7 @@ export async function createBooking(payload: Partial<Booking>): Promise<{ id: nu
   return createLocalBooking(payload)
 }
 
-export async function updateStatus(id: number, status: Partial<Pick<Booking, 'status_contract' | 'status_voorschot' | 'status_vragenlijst' | 'is_aanvraag' | 'is_afgewezen' | 'afgewezen_reden'>>) {
+export async function updateStatus(id: number, status: Partial<Pick<Booking, 'status_contract' | 'status_voorschot' | 'status_vragenlijst' | 'is_aanvraag' | 'is_afgewezen' | 'afgewezen_reden' | 'contract_info_unlocked'>>) {
   updateLocalBooking(id, status)
   try {
     const res = await fetch(`${BASE}/${id}/status`, {
@@ -86,6 +86,7 @@ export async function updateContractInfo(id: number, payload: {
   billit_factuur_pdf?: string
   billit_factuur_naam?: string
   contract_pdf?: string
+  contract_info_unlocked?: number
 }) {
   updateLocalBooking(id, payload)
   try {

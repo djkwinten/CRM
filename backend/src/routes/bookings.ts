@@ -65,6 +65,7 @@ const bookingListColumns: Record<string, string> = {
   slug: 'NULL',
   access_token: 'NULL',
   portal_title: 'NULL',
+  contract_info_unlocked: '0',
   is_aanvraag: '0',
   is_afgewezen: '0',
   afgewezen_reden: 'NULL',
@@ -367,6 +368,8 @@ bookingsRoutes.post('/init', async (c) => {
       `ALTER TABLE bookings ADD COLUMN afgewezen_reden TEXT`,
       // Klantportaal
       `ALTER TABLE bookings ADD COLUMN portal_title TEXT`,
+      // Laat DJ tijdelijk Contract Info opnieuw openzetten ondanks bestaand contract/PDF
+      `ALTER TABLE bookings ADD COLUMN contract_info_unlocked INTEGER NOT NULL DEFAULT 0`,
     ]
     for (const m of migrations) {
       try { await execute(c.env, m) } catch { /* column already exists */ }
@@ -797,6 +800,25 @@ bookingsRoutes.patch('/:id/portal', async (c) => {
 })
 
 // Update booking status (DJ side - contract/voorschot)
+// Ensure columns used by questionnaire submissions exist, even when /init was not run after a deploy.
+async function ensureQuestionnaireColumns(env: Bindings) {
+  const migrations = [
+    `ALTER TABLE bookings ADD COLUMN zaal_fotos TEXT`,
+    `ALTER TABLE bookings ADD COLUMN uitnodiging_files TEXT`,
+    `ALTER TABLE bookings ADD COLUMN toestemming_foto INTEGER DEFAULT NULL`,
+    `ALTER TABLE bookings ADD COLUMN handtekening_klant TEXT`,
+    `ALTER TABLE bookings ADD COLUMN vragenlijst_updated_at TEXT`,
+    `ALTER TABLE bookings ADD COLUMN vragenlijst_first_submitted_at TEXT`,
+    `ALTER TABLE bookings ADD COLUMN vragenlijst_diff TEXT`,
+    `ALTER TABLE bookings ADD COLUMN feedback_vragenlijst TEXT`,
+    `ALTER TABLE bookings ADD COLUMN feedback_herkomst TEXT`,
+    `ALTER TABLE bookings ADD COLUMN contract_info_unlocked INTEGER NOT NULL DEFAULT 0`,
+  ]
+  for (const m of migrations) {
+    try { await execute(env, m) } catch { /* column already exists */ }
+  }
+}
+
 bookingsRoutes.patch('/:id/status', async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json()
@@ -808,6 +830,7 @@ bookingsRoutes.patch('/:id/status', async (c) => {
   if (body.is_aanvraag !== undefined) { fields.push('is_aanvraag = ?'); values.push(body.is_aanvraag ? 1 : 0) }
   if (body.is_afgewezen !== undefined) { fields.push('is_afgewezen = ?'); values.push(body.is_afgewezen ? 1 : 0) }
   if (body.afgewezen_reden !== undefined) { fields.push('afgewezen_reden = ?'); values.push(body.afgewezen_reden || null) }
+  if (body.contract_info_unlocked !== undefined) { fields.push('contract_info_unlocked = ?'); values.push(body.contract_info_unlocked ? 1 : 0) }
   if (fields.length === 0) return c.json({ error: 'No fields to update' }, 400)
   fields.push("updated_at = datetime('now')")
   values.push(id)
@@ -828,6 +851,8 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
   } catch (e: unknown) {
     return c.json({ success: false, error: 'Invalid JSON: ' + String(e) }, 400)
   }
+  await ensureQuestionnaireColumns(c.env)
+
   const boolField = (v: unknown) => (v ? 1 : 0)
   const isUpdate = body._is_update === 1
 
@@ -1030,6 +1055,7 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
 bookingsRoutes.patch('/:id/contract', async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json()
+  try { await execute(c.env, `ALTER TABLE bookings ADD COLUMN contract_info_unlocked INTEGER NOT NULL DEFAULT 0`) } catch { /* already exists */ }
   const fields: string[] = []
   const values: unknown[] = []
   if (body.totaalprijs !== undefined) { fields.push('totaalprijs = ?'); values.push(body.totaalprijs) }
@@ -1040,6 +1066,7 @@ bookingsRoutes.patch('/:id/contract', async (c) => {
   if (body.billit_factuur_pdf !== undefined) { fields.push('billit_factuur_pdf = ?'); values.push(body.billit_factuur_pdf) }
   if (body.billit_factuur_naam !== undefined) { fields.push('billit_factuur_naam = ?'); values.push(body.billit_factuur_naam) }
   if (body.contract_pdf !== undefined) { fields.push('contract_pdf = ?'); values.push(body.contract_pdf) }
+  if (body.contract_info_unlocked !== undefined) { fields.push('contract_info_unlocked = ?'); values.push(body.contract_info_unlocked ? 1 : 0) }
   if (fields.length === 0) return c.json({ error: 'No fields to update' }, 400)
   fields.push("updated_at = datetime('now')")
   values.push(id)

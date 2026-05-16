@@ -1254,6 +1254,7 @@ function StepBevestiging({ form, setForm, gdprAccepted, setGdprAccepted, questio
           <p className="font-bold text-blue-800 text-sm">📋 Vragenlijst afronden</p>
           <p className="text-sm text-blue-700 mt-1 leading-relaxed">
             Controleer nog even of alle praktische info, planning en muziekwensen correct zijn. Na het indienen ontvangt DJ Kwinten de ingevulde vragenlijst.
+            Je kan de vragenlijst ook nadien nog aanpassen via dezelfde link; niets wordt definitief vergrendeld.
           </p>
         </div>
 
@@ -1268,6 +1269,33 @@ function StepBevestiging({ form, setForm, gdprAccepted, setGdprAccepted, questio
           />
         </div>
 
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2">
+          <p className="text-sm font-semibold text-amber-800">📷 Beelden op sociale media</p>
+          <p className="text-xs text-amber-700 leading-relaxed">
+            Mag DJ Kwinten eventuele foto's of video's die tijdens het feest gemaakt worden gebruiken op sociale media of website? Dit is volledig vrijblijvend.
+          </p>
+          <div className="flex flex-wrap gap-3 mt-1">
+            <button type="button"
+              onClick={() => setForm({ toestemming_foto: 1 })}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all ${
+                form.toestemming_foto === 1
+                  ? 'border-green-500 bg-green-50 text-green-700'
+                  : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+              }`}>
+              {form.toestemming_foto === 1 ? '✅' : '☐'} Ja, dat mag
+            </button>
+            <button type="button"
+              onClick={() => setForm({ toestemming_foto: 0 })}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all ${
+                form.toestemming_foto === 0
+                  ? 'border-red-400 bg-red-50 text-red-700'
+                  : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300'
+              }`}>
+              {form.toestemming_foto === 0 ? '❌' : '☐'} Nee, liever niet
+            </button>
+          </div>
+        </div>
+
         <label className="flex items-start gap-3 bg-gray-50 border border-gray-200 rounded-xl p-4 cursor-pointer">
           <input
             type="checkbox"
@@ -1276,7 +1304,7 @@ function StepBevestiging({ form, setForm, gdprAccepted, setGdprAccepted, questio
             className="mt-0.5 w-4 h-4 accent-[#007AFF]"
           />
           <span className="text-sm text-gray-600 leading-relaxed">
-            Ik bevestig dat de ingevulde informatie correct is en gebruikt mag worden om mijn event voor te bereiden.
+            Ik bevestig dat de ingevulde informatie correct is en gebruikt mag worden om mijn event voor te bereiden. Ik begrijp dat ik deze vragenlijst later nog kan aanpassen via dezelfde link.
           </span>
         </label>
       </div>

@@ -100,6 +100,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   toestemming_foto INTEGER DEFAULT NULL,
   opmerkingen TEXT,
   zaal_fotos TEXT,
+  uitnodiging_files TEXT,
   handtekening_klant TEXT,
 
   -- Financieel
@@ -110,6 +111,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   billit_factuur_pdf TEXT,
   billit_factuur_naam TEXT,
   contract_pdf TEXT,
+  contract_info_unlocked INTEGER NOT NULL DEFAULT 0,
 
   -- Meta
   reminder_sent_at TEXT,

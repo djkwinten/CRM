@@ -48,7 +48,7 @@ export function EventPortal() {
     contractInfo?.locatie_naam?.trim() &&
     contractInfo?.locatie_adres?.trim()
   )
-  const contractLocked = !!(booking.status_contract || booking.has_contract_pdf)
+  const contractLocked = !!((booking.status_contract || booking.has_contract_pdf) && !booking.contract_info_unlocked)
   const completeContractAndOpenQuestionnaire = (info: BookingContractInfo) => {
     setContractInfo(info)
     const seenKey = `event-portal-contract-popup-seen-${booking.slug || booking.id}`
@@ -108,7 +108,7 @@ export function EventPortal() {
             <button onClick={() => setActiveSection(activeSection === 'vragenlijst' ? null : 'vragenlijst')} className="text-left bg-white rounded-2xl p-4 shadow-sm border border-transparent hover:border-[#007AFF] transition-colors">
               <ClipboardList size={20} className="text-[#007AFF] mb-2" />
               <p className="font-bold text-gray-900 text-sm">Vragenlijst</p>
-              <p className="text-xs text-gray-400 mt-0.5">Planning & muziek</p>
+              <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">Kan vanaf nu ingevuld en later aangepast worden. Een maand voor het feest sturen we automatisch een herinnering om alles nog eens na te kijken.</p>
             </button>
           ) : (
             <div className="bg-gray-100 rounded-2xl p-4 shadow-sm opacity-70">
@@ -162,7 +162,11 @@ export function EventPortal() {
         {activeSection === 'vragenlijst' && (
         <section className="bg-white rounded-2xl shadow-sm p-5 space-y-3">
           <h2 className="font-bold text-gray-900 flex items-center gap-2"><ClipboardList size={18} className="text-[#007AFF]" /> Uitgebreide vragenlijst</h2>
-          <p className="text-sm text-gray-500">De info uit Contract Info wordt automatisch overgenomen in de vragenlijst. Vul daarna de uitgebreide planning en muziekdetails aan.</p>
+          <p className="text-sm text-gray-500 leading-relaxed">
+            De info uit Contract Info wordt automatisch overgenomen in de vragenlijst. Deze lijst kan vanaf nu ingevuld worden en blijft daarna aanpasbaar.
+            Een maand voor het feest sturen we automatisch een herinnering om de vragenlijst nog eens te controleren en eventueel aan te passen.
+            Nadien overlopen we de vragenlijst samen, zodat alle praktische details en muziekwensen duidelijk zijn.
+          </p>
           {contractInfoComplete ? (
             <a href={questionnairePath} className="inline-flex items-center gap-2 bg-[#007AFF] hover:bg-[#0066CC] text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors">
               <ExternalLink size={15} /> Open vragenlijst

@@ -56,4 +56,13 @@ app.notFound((c) => {
   return c.text('Not found', 404)
 })
 
-export default app
+export default {
+  fetch: app.fetch,
+  scheduled(_event: ScheduledEvent, env: Bindings, ctx: ExecutionContext) {
+    // Dagelijkse automatische check: stuur 1 maand voor het feest een mail
+    // om de vragenlijst nog eens te controleren en aan te passen.
+    ctx.waitUntil(Promise.resolve(
+      app.fetch(new Request('https://internal.local/api/reminders/feest-herinnering-check', { method: 'POST' }), env)
+    ))
+  },
+}

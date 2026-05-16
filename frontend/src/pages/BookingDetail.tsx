@@ -296,6 +296,21 @@ export function BookingDetail() {
     setContractSaving(false)
   }
 
+  const openContractInfoForCustomer = async () => {
+    if (!booking) return
+    const code = prompt('Voer de code in om Contract Info opnieuw open te zetten voor de klant:')
+    if (code !== '7777') { if (code !== null) alert('Ongeldige code.'); return }
+    await updateContractInfo(booking.id, { contract_info_unlocked: 1 })
+    setBooking(prev => prev ? { ...prev, contract_info_unlocked: 1 } : prev)
+    alert('Contract Info staat opnieuw open op de klantpagina. De bestaande PDF blijft bewaard tot je het contract hernieuwt.')
+  }
+
+  const closeContractInfoForCustomer = async () => {
+    if (!booking) return
+    await updateContractInfo(booking.id, { contract_info_unlocked: 0 })
+    setBooking(prev => prev ? { ...prev, contract_info_unlocked: 0 } : prev)
+  }
+
   const saveBasisInfo = async () => {
     if (!booking) return
     setBasisInfoSaving(true)
@@ -795,6 +810,21 @@ export function BookingDetail() {
                 <span className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 border border-green-200 px-3 py-2 rounded-xl font-medium">
                   <CheckCircle2 size={13} /> Contract aangemaakt
                 </span>
+                {booking.contract_info_unlocked ? (
+                  <button
+                    onClick={closeContractInfoForCustomer}
+                    className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 rounded-xl font-medium hover:bg-amber-100 transition-colors"
+                  >
+                    Contract Info sluiten
+                  </button>
+                ) : (
+                  <button
+                    onClick={openContractInfoForCustomer}
+                    className="flex items-center gap-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-200 px-3 py-2 rounded-xl font-medium hover:bg-amber-100 transition-colors"
+                  >
+                    Contract Info openzetten
+                  </button>
+                )}
                 <button
                   onClick={async () => {
                     const naam = (booking.naam_organisator || 'boeking').replace(/[^a-z0-9]/gi, '-').toLowerCase()

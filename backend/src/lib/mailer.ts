@@ -590,7 +590,8 @@ export async function sendFeestHerinneringEmail(cfg: SmtpConfig, opts: FeestHeri
             </p>
             <p style="color:#374151;font-size:15px;line-height:1.7;margin:0 0 24px;">
               Neem gerust even de tijd om jullie <strong>vragenlijst</strong> nog eens te overlopen en eventuele
-              aanpassingen door te voeren. Zo zorg ik ervoor dat alles tot in de puntjes klaarstaat voor jullie feest.
+              aanpassingen door te voeren. De vragenlijst kan vanaf nu ingevuld worden en blijft aanpasbaar.
+              Nadien overlopen we de vragenlijst samen, zodat alle praktische details en muziekwensen duidelijk zijn.
             </p>
 
             <table cellpadding="0" cellspacing="0" style="margin:0 auto 28px;">

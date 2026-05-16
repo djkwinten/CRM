@@ -10,4 +10,8 @@ SMTP_PORT = "587"
 SMTP_USER = "djkwinten@gmail.com"
 APP_URL = "https://thr-849231d5-djkwinten-crm.nxcode-io.workers.dev"
 
+[triggers]
+# Dagelijks om 08:15 UTC: stuur indien nodig de 1-maand-vragenlijst-herinnering.
+crons = ["15 8 * * *"]
+
 # D1/R2 bindings must be added after nxcode d1/r2 resource creation succeeds.
