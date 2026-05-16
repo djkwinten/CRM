@@ -135,7 +135,7 @@ export function EventPortal() {
             <FileText size={16} className="text-[#007AFF]" />
             <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Contract Info</h2>
           </div>
-          {contractInfoComplete && !contractLocked ? (
+          {contractInfoComplete && !contractLocked && !booking.contract_info_unlocked ? (
             <div className="bg-white rounded-2xl shadow-sm p-5 border border-green-100 space-y-3">
               <div className="flex items-start gap-3">
                 <CheckCircle2 size={20} className="text-green-600 mt-0.5" />
