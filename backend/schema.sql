@@ -80,6 +80,7 @@ CREATE TABLE IF NOT EXISTS bookings (
 
   -- Zaal & Techniek
   zaal_contact TEXT,
+  leveranciers_info TEXT,
   geluidsbeperking_info TEXT,
   wifi_code TEXT,
   speakers_aanwezig INTEGER DEFAULT 0,

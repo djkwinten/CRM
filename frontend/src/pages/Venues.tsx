@@ -4,7 +4,7 @@ import {
   ArrowLeft, Plus, RefreshCw, Building2, MapPin, Users, Phone, Mic,
   Volume2, VolumeX, Speaker, Lightbulb, Music2, Wifi,
   Car, ChevronRight, Trash2, X, Upload, Edit2, Download, Calendar,
-  AlertTriangle, Globe
+  AlertTriangle, Globe, Mail
 } from 'lucide-react'
 import {
   getVenues, getVenueBookings, createVenue, updateVenue, deleteVenue,
@@ -140,6 +140,7 @@ interface VenueFormState {
   capaciteit: string
   contact_naam: string
   contact_telefoon: string
+  contact_email: string
   website: string
   geluidsbeperking: boolean
   geluidsbeperking_db: string
@@ -161,7 +162,7 @@ interface VenueFormState {
 function emptyForm(): VenueFormState {
   return {
     naam: '', adres: '', capaciteit: '',
-    contact_naam: '', contact_telefoon: '', website: '',
+    contact_naam: '', contact_telefoon: '', contact_email: '', website: '',
     geluidsbeperking: false, geluidsbeperking_db: '',
     speakers_aanwezig: false, licht_aanwezig: false, micro_aanwezig: false,
     dj_booth_aanwezig: false, uplights_aanwezig: false, speakers_buiten: false,
@@ -177,6 +178,7 @@ function venueToForm(v: Venue): VenueFormState {
     capaciteit: v.capaciteit ? String(v.capaciteit) : '',
     contact_naam: v.contact_naam || '',
     contact_telefoon: v.contact_telefoon || '',
+    contact_email: v.contact_email || '',
     website: v.website || '',
     geluidsbeperking: !!v.geluidsbeperking,
     geluidsbeperking_db: v.geluidsbeperking_db ? String(v.geluidsbeperking_db) : '',
@@ -241,6 +243,7 @@ function VenueFormModal({
       capaciteit: form.capaciteit ? parseInt(form.capaciteit) : undefined,
       contact_naam: form.contact_naam || undefined,
       contact_telefoon: form.contact_telefoon || undefined,
+      contact_email: form.contact_email || undefined,
       website: form.website || undefined,
       geluidsbeperking: form.geluidsbeperking ? 1 : 0,
       geluidsbeperking_db: form.geluidsbeperking && form.geluidsbeperking_db ? parseInt(form.geluidsbeperking_db) : undefined,
@@ -347,6 +350,11 @@ function VenueFormModal({
               <label className={labelCls}>Telefoonnummer</label>
               <input type="tel" placeholder="+32 475 12 34 56" value={form.contact_telefoon}
                 onChange={e => set('contact_telefoon', e.target.value)} className={`mt-1 ${inputCls}`} />
+            </div>
+            <div>
+              <label className={labelCls}>E-mail zaal</label>
+              <input type="email" placeholder="info@feestzaal.be" value={form.contact_email}
+                onChange={e => set('contact_email', e.target.value)} className={`mt-1 ${inputCls}`} />
             </div>
             <div>
               <label className={labelCls}>Website</label>
@@ -595,11 +603,20 @@ function VenueDetailModal({
           {tab === 'info' && (
             <>
               {/* Contact */}
-              {(venue.contact_naam || venue.contact_telefoon || venue.website) && (
+              {(venue.contact_naam || venue.contact_telefoon || venue.contact_email || venue.website) && (
                 <div className="space-y-2">
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Contact</p>
                   <InfoRow icon={<Users size={14} />} label="Naam" value={venue.contact_naam} />
                   <InfoRow icon={<Phone size={14} />} label="Telefoon" value={venue.contact_telefoon} />
+                  {venue.contact_email && (
+                    <a href={`mailto:${venue.contact_email}`} className="flex items-start gap-2.5 text-sm text-teal-600 hover:text-teal-700">
+                      <Mail size={14} className="mt-0.5 flex-shrink-0" />
+                      <div>
+                        <p className="text-[11px] text-gray-400 font-medium uppercase tracking-wide">E-mail</p>
+                        <p className="mt-0.5 break-all">{venue.contact_email}</p>
+                      </div>
+                    </a>
+                  )}
                   {venue.website && (
                     <a href={venue.website.startsWith('http') ? venue.website : `https://${venue.website}`} target="_blank" rel="noopener noreferrer" className="flex items-start gap-2.5 text-sm text-teal-600 hover:text-teal-700">
                       <Globe size={14} className="mt-0.5 flex-shrink-0" />

@@ -42,6 +42,20 @@ function parseTweedeDans(raw?: string | null): string {
   } catch { return raw }
 }
 
+
+function formatLeveranciers(raw?: string | null): string | null {
+  if (!raw) return null
+  try {
+    const labels: Record<string, string> = {
+      catering: 'Catering', fotograaf: 'Fotograaf', videograaf: 'Videograaf',
+      ceremoniemeester: 'Ceremoniemeester', weddingplanner: 'Weddingplanner'
+    }
+    const parsed = JSON.parse(raw) as Record<string, string>
+    const lines = Object.entries(parsed).filter(([, v]) => String(v || '').trim()).map(([k, v]) => `${labels[k] || k}: ${v}`)
+    return lines.length ? lines.join('\n') : null
+  } catch { return raw }
+}
+
 function Field({ label, value, mono }: { label: string; value?: string | number | null; mono?: boolean }) {
   if (!value && value !== 0) return null
   return (
@@ -89,7 +103,7 @@ const FIELD_LABELS: Record<string, string> = {
   intrede_taart_nummer: 'Intrede taart',
   openingsdans_nummer: 'Openingsdans', tweede_dans_nummer: 'Tweede dans',
   boeket_werpen_nummer: 'Boeket werpen', verjaardag_naam_leeftijd: 'Jarige',
-  zaal_contact: 'Zaal contact', geluidsbeperking_info: 'Geluidsbeperking', wifi_code: 'Wifi code',
+  zaal_contact: 'Zaal contact', leveranciers_info: 'Leveranciers / partners', geluidsbeperking_info: 'Geluidsbeperking', wifi_code: 'Wifi code',
   speakers_aanwezig: 'Speakers aanwezig', licht_aanwezig: 'Licht aanwezig', micro_aanwezig: 'Micro aanwezig',
   dj_booth_aanwezig: 'DJ booth', uplights_aanwezig: 'Uplights', speakers_buiten: 'Speakers buiten',
   ceremonie_set: 'Ceremonie set', digital_booth: 'Digital booth', retro_booth: 'Retro booth',
@@ -643,6 +657,8 @@ export function BookingDetail() {
               const v = parseFloat(extraPrijzen[key] || '0')
               if (!isNaN(v)) extrasTotal += v
             }
+            const kmVergoedingVal = parseFloat(extraPrijzen['_km_vergoeding'] || '0') || 0
+            extrasTotal += kmVergoedingVal
             const totaal = Math.max(0, basisVal + extrasTotal - kortingVal)
 
             const recalc = (basis: string, prijzen: Record<string, string>) => {
@@ -650,6 +666,7 @@ export function BookingDetail() {
               const k = parseFloat(prijzen['_korting'] || '0')
               let e = 0
               for (const key of Object.keys(EXTRA_LABELS)) e += parseFloat(prijzen[key] || '0') || 0
+              e += parseFloat(prijzen['_km_vergoeding'] || '0') || 0
               return String(Math.max(0, b + e - k))
             }
 
@@ -666,6 +683,23 @@ export function BookingDetail() {
               const updated = { ...extraPrijzen, _korting: val }
               setContractForm(p => ({ ...p, extra_prijzen: JSON.stringify(updated), totaalprijs: recalc(p.basisprijs, updated) }))
             }
+
+            const updateKm = (key: '_km_gratis' | '_km_afstand' | '_km_ritten' | '_km_prijs', val: string) => {
+              const updated: Record<string, string> = { ...extraPrijzen, [key]: val }
+              const gratis = parseFloat(updated._km_gratis || '20') || 0
+              const afstand = parseFloat(updated._km_afstand || '0') || 0
+              const ritten = parseFloat(updated._km_ritten || '2') || 0
+              const prijs = parseFloat(updated._km_prijs || '0') || 0
+              const vergoeding = Math.max(0, afstand - gratis) * ritten * prijs
+              if (vergoeding > 0) updated._km_vergoeding = vergoeding.toFixed(2)
+              else delete updated._km_vergoeding
+              setContractForm(p => ({ ...p, extra_prijzen: JSON.stringify(updated), totaalprijs: recalc(p.basisprijs, updated) }))
+            }
+
+            const kmGratis = parseFloat(extraPrijzen._km_gratis || '20') || 0
+            const kmAfstand = parseFloat(extraPrijzen._km_afstand || '0') || 0
+            const kmRitten = parseFloat(extraPrijzen._km_ritten || '2') || 0
+            const kmPrijs = parseFloat(extraPrijzen._km_prijs || '0') || 0
 
             return (
               <div className="mb-4 space-y-3">
@@ -728,6 +762,23 @@ export function BookingDetail() {
                   </div>
                 </div>
 
+                {/* Kilometervergoeding */}
+                <div className="border border-amber-200 bg-amber-50 rounded-xl overflow-hidden">
+                  <div className="px-3 py-2 border-b border-amber-200">
+                    <p className="text-xs font-bold text-amber-700 uppercase tracking-wider">Kilometervergoeding</p>
+                    <p className="text-[11px] text-amber-700 mt-0.5">Eerste 20 km gratis. Afstand = enkele rit; aantal ritten kan je verhogen bij extra opbouw/verplaatsingen.</p>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3">
+                    <div><label className="text-[10px] font-bold text-amber-700 uppercase">Gratis km</label><input type="number" min="0" step="0.1" value={extraPrijzen._km_gratis || '20'} onChange={e => updateKm('_km_gratis', e.target.value)} className="mt-1 w-full bg-white border border-amber-200 rounded-lg px-2 py-1.5 text-xs" /></div>
+                    <div><label className="text-[10px] font-bold text-amber-700 uppercase">Afstand enkele rit</label><input type="number" min="0" step="0.1" value={extraPrijzen._km_afstand || ''} onChange={e => updateKm('_km_afstand', e.target.value)} className="mt-1 w-full bg-white border border-amber-200 rounded-lg px-2 py-1.5 text-xs" placeholder="km" /></div>
+                    <div><label className="text-[10px] font-bold text-amber-700 uppercase">Aantal ritten</label><input type="number" min="1" step="1" value={extraPrijzen._km_ritten || '2'} onChange={e => updateKm('_km_ritten', e.target.value)} className="mt-1 w-full bg-white border border-amber-200 rounded-lg px-2 py-1.5 text-xs" /></div>
+                    <div><label className="text-[10px] font-bold text-amber-700 uppercase">Prijs/km</label><input type="number" min="0" step="0.01" value={extraPrijzen._km_prijs || ''} onChange={e => updateKm('_km_prijs', e.target.value)} className="mt-1 w-full bg-white border border-amber-200 rounded-lg px-2 py-1.5 text-xs" placeholder="0.00" /></div>
+                  </div>
+                  <div className="px-3 pb-3 text-xs font-semibold text-amber-900">
+                    Berekend: {kmVergoedingVal > 0 ? `€ ${kmVergoedingVal.toFixed(2)} (${Math.max(0, kmAfstand - kmGratis).toFixed(1)} km × ${kmRitten} ritten × € ${kmPrijs.toFixed(2)})` : 'geen kilometervergoeding'}
+                  </div>
+                </div>
+
                 {/* Totaal berekend */}
                 <div className="bg-gray-900 rounded-xl px-4 py-3">
                   <div className="flex items-start justify-between mb-2">
@@ -742,7 +793,7 @@ export function BookingDetail() {
                   </div>
                   <div className="text-[11px] text-gray-500 space-y-0.5 border-t border-gray-700 pt-2">
                     <div className="flex justify-between"><span>Basisprijs</span><span>€ {basisVal.toFixed(2)}</span></div>
-                    {extrasTotal !== 0 && <div className="flex justify-between"><span>Extra's</span><span>+ € {extrasTotal.toFixed(2)}</span></div>}
+                    {extrasTotal !== 0 && <div className="flex justify-between"><span>Extra's incl. km</span><span>+ € {extrasTotal.toFixed(2)}</span></div>}
                     {kortingVal > 0 && <div className="flex justify-between text-green-400"><span>Korting</span><span>- € {kortingVal.toFixed(2)}</span></div>}
                   </div>
                 </div>
@@ -1033,6 +1084,7 @@ export function BookingDetail() {
               <Field label="Naam Zaal" value={booking.locatie_naam} />
               <Field label="📍 Adres Zaal" value={booking.locatie_adres} />
               <Field label="Zaal Contact" value={booking.zaal_contact} />
+              <Field label="Leveranciers / partners" value={formatLeveranciers(booking.leveranciers_info)} />
               <Field label="Geluidsbeperking" value={booking.geluidsbeperking_info} />
               <Field label="Wifi Code" value={booking.wifi_code} mono />
               <Field label="🚗 Parkeren / Laden" value={booking.parkeren_info} />

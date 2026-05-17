@@ -396,7 +396,7 @@ function NewBookingModal({ onClose, onCreated }: { onClose: () => void; onCreate
                     key={v.id}
                     type="button"
                     onMouseDown={() => {
-                      setForm(p => ({ ...p, locatie_naam: v.naam, venue_id: v.id }))
+                      setForm(p => ({ ...p, locatie_naam: v.naam, locatie_adres: v.adres || p.locatie_adres, venue_id: v.id }))
                       setShowSuggestions(false)
                     }}
                     className="w-full text-left px-3 py-2.5 hover:bg-gray-50 transition-colors flex items-center justify-between gap-2"

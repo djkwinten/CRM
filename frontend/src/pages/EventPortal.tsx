@@ -4,6 +4,19 @@ import { Calendar, CheckCircle2, ClipboardList, FileText, FolderOpen, MessageSqu
 import { bookingFileDownloadUrl, BookingFile, getBooking, getBookingFiles, getContractInfo, getBookingPDF } from '../lib/api'
 import { Booking } from '../types/booking'
 import { BookingContractInfo } from '../features/event-workspace/types'
+
+const API_ROOT = import.meta.env.VITE_API_URL || ''
+type QuestionnaireUpload = { naam: string; type: string; key: string; category?: 'uitnodiging' | 'zaal_foto' | 'grondplan' }
+function parseQuestionnaireUploads(raw?: string): QuestionnaireUpload[] {
+  if (!raw) return []
+  try { const parsed = JSON.parse(raw); return Array.isArray(parsed) ? parsed.filter(f => f?.naam && f?.key) : [] } catch { return [] }
+}
+function categoryLabel(category?: string) {
+  if (category === 'uitnodiging') return 'Uitnodiging'
+  if (category === 'grondplan') return 'Grondplan'
+  if (category === 'zaal_foto') return 'Zaalfoto'
+  return 'Vragenlijst-upload'
+}
 import { ContractInfoForm } from '../features/event-workspace/components/ContractInfoForm'
 
 export function EventPortal() {
@@ -56,6 +69,7 @@ export function EventPortal() {
     contractInfo?.locatie_naam?.trim() &&
     contractInfo?.locatie_adres?.trim()
   )
+  const questionnaireFiles = parseQuestionnaireUploads(booking.zaal_fotos)
   const contractLocked = !!((booking.status_contract || booking.has_contract_pdf) && !booking.contract_info_unlocked)
   const completeContractAndOpenQuestionnaire = (info: BookingContractInfo) => {
     setContractInfo(info)
@@ -206,6 +220,18 @@ export function EventPortal() {
                 <Download size={15} className="text-green-500" />
               </button>
             ) : <div className="text-sm text-gray-400 bg-gray-50 rounded-xl p-3">Voorschotfactuur nog niet beschikbaar.</div>}
+            {questionnaireFiles.length > 0 && (
+              <div className="pt-2 space-y-2">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Uploads uit vragenlijst</p>
+                {questionnaireFiles.map(file => (
+                  <a key={`${file.key}-${file.category}`} href={`${API_ROOT}/api/uploads/${file.key}`} target="_blank" rel="noopener noreferrer" className="w-full flex items-center gap-3 p-3 rounded-xl border border-indigo-100 bg-indigo-50 hover:bg-indigo-100 transition-colors text-left">
+                    <FileText size={18} className="text-indigo-600" />
+                    <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-gray-800 truncate"><span className="text-indigo-700">{categoryLabel(file.category)} · </span>{file.naam}</p><p className="text-xs text-indigo-500">Openen/downloaden</p></div>
+                    <Download size={15} className="text-indigo-500" />
+                  </a>
+                ))}
+              </div>
+            )}
             {manualFiles.length > 0 && (
               <div className="pt-2 space-y-2">
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Extra bestanden</p>

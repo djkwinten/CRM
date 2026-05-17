@@ -6,6 +6,7 @@ export interface Venue {
   // Contact
   contact_naam?: string
   contact_telefoon?: string
+  contact_email?: string
   website?: string
   // Geluid
   geluidsbeperking?: number
@@ -38,6 +39,7 @@ export interface VenueSuggestion {
   id: number
   naam: string
   adres?: string | null
+  contact_email?: string | null
   booking_count?: number
 }
 

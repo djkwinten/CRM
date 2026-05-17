@@ -41,7 +41,7 @@ function euroFmt(val?: number | null) {
 }
 
 /** Bereken totaal vanuit basisprijs + extra_prijzen JSON — zelfde logica als BookingDetail */
-function berekenTotaal(b: Booking): { basisprijs: number; extras: { label: string; prijs: number }[]; korting: number; totaal: number } {
+function berekenTotaal(b: Booking): { basisprijs: number; extras: { label: string; prijs: number }[]; korting: number; totaal: number; kmInfo?: string } {
   const basisprijs = Number(b.basisprijs) || 0
   let extraPrijzen: Record<string, number> = {}
   try { extraPrijzen = JSON.parse(b.extra_prijzen || '{}') } catch {}
@@ -57,9 +57,20 @@ function berekenTotaal(b: Booking): { basisprijs: number; extras: { label: strin
     }
   }
 
+  const kmVergoeding = Number(extraPrijzen['_km_vergoeding']) || 0
+  const kmAfstand = Number(extraPrijzen['_km_afstand']) || 0
+  const kmGratis = Number(extraPrijzen['_km_gratis'] ?? 20)
+  const kmRitten = Number(extraPrijzen['_km_ritten'] ?? 2)
+  const kmPrijs = Number(extraPrijzen['_km_prijs']) || 0
+  let kmInfo: string | undefined
+  if (kmVergoeding > 0) {
+    extras.push({ label: 'Kilometervergoeding', prijs: kmVergoeding })
+    kmInfo = `${Math.max(0, kmAfstand - kmGratis).toFixed(1).replace('.', ',')} betalende km × ${kmRitten} ritten × € ${kmPrijs.toFixed(2).replace('.', ',')}/km (eerste ${kmGratis} km gratis)`
+  }
+
   const extrasTotal = extras.reduce((s, e) => s + e.prijs, 0)
   const totaal = Math.max(0, Number(basisprijs) + extrasTotal - korting)
-  return { basisprijs, extras, korting, totaal }
+  return { basisprijs, extras, korting, totaal, kmInfo }
 }
 
 /** Gebruik de unwrapped jsPDF output functie — omzeilt de SAFE wrapper die errors slikt */
@@ -114,7 +125,7 @@ function _buildContractPDF(booking: Booking): jsPDF {
     : '—'
   const gegeneerdOp = format(new Date(), 'd MMMM yyyy', { locale: nl })
 
-  const { basisprijs, extras, korting, totaal } = berekenTotaal(booking)
+  const { basisprijs, extras, korting, totaal, kmInfo } = berekenTotaal(booking)
   const restbedrag = Math.max(0, totaal - VOORSCHOT)
   const voorzieningen = Object.entries(VOORZIENING_LABELS)
     .filter(([key]) => !!(booking as unknown as Record<string, unknown>)[key])
@@ -271,6 +282,13 @@ function _buildContractPDF(booking: Booking): jsPDF {
     prijsRows.push([
       `+ ${extra.label}`,
       { content: euroFmt(extra.prijs), styles: { halign: 'right', textColor: [20, 20, 20] } }
+    ])
+  }
+
+  if (kmInfo) {
+    prijsRows.push([
+      { content: `  ${kmInfo}`, styles: { fontSize: 7, textColor: [120, 90, 20] } },
+      { content: '', styles: { halign: 'right' } }
     ])
   }
 

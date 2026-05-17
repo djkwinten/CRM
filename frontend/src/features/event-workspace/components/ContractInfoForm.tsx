@@ -101,12 +101,33 @@ export function ContractInfoForm({
   const label = 'text-xs font-medium text-gray-500 uppercase tracking-wider'
 
   const extraPrices = parseExtraPrices(form.extra_prijzen)
+  const kmGratis = Number(extraPrices._km_gratis ?? 20)
+  const kmAfstand = Number(extraPrices._km_afstand ?? 0)
+  const kmRitten = Number(extraPrices._km_ritten ?? 2)
+  const kmPrijs = Number(extraPrices._km_prijs ?? 0)
+  const kmVergoeding = Math.max(0, kmAfstand - kmGratis) * kmRitten * kmPrijs
+
+  const updateExtraPrices = (next: Record<string, number>) => update('extra_prijzen', JSON.stringify(next))
+
+  const updateKm = (key: '_km_gratis' | '_km_afstand' | '_km_ritten' | '_km_prijs', value: string) => {
+    const next = { ...parseExtraPrices(form.extra_prijzen) }
+    if (value === '') delete next[key]
+    else next[key] = Number(value)
+    const gratis = Number(next._km_gratis ?? 20)
+    const afstand = Number(next._km_afstand ?? 0)
+    const ritten = Number(next._km_ritten ?? 2)
+    const prijs = Number(next._km_prijs ?? 0)
+    const vergoeding = Math.max(0, afstand - gratis) * ritten * prijs
+    if (vergoeding > 0) next._km_vergoeding = Number(vergoeding.toFixed(2))
+    else delete next._km_vergoeding
+    updateExtraPrices(next)
+  }
 
   const updateExtraPrice = (key: ExtraKey, value: string) => {
     const next = { ...parseExtraPrices(form.extra_prijzen) }
     if (value === '') delete next[key]
     else next[key] = Number(value)
-    update('extra_prijzen', JSON.stringify(next))
+    updateExtraPrices(next)
   }
 
   const handleVenueBlur = async () => {
@@ -220,6 +241,21 @@ export function ContractInfoForm({
       {showFinancial && (
         <section className="space-y-3">
           <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Financieel</p>
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 space-y-3">
+            <div>
+              <p className="text-sm font-bold text-amber-800">Kilometervergoeding</p>
+              <p className="text-xs text-amber-700 mt-0.5">Voorstel: eerste 20 km gratis. Vul afstand enkele rit, aantal ritten en €/km in. De vergoeding wordt automatisch als extra kost meegenomen.</p>
+            </div>
+            <div className="grid sm:grid-cols-4 gap-3">
+              <div><label className={label}>Gratis km</label><input type="number" min="0" step="0.1" value={extraPrices._km_gratis ?? 20} onChange={e => updateKm('_km_gratis', e.target.value)} className={input} disabled={readOnly} /></div>
+              <div><label className={label}>Afstand enkele rit</label><input type="number" min="0" step="0.1" value={extraPrices._km_afstand ?? ''} onChange={e => updateKm('_km_afstand', e.target.value)} className={input} disabled={readOnly} placeholder="km" /></div>
+              <div><label className={label}>Aantal ritten</label><input type="number" min="1" step="1" value={extraPrices._km_ritten ?? 2} onChange={e => updateKm('_km_ritten', e.target.value)} className={input} disabled={readOnly} /></div>
+              <div><label className={label}>Prijs per km</label><input type="number" min="0" step="0.01" value={extraPrices._km_prijs ?? ''} onChange={e => updateKm('_km_prijs', e.target.value)} className={input} disabled={readOnly} placeholder="0.00" /></div>
+            </div>
+            <div className="text-sm font-semibold text-amber-900 bg-white/70 border border-amber-100 rounded-xl px-3 py-2">
+              Berekend: {kmAfstand > kmGratis && kmPrijs > 0 ? `${(kmAfstand - kmGratis).toFixed(1).replace('.', ',')} km betalend × ${kmRitten} ritten × € ${kmPrijs.toFixed(2).replace('.', ',')} = € ${kmVergoeding.toFixed(2).replace('.', ',')}` : 'geen kilometervergoeding'}
+            </div>
+          </div>
           <div className="grid sm:grid-cols-3 gap-3">
             <div><label className={label}>Basisprijs</label><input type="number" min="0" step="0.01" value={form.basisprijs ?? form.afgesproken_prijs ?? ''} onChange={e => { const v = e.target.value === '' ? null : Number(e.target.value); update('basisprijs', v); update('afgesproken_prijs', v) }} className={input} disabled={readOnly} /></div>
             <div><label className={label}>Afgesproken totaal/prijs</label><input type="number" min="0" step="0.01" value={form.afgesproken_prijs ?? ''} onChange={e => update('afgesproken_prijs', e.target.value === '' ? null : Number(e.target.value))} className={input} disabled={readOnly} /></div>

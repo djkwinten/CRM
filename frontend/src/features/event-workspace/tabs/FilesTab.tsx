@@ -3,6 +3,23 @@ import { Download, FileText, FolderOpen, RefreshCw, Trash2, Upload } from 'lucid
 import { Booking } from '../../../types/booking'
 import { bookingFileDownloadUrl, BookingFile, deleteBookingFile, getBookingFiles, uploadBookingFile } from '../../../lib/api'
 
+const API_ROOT = import.meta.env.VITE_API_URL || ''
+
+type QuestionnaireUpload = { naam: string; type: string; key: string; category?: 'uitnodiging' | 'zaal_foto' | 'grondplan' }
+function parseQuestionnaireUploads(raw?: string): QuestionnaireUpload[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter(f => f?.naam && f?.key) : []
+  } catch { return [] }
+}
+function categoryLabel(category?: string) {
+  if (category === 'uitnodiging') return 'Uitnodiging'
+  if (category === 'grondplan') return 'Grondplan'
+  if (category === 'zaal_foto') return 'Zaalfoto'
+  return 'Vragenlijst-upload'
+}
+
 function formatSize(size?: number | null) {
   if (!size) return ''
   if (size < 1024) return `${size} B`
@@ -15,6 +32,7 @@ export function FilesTab({ booking }: { booking: Booking }) {
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const questionnaireFiles = parseQuestionnaireUploads(booking.zaal_fotos)
 
   const load = async () => {
     setLoading(true)
@@ -64,6 +82,24 @@ export function FilesTab({ booking }: { booking: Booking }) {
         </button>
         <p className="text-[11px] text-gray-400 mt-2 text-center">Max. 5 MB per bestand. Voor grote fotomappen gebruiken we later R2/opslag.</p>
       </div>
+
+      {questionnaireFiles.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Automatisch uit vragenlijst</p>
+          {questionnaireFiles.map(file => (
+            <div key={`${file.key}-${file.category}`} className="flex items-center gap-3 p-3 rounded-xl border border-indigo-100 bg-indigo-50">
+              <FileText size={18} className="text-indigo-600" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-900 truncate"><span className="text-indigo-700">{categoryLabel(file.category)} · </span>{file.naam}</p>
+                <p className="text-xs text-indigo-500">Upload van klantvragenlijst</p>
+              </div>
+              <a href={`${API_ROOT}/api/uploads/${file.key}`} target="_blank" rel="noopener noreferrer" className="p-2 rounded-xl hover:bg-indigo-100 text-indigo-600">
+                <Download size={15} />
+              </a>
+            </div>
+          ))}
+        </div>
+      )}
 
       {loading ? (
         <div className="text-sm text-gray-400 py-4 text-center">Bestanden laden...</div>

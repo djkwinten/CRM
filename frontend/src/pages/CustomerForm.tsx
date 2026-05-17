@@ -130,6 +130,56 @@ const FEEST_TYPES = ['Verjaardag', 'Jubileum', 'Pensioen', 'Bedrijfsfeest', 'Fam
 
 type FormState = Partial<Booking> & { subtype?: string }
 
+
+type LeveranciersInfo = {
+  catering?: string
+  fotograaf?: string
+  videograaf?: string
+  ceremoniemeester?: string
+  weddingplanner?: string
+}
+
+function parseLeveranciers(raw?: string): LeveranciersInfo {
+  if (!raw) return {}
+  try {
+    const parsed = JSON.parse(raw) as LeveranciersInfo
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch { return {} }
+}
+
+function StepLeveranciers({ form, setForm, isTrouw }: { form: FormState; setForm: (u: Partial<FormState>) => void; isTrouw: boolean }) {
+  const info = parseLeveranciers(form.leveranciers_info)
+  const update = (key: keyof LeveranciersInfo, value: string) => {
+    const next = { ...info, [key]: value }
+    Object.keys(next).forEach(k => { if (!next[k as keyof LeveranciersInfo]?.trim()) delete next[k as keyof LeveranciersInfo] })
+    setForm({ leveranciers_info: Object.keys(next).length ? JSON.stringify(next) : '' })
+  }
+  const fields: { key: keyof LeveranciersInfo; label: string; placeholder: string }[] = [
+    { key: 'catering', label: 'Catering', placeholder: 'Naam + contactgegevens catering' },
+    { key: 'fotograaf', label: 'Fotograaf', placeholder: 'Naam + telefoon/e-mail fotograaf' },
+    ...(isTrouw ? [
+      { key: 'videograaf' as const, label: 'Videograaf', placeholder: 'Naam + telefoon/e-mail videograaf' },
+      { key: 'ceremoniemeester' as const, label: 'Ceremoniemeester', placeholder: 'Naam + telefoon/e-mail ceremoniemeester' },
+      { key: 'weddingplanner' as const, label: 'Weddingplanner', placeholder: 'Naam + telefoon/e-mail weddingplanner' },
+    ] : []),
+  ]
+  return (
+    <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 space-y-3">
+      <div>
+        <p className="text-sm font-semibold text-indigo-800">🤝 Leveranciers / partners</p>
+        <p className="text-xs text-indigo-700 mt-0.5">Optioneel: handig als ik vooraf moet afstemmen met zaal, catering, fotograaf of planning.</p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {fields.map(field => (
+          <FormField key={field.key} label={field.label}>
+            <Textarea value={info[field.key] || ''} onChange={v => update(field.key, v)} placeholder={field.placeholder} rows={2} />
+          </FormField>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function StepContact({ form, setForm, isTrouw }: { form: FormState; setForm: (u: Partial<FormState>) => void; isTrouw: boolean }) {
   return (
     <div className="space-y-5">
@@ -199,6 +249,8 @@ function StepContact({ form, setForm, isTrouw }: { form: FormState; setForm: (u:
       <FormField label="Adres Organisator" sublabel="Straat, nummer, postcode en gemeente — nodig voor het contract">
         <Input value={form.adres_organisator || ''} onChange={v => setForm({ adres_organisator: v })} placeholder="Kerkstraat 12, 9000 Gent" />
       </FormField>
+
+      <StepLeveranciers form={form} setForm={setForm} isTrouw={isTrouw} />
 
       <UitnodigingUpload form={form} setForm={setForm} />
 
@@ -2030,7 +2082,7 @@ export function CustomerForm() {
         <button
           onClick={() => { setSubmitted(false); setPortalView(true) }}
           className="bg-[#007AFF] hover:bg-[#0066CC] text-white font-semibold px-6 py-3 rounded-xl transition-colors text-sm">
-          Bekijk je status →
+          Terug naar klantenpagina →
         </button>
       </div>
 

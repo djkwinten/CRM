@@ -15,6 +15,7 @@ interface VenueRow {
   capaciteit?: number | null
   contact_naam?: string | null
   contact_telefoon?: string | null
+  contact_email?: string | null
   website?: string | null
   geluidsbeperking: number
   geluidsbeperking_db?: number | null
@@ -114,18 +115,19 @@ venuesRoutes.post('/', async (c) => {
   const result = await execute(c.env, `
     INSERT INTO venues (
       naam, adres, capaciteit,
-      contact_naam, contact_telefoon, website,
+      contact_naam, contact_telefoon, contact_email, website,
       geluidsbeperking, geluidsbeperking_db,
       speakers_aanwezig, licht_aanwezig, micro_aanwezig, dj_booth_aanwezig, uplights_aanwezig, speakers_buiten,
       parkeren_info, gelijkvloers, wifi_code,
       fotos, notities
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     body.naam.trim(),
     body.adres ?? null,
     body.capaciteit ?? null,
     body.contact_naam ?? null,
     body.contact_telefoon ?? null,
+    body.contact_email ?? null,
     body.website ?? null,
     bool(body.geluidsbeperking),
     body.geluidsbeperking_db ?? null,
@@ -247,6 +249,7 @@ venuesRoutes.patch('/:id', async (c) => {
   if (body.capaciteit !== undefined) { fields.push('capaciteit = ?'); values.push(body.capaciteit ?? null) }
   if (body.contact_naam !== undefined) { fields.push('contact_naam = ?'); values.push(body.contact_naam ?? null) }
   if (body.contact_telefoon !== undefined) { fields.push('contact_telefoon = ?'); values.push(body.contact_telefoon ?? null) }
+  if (body.contact_email !== undefined) { fields.push('contact_email = ?'); values.push(body.contact_email ?? null) }
   if (body.website !== undefined) { fields.push('website = ?'); values.push(body.website ?? null) }
   if (body.geluidsbeperking !== undefined) { fields.push('geluidsbeperking = ?'); values.push(bool(body.geluidsbeperking)) }
   if (body.geluidsbeperking_db !== undefined) { fields.push('geluidsbeperking_db = ?'); values.push(body.geluidsbeperking_db ?? null) }

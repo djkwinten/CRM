@@ -69,6 +69,7 @@ export interface Booking {
   verjaardag_naam_leeftijd?: string
   // Zaal & Techniek
   zaal_contact?: string
+  leveranciers_info?: string
   geluidsbeperking_info?: string
   wifi_code?: string
   speakers_aanwezig?: number

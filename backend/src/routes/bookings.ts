@@ -138,6 +138,7 @@ const bookingDetailColumns: Record<string, string> = {
   boeket_werpen_nummer: 'NULL',
   verjaardag_naam_leeftijd: 'NULL',
   zaal_contact: 'NULL',
+  leveranciers_info: 'NULL',
   geluidsbeperking_info: 'NULL',
   wifi_code: 'NULL',
   speakers_aanwezig: '0',
@@ -198,6 +199,7 @@ bookingsRoutes.post('/init', async (c) => {
       capaciteit INTEGER,
       contact_naam TEXT,
       contact_telefoon TEXT,
+      contact_email TEXT,
       geluidsbeperking INTEGER DEFAULT 0,
       geluidsbeperking_db INTEGER,
       speakers_aanwezig INTEGER DEFAULT 0,
@@ -224,6 +226,7 @@ bookingsRoutes.post('/init', async (c) => {
     `ALTER TABLE venues ADD COLUMN afstand_km REAL`,
     `ALTER TABLE venues ADD COLUMN rijtijd_min INTEGER`,
     `ALTER TABLE venues ADD COLUMN website TEXT`,
+    `ALTER TABLE venues ADD COLUMN contact_email TEXT`,
   ]
   for (const m of venuesMigrations) {
     try { await execute(c.env, m) } catch { /* already exists */ }
@@ -278,6 +281,7 @@ bookingsRoutes.post('/init', async (c) => {
       verzoeknummers TEXT DEFAULT 'Ja',
       -- Zaal & Techniek
       zaal_contact TEXT,
+      leveranciers_info TEXT,
       geluidsbeperking_info TEXT,
       wifi_code TEXT,
       speakers_aanwezig INTEGER DEFAULT 0,
@@ -370,6 +374,7 @@ bookingsRoutes.post('/init', async (c) => {
       `ALTER TABLE bookings ADD COLUMN portal_title TEXT`,
       // Laat DJ tijdelijk Contract Info opnieuw openzetten ondanks bestaand contract/PDF
       `ALTER TABLE bookings ADD COLUMN contract_info_unlocked INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE bookings ADD COLUMN leveranciers_info TEXT`,
     ]
     for (const m of migrations) {
       try { await execute(c.env, m) } catch { /* column already exists */ }
@@ -466,8 +471,14 @@ bookingsRoutes.get('/:id/contract-info', async (c) => {
   try { await execute(c.env, `ALTER TABLE booking_contract_info ADD COLUMN uur_dansfeest TEXT`) } catch { /* already exists */ }
   try { await execute(c.env, `ALTER TABLE booking_contract_info ADD COLUMN contract_info_notified_at TEXT`) } catch { /* already exists */ }
 
-  const existing = await queryOne(c.env, `SELECT * FROM booking_contract_info WHERE booking_id = ?`, [id])
-  if (existing) return c.json({ contract_info: existing })
+  const existing = await queryOne<Record<string, unknown>>(c.env, `SELECT * FROM booking_contract_info WHERE booking_id = ?`, [id])
+  if (existing) {
+    const bookingFinancial = await queryOne<Record<string, unknown>>(c.env, `
+      SELECT basisprijs, extra_prijzen, ceremonie_set, digital_booth, retro_booth, draadloze_speaker, karaoke
+      FROM bookings WHERE id = ?
+    `, [id])
+    return c.json({ contract_info: { ...(bookingFinancial || {}), ...existing } })
+  }
 
   const b = await queryOne<{
     id: number
@@ -813,6 +824,7 @@ async function ensureQuestionnaireColumns(env: Bindings) {
     `ALTER TABLE bookings ADD COLUMN feedback_vragenlijst TEXT`,
     `ALTER TABLE bookings ADD COLUMN feedback_herkomst TEXT`,
     `ALTER TABLE bookings ADD COLUMN contract_info_unlocked INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE bookings ADD COLUMN leveranciers_info TEXT`,
   ]
   for (const m of migrations) {
     try { await execute(env, m) } catch { /* column already exists */ }
@@ -873,7 +885,7 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
     'intrede_zaal_nummer','intrede_eretafel_nummer','intrede_bridesmaids_nummer',
     'intrede_groomsmen_nummer','intrede_koppel_nummer','intrede_anders_nummer','intrede_taart_nummer',
     'openingsdans_nummer','tweede_dans_nummer','boeket_werpen_nummer','verjaardag_naam_leeftijd',
-    'zaal_contact','geluidsbeperking_info','wifi_code',
+    'zaal_contact','leveranciers_info','geluidsbeperking_info','wifi_code',
     'speakers_aanwezig','licht_aanwezig','micro_aanwezig','dj_booth_aanwezig','uplights_aanwezig','speakers_buiten',
     'ceremonie_set','digital_booth','retro_booth','draadloze_speaker','karaoke',
     'toestemming_foto','opmerkingen'
@@ -906,7 +918,7 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
       boeket_werpen_nummer = ?, verjaardag_naam_leeftijd = ?,
       planning_extra = ?,
       einde_feest = ?,
-      zaal_contact = ?, geluidsbeperking_info = ?, wifi_code = ?,
+      zaal_contact = ?, leveranciers_info = ?, geluidsbeperking_info = ?, wifi_code = ?,
       speakers_aanwezig = ?, licht_aanwezig = ?, micro_aanwezig = ?,
       dj_booth_aanwezig = ?, uplights_aanwezig = ?, speakers_buiten = ?,
       ceremonie_set = ?, digital_booth = ?, retro_booth = ?,
@@ -944,7 +956,7 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
     body.boeket_werpen_nummer ?? null, body.verjaardag_naam_leeftijd ?? null,
     body.planning_extra ?? null,
     body.einde_feest ?? null,
-    body.zaal_contact ?? null, body.geluidsbeperking_info ?? null, body.wifi_code ?? null,
+    body.zaal_contact ?? null, body.leveranciers_info ?? null, body.geluidsbeperking_info ?? null, body.wifi_code ?? null,
     boolField(body.speakers_aanwezig), boolField(body.licht_aanwezig), boolField(body.micro_aanwezig),
     boolField(body.dj_booth_aanwezig), boolField(body.uplights_aanwezig), boolField(body.speakers_buiten),
     boolField(body.ceremonie_set), boolField(body.digital_booth), boolField(body.retro_booth),
@@ -994,7 +1006,7 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
       intrede_taart_nummer: body.intrede_taart_nummer ?? null,
       openingsdans_nummer: body.openingsdans_nummer ?? null, tweede_dans_nummer: body.tweede_dans_nummer ?? null,
       boeket_werpen_nummer: body.boeket_werpen_nummer ?? null, verjaardag_naam_leeftijd: body.verjaardag_naam_leeftijd ?? null,
-      zaal_contact: body.zaal_contact ?? null, geluidsbeperking_info: body.geluidsbeperking_info ?? null, wifi_code: body.wifi_code ?? null,
+      zaal_contact: body.zaal_contact ?? null, leveranciers_info: body.leveranciers_info ?? null, geluidsbeperking_info: body.geluidsbeperking_info ?? null, wifi_code: body.wifi_code ?? null,
       speakers_aanwezig: boolField(body.speakers_aanwezig), licht_aanwezig: boolField(body.licht_aanwezig),
       micro_aanwezig: boolField(body.micro_aanwezig), dj_booth_aanwezig: boolField(body.dj_booth_aanwezig),
       uplights_aanwezig: boolField(body.uplights_aanwezig), speakers_buiten: boolField(body.speakers_buiten),
