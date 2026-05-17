@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   Wifi, CheckCircle2, ChevronRight, ChevronLeft, Heart, Download, FileText,
 } from 'lucide-react'
@@ -1896,6 +1896,7 @@ export function CustomerForm() {
   // Accept both /vragenlijst/:slug and /formulier/:id
   const { slug, id } = useParams<{ slug?: string; id?: string }>()
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const directMode = searchParams.get('direct') === '1'
   const ref = slug || id || ''
 
@@ -2008,9 +2009,16 @@ export function CustomerForm() {
         return
       }
       clearStorage(ref)
-      setSubmitted(true)
-      setShowFeedback(true)
+      const updatedBooking = booking ? { ...booking, ...form, status_vragenlijst: 1 } as Booking : booking
+      setBooking(updatedBooking)
+      setSubmitted(false)
+      setShowFeedback(false)
       setStep(0)
+      if (updatedBooking?.slug) {
+        navigate(`/event/${updatedBooking.slug}`)
+      } else {
+        setPortalView(true)
+      }
     } catch (e) {
       console.error(e)
       alert('Er is iets fout gegaan. Controleer je internetverbinding en probeer opnieuw.')
