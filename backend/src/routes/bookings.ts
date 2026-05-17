@@ -864,6 +864,8 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
     return c.json({ success: false, error: 'Invalid JSON: ' + String(e) }, 400)
   }
   await ensureQuestionnaireColumns(c.env)
+  const questionnaireColumns = await bookingColumnSet(c.env)
+  const hasLeveranciersInfo = questionnaireColumns.has('leveranciers_info')
 
   const boolField = (v: unknown) => (v ? 1 : 0)
   const isUpdate = body._is_update === 1
@@ -885,7 +887,7 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
     'intrede_zaal_nummer','intrede_eretafel_nummer','intrede_bridesmaids_nummer',
     'intrede_groomsmen_nummer','intrede_koppel_nummer','intrede_anders_nummer','intrede_taart_nummer',
     'openingsdans_nummer','tweede_dans_nummer','boeket_werpen_nummer','verjaardag_naam_leeftijd',
-    'zaal_contact','leveranciers_info','geluidsbeperking_info','wifi_code',
+    'zaal_contact', ...(hasLeveranciersInfo ? ['leveranciers_info'] : []), 'geluidsbeperking_info','wifi_code',
     'speakers_aanwezig','licht_aanwezig','micro_aanwezig','dj_booth_aanwezig','uplights_aanwezig','speakers_buiten',
     'ceremonie_set','digital_booth','retro_booth','draadloze_speaker','karaoke',
     'toestemming_foto','opmerkingen'
@@ -918,7 +920,7 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
       boeket_werpen_nummer = ?, verjaardag_naam_leeftijd = ?,
       planning_extra = ?,
       einde_feest = ?,
-      zaal_contact = ?, leveranciers_info = ?, geluidsbeperking_info = ?, wifi_code = ?,
+      zaal_contact = ?, ${hasLeveranciersInfo ? 'leveranciers_info = ?,' : ''} geluidsbeperking_info = ?, wifi_code = ?,
       speakers_aanwezig = ?, licht_aanwezig = ?, micro_aanwezig = ?,
       dj_booth_aanwezig = ?, uplights_aanwezig = ?, speakers_buiten = ?,
       ceremonie_set = ?, digital_booth = ?, retro_booth = ?,
@@ -956,7 +958,7 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
     body.boeket_werpen_nummer ?? null, body.verjaardag_naam_leeftijd ?? null,
     body.planning_extra ?? null,
     body.einde_feest ?? null,
-    body.zaal_contact ?? null, body.leveranciers_info ?? null, body.geluidsbeperking_info ?? null, body.wifi_code ?? null,
+    body.zaal_contact ?? null, ...(hasLeveranciersInfo ? [body.leveranciers_info ?? null] : []), body.geluidsbeperking_info ?? null, body.wifi_code ?? null,
     boolField(body.speakers_aanwezig), boolField(body.licht_aanwezig), boolField(body.micro_aanwezig),
     boolField(body.dj_booth_aanwezig), boolField(body.uplights_aanwezig), boolField(body.speakers_buiten),
     boolField(body.ceremonie_set), boolField(body.digital_booth), boolField(body.retro_booth),
@@ -1006,7 +1008,7 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
       intrede_taart_nummer: body.intrede_taart_nummer ?? null,
       openingsdans_nummer: body.openingsdans_nummer ?? null, tweede_dans_nummer: body.tweede_dans_nummer ?? null,
       boeket_werpen_nummer: body.boeket_werpen_nummer ?? null, verjaardag_naam_leeftijd: body.verjaardag_naam_leeftijd ?? null,
-      zaal_contact: body.zaal_contact ?? null, leveranciers_info: body.leveranciers_info ?? null, geluidsbeperking_info: body.geluidsbeperking_info ?? null, wifi_code: body.wifi_code ?? null,
+      zaal_contact: body.zaal_contact ?? null, ...(hasLeveranciersInfo ? { leveranciers_info: body.leveranciers_info ?? null } : {}), geluidsbeperking_info: body.geluidsbeperking_info ?? null, wifi_code: body.wifi_code ?? null,
       speakers_aanwezig: boolField(body.speakers_aanwezig), licht_aanwezig: boolField(body.licht_aanwezig),
       micro_aanwezig: boolField(body.micro_aanwezig), dj_booth_aanwezig: boolField(body.dj_booth_aanwezig),
       uplights_aanwezig: boolField(body.uplights_aanwezig), speakers_buiten: boolField(body.speakers_buiten),
