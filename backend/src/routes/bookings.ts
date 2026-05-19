@@ -106,6 +106,7 @@ const bookingDetailColumns: Record<string, string> = {
   leeftijd_partner2: 'NULL',
   extra_koppel_info: 'NULL',
   anderstalige_gasten: 'NULL',
+  anderstalige_talen: 'NULL',
   parkeren_info: 'NULL',
   gelijkvloers: '1',
   backup_contact_naam: 'NULL',
@@ -362,6 +363,7 @@ bookingsRoutes.post('/init', async (c) => {
       `ALTER TABLE bookings ADD COLUMN leeftijd_partner2 INTEGER`,
       `ALTER TABLE bookings ADD COLUMN extra_koppel_info TEXT`,
       `ALTER TABLE bookings ADD COLUMN anderstalige_gasten TEXT`,
+      `ALTER TABLE bookings ADD COLUMN anderstalige_talen TEXT`,
       `ALTER TABLE bookings ADD COLUMN btw_nr TEXT`,
       `ALTER TABLE bookings ADD COLUMN toestemming_foto INTEGER DEFAULT NULL`,
       // Melding: tijdstip waarop klant de vragenlijst (opnieuw) indiende (alleen aanpassingen na eerste invulling)
@@ -389,13 +391,14 @@ bookingsRoutes.post('/init', async (c) => {
       // Laat DJ tijdelijk Contract Info opnieuw openzetten ondanks bestaand contract/PDF
       `ALTER TABLE bookings ADD COLUMN contract_info_unlocked INTEGER NOT NULL DEFAULT 0`,
       `ALTER TABLE bookings ADD COLUMN leveranciers_info TEXT`,
-    `ALTER TABLE bookings ADD COLUMN werk_partner1 TEXT`,
-    `ALTER TABLE bookings ADD COLUMN werk_partner2 TEXT`,
-    `ALTER TABLE bookings ADD COLUMN hobbys_interesses TEXT`,
-    `ALTER TABLE bookings ADD COLUMN leeftijd_partner1 INTEGER`,
-    `ALTER TABLE bookings ADD COLUMN leeftijd_partner2 INTEGER`,
-    `ALTER TABLE bookings ADD COLUMN extra_koppel_info TEXT`,
-    `ALTER TABLE bookings ADD COLUMN anderstalige_gasten TEXT`,
+      `ALTER TABLE bookings ADD COLUMN werk_partner1 TEXT`,
+      `ALTER TABLE bookings ADD COLUMN werk_partner2 TEXT`,
+      `ALTER TABLE bookings ADD COLUMN hobbys_interesses TEXT`,
+      `ALTER TABLE bookings ADD COLUMN leeftijd_partner1 INTEGER`,
+      `ALTER TABLE bookings ADD COLUMN leeftijd_partner2 INTEGER`,
+      `ALTER TABLE bookings ADD COLUMN extra_koppel_info TEXT`,
+      `ALTER TABLE bookings ADD COLUMN anderstalige_gasten TEXT`,
+      `ALTER TABLE bookings ADD COLUMN anderstalige_talen TEXT`,
     ]
     for (const m of migrations) {
       try { await execute(c.env, m) } catch { /* column already exists */ }
@@ -853,6 +856,7 @@ async function ensureQuestionnaireColumns(env: Bindings) {
     `ALTER TABLE bookings ADD COLUMN leeftijd_partner2 INTEGER`,
     `ALTER TABLE bookings ADD COLUMN extra_koppel_info TEXT`,
     `ALTER TABLE bookings ADD COLUMN anderstalige_gasten TEXT`,
+    `ALTER TABLE bookings ADD COLUMN anderstalige_talen TEXT`,
   ]
   for (const m of migrations) {
     try { await execute(env, m) } catch { /* column already exists */ }
@@ -1004,7 +1008,7 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
 
   const extraQuestionnaireFields = [
     'werk_partner1', 'werk_partner2', 'hobbys_interesses',
-    'leeftijd_partner1', 'leeftijd_partner2', 'extra_koppel_info', 'anderstalige_gasten'
+    'leeftijd_partner1', 'leeftijd_partner2', 'extra_koppel_info', 'anderstalige_gasten', 'anderstalige_talen'
   ]
   const extraUpdates: string[] = []
   const extraValues: unknown[] = []

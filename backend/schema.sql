@@ -39,6 +39,7 @@ CREATE TABLE IF NOT EXISTS bookings (
   leeftijd_partner2 INTEGER,
   extra_koppel_info TEXT,
   anderstalige_gasten TEXT,
+  anderstalige_talen TEXT,
   parkeren_info TEXT,
   gelijkvloers INTEGER DEFAULT 1,
   backup_contact_naam TEXT,

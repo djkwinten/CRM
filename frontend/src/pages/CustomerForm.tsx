@@ -137,6 +137,7 @@ type LeveranciersInfo = {
   videograaf?: string
   ceremoniemeester?: string
   weddingplanner?: string
+  andere?: string
 }
 
 function parseLeveranciers(raw?: string): LeveranciersInfo {
@@ -161,7 +162,10 @@ function StepLeveranciers({ form, setForm, isTrouw }: { form: FormState; setForm
       { key: 'videograaf' as const, label: 'Videograaf', placeholder: 'Naam + telefoon/e-mail videograaf' },
       { key: 'ceremoniemeester' as const, label: 'Ceremoniemeester', placeholder: 'Naam + telefoon/e-mail ceremoniemeester' },
       { key: 'weddingplanner' as const, label: 'Weddingplanner', placeholder: 'Naam + telefoon/e-mail weddingplanner' },
-    ] : []),
+      { key: 'andere' as const, label: 'Andere leverancier / partner', placeholder: 'Bijv. band, zanger(es), bloemist, saxofonist, decoratie... + contactgegevens' },
+    ] : [
+      { key: 'andere' as const, label: 'Andere leverancier / partner', placeholder: 'Bijv. band, zanger(es), bloemist, decoratie... + contactgegevens' },
+    ]),
   ]
   return (
     <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 space-y-3">
@@ -283,14 +287,23 @@ function StepTrouwFeestGasten({ form, setForm }: { form: FormState; setForm: (u:
         <FormField label="Hebben jullie een thema, stijl of kleurenpalet?" sublabel="Niet verplicht — voorbeelden: classy, festival, boho, black & white, chic, summer vibes.">
           <Input value={form.thema || ''} onChange={v => setForm({ thema: v })} placeholder="Bijv. boho chic, summer vibes, black & white..." />
         </FormField>
-        <FormField label="Zijn er veel anderstalige gasten aanwezig?" sublabel="Dit helpt mij als DJ om communicatie en aankondigingen beter af te stemmen.">
-          <Select value={form.anderstalige_gasten || ''} onChange={v => setForm({ anderstalige_gasten: v })}>
-            <option value="">— Kies een optie —</option>
-            <option value="nee">Nee</option>
-            <option value="enkele">Enkele</option>
-            <option value="veel">Veel</option>
-          </Select>
-        </FormField>
+        <div className="space-y-3">
+          <FormField label="Zijn er anderstalige gasten aanwezig?" sublabel="Dit helpt mij als DJ om communicatie en aankondigingen beter af te stemmen.">
+            <Select
+              value={form.anderstalige_gasten || ''}
+              onChange={v => setForm({ anderstalige_gasten: v, anderstalige_talen: v === 'ja' ? form.anderstalige_talen : '' })}
+            >
+              <option value="">— Kies een optie —</option>
+              <option value="nee">Nee</option>
+              <option value="ja">Ja</option>
+            </Select>
+          </FormField>
+          {form.anderstalige_gasten === 'ja' && (
+            <FormField label="Welke taal of talen?" sublabel="Vul één of meerdere talen in, bijvoorbeeld Frans, Engels, Spaans...">
+              <Input value={form.anderstalige_talen || ''} onChange={v => setForm({ anderstalige_talen: v })} placeholder="Bijv. Frans, Engels, Spaans" />
+            </FormField>
+          )}
+        </div>
       </SectionCard>
 
       <StepLeveranciers form={form} setForm={setForm} isTrouw />
@@ -2077,6 +2090,12 @@ export function CustomerForm() {
   const [portalView, setPortalView] = useState(!directMode)
   const [step, setStep] = useState(0)
   const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    // Start elke vragenlijst-stap bovenaan, zodat navigeren tussen pagina's
+    // niet verdergaat op de scrollpositie van de vorige stap.
+    requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: 'auto' }))
+  }, [step])
   const [form, setForm] = useState<FormState>({})
   const [gdprAccepted, setGdprAccepted] = useState(false)
   // Feedback popup na submit

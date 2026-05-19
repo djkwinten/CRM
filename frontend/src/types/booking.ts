@@ -32,6 +32,7 @@ export interface Booking {
   leeftijd_partner2?: number
   extra_koppel_info?: string
   anderstalige_gasten?: string
+  anderstalige_talen?: string
   // Logistiek
   parkeren_info?: string
   gelijkvloers?: number
