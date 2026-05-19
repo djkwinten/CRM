@@ -20,6 +20,35 @@ function categoryLabel(category?: string) {
   return 'Vragenlijst-upload'
 }
 
+
+async function openRemoteFile(url: string, name: string) {
+  const win = window.open('', '_blank', 'noopener,noreferrer')
+  try {
+    const res = await fetch(url)
+    const contentType = res.headers.get('content-type') || ''
+    if (!res.ok || contentType.includes('text/html')) throw new Error('Bestand kon niet worden geopend')
+    const blob = await res.blob()
+    const objectUrl = URL.createObjectURL(blob)
+    if (win) {
+      win.location.href = objectUrl
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+    } else {
+      const a = document.createElement('a')
+      a.href = objectUrl
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
+      a.download = name
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+    }
+  } catch (e) {
+    if (win) win.close()
+    alert(e instanceof Error ? e.message : 'Bestand kon niet worden geopend')
+  }
+}
+
 function formatSize(size?: number | null) {
   if (!size) return ''
   if (size < 1024) return `${size} B`
@@ -93,9 +122,9 @@ export function FilesTab({ booking }: { booking: Booking }) {
                 <p className="text-sm font-semibold text-gray-900 truncate"><span className="text-indigo-700">{categoryLabel(file.category)} · </span>{file.naam}</p>
                 <p className="text-xs text-indigo-500">Upload van klantvragenlijst</p>
               </div>
-              <a href={`${API_ROOT}/api/uploads/${file.key}`} target="_blank" rel="noopener noreferrer" className="p-2 rounded-xl hover:bg-indigo-100 text-indigo-600">
+              <button type="button" onClick={() => openRemoteFile(`${API_ROOT}/api/uploads/${file.key}`, file.naam)} className="p-2 rounded-xl hover:bg-indigo-100 text-indigo-600" aria-label="Bestand openen">
                 <Download size={15} />
-              </a>
+              </button>
             </div>
           ))}
         </div>
@@ -114,9 +143,9 @@ export function FilesTab({ booking }: { booking: Booking }) {
                 <p className="text-sm font-semibold text-gray-900 truncate">{file.name}</p>
                 <p className="text-xs text-gray-400">{file.type || 'bestand'} {formatSize(file.size) && `· ${formatSize(file.size)}`}</p>
               </div>
-              <a href={bookingFileDownloadUrl(file.id)} target="_blank" rel="noopener noreferrer" className="p-2 rounded-xl hover:bg-blue-50 text-blue-600">
+              <button type="button" onClick={() => openRemoteFile(bookingFileDownloadUrl(file.id), file.name)} className="p-2 rounded-xl hover:bg-blue-50 text-blue-600" aria-label="Bestand openen">
                 <Download size={15} />
-              </a>
+              </button>
               <button onClick={() => handleDelete(file)} className="p-2 rounded-xl hover:bg-red-50 text-red-500">
                 <Trash2 size={15} />
               </button>

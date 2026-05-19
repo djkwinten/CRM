@@ -119,3 +119,15 @@ CREATE TABLE IF NOT EXISTS bookings (
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS internal_todos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  booking_id INTEGER,
+  kind TEXT NOT NULL DEFAULT 'manual',
+  text TEXT NOT NULL,
+  due_date TEXT,
+  done INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(booking_id, kind)
+);

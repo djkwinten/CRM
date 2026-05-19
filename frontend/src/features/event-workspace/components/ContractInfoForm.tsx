@@ -29,6 +29,7 @@ export function ContractInfoForm({
   saveLabel = 'Opslaan',
   onSaved,
   notifyOnComplete = false,
+  enableAutosave = true,
 }: {
   bookingId: number
   initial: BookingContractInfo
@@ -39,6 +40,7 @@ export function ContractInfoForm({
   saveLabel?: string
   onSaved?: (info: BookingContractInfo) => void
   notifyOnComplete?: boolean
+  enableAutosave?: boolean
 }) {
   const withDefaultTech = (info: BookingContractInfo): BookingContractInfo => ({
     ...info,
@@ -89,13 +91,13 @@ export function ContractInfoForm({
   }
 
   useEffect(() => {
-    if (readOnly) return
+    if (readOnly || !enableAutosave) return
     if (!didMount.current) { didMount.current = true; return }
     if (requireCompleteBeforeSave && !requiredComplete) return
     if (timer.current) clearTimeout(timer.current)
     timer.current = setTimeout(() => save(form), 750)
     return () => { if (timer.current) clearTimeout(timer.current) }
-  }, [form, readOnly, requireCompleteBeforeSave, requiredComplete, notifyOnComplete]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [form, readOnly, enableAutosave, requireCompleteBeforeSave, requiredComplete, notifyOnComplete]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const input = `mt-1 w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/20 transition-all ${readOnly ? 'opacity-70 cursor-not-allowed' : ''}`
   const label = 'text-xs font-medium text-gray-500 uppercase tracking-wider'

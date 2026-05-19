@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
-import { Calendar, CheckCircle2, ClipboardList, FileText, FolderOpen, MessageSquare, ExternalLink, Download } from 'lucide-react'
+import { Calendar, CheckCircle2, ClipboardList, FileText, FolderOpen, MessageSquare, ExternalLink, Download, Lock, X } from 'lucide-react'
 import { bookingFileDownloadUrl, BookingFile, getBooking, getBookingFiles, getContractInfo, getBookingPDF } from '../lib/api'
 import { Booking } from '../types/booking'
 import { BookingContractInfo } from '../features/event-workspace/types'
@@ -17,6 +17,47 @@ function categoryLabel(category?: string) {
   if (category === 'zaal_foto') return 'Zaalfoto'
   return 'Vragenlijst-upload'
 }
+
+function isContractInfoComplete(info: BookingContractInfo | null | undefined) {
+  return !!(
+    info?.naam?.trim() &&
+    info?.email?.trim() &&
+    info?.gsm?.trim() &&
+    info?.klant_adres?.trim() &&
+    info?.event_type?.trim() &&
+    info?.event_datum?.trim() &&
+    info?.locatie_naam?.trim() &&
+    info?.locatie_adres?.trim()
+  )
+}
+
+async function openRemoteFile(url: string, name: string) {
+  const win = window.open('', '_blank', 'noopener,noreferrer')
+  try {
+    const res = await fetch(url)
+    const contentType = res.headers.get('content-type') || ''
+    if (!res.ok || contentType.includes('text/html')) throw new Error('Bestand kon niet worden geopend')
+    const blob = await res.blob()
+    const objectUrl = URL.createObjectURL(blob)
+    if (win) {
+      win.location.href = objectUrl
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+    } else {
+      const a = document.createElement('a')
+      a.href = objectUrl
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
+      a.download = name
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+    }
+  } catch (e) {
+    if (win) win.close()
+    alert(e instanceof Error ? e.message : 'Bestand kon niet worden geopend')
+  }
+}
 import { ContractInfoForm } from '../features/event-workspace/components/ContractInfoForm'
 
 export function EventPortal() {
@@ -29,6 +70,7 @@ export function EventPortal() {
   const [activeSection, setActiveSection] = useState<'contract' | 'vragenlijst' | 'bestanden' | 'communicatie' | null>(null)
   const [showFirstContractPopup, setShowFirstContractPopup] = useState(false)
   const [manualFiles, setManualFiles] = useState<BookingFile[]>([])
+  const [contractInfoSubmitted, setContractInfoSubmitted] = useState(false)
 
   useEffect(() => {
     const section = searchParams.get('section')
@@ -43,10 +85,13 @@ export function EventPortal() {
     getBooking(slug).then(async b => {
       setBooking(b)
       if (b) {
-        setContractInfo(await getContractInfo(b.id))
+        const info = await getContractInfo(b.id)
+        setContractInfo(info)
         setManualFiles(await getBookingFiles(b.id))
-        const seenKey = `event-portal-contract-popup-seen-${b.slug || b.id}`
-        if (!localStorage.getItem(seenKey)) setShowFirstContractPopup(true)
+        const ready = isContractInfoComplete(info) || !!(b.status_contract || b.has_contract_pdf)
+        setContractInfoSubmitted(ready)
+        setShowFirstContractPopup(!ready)
+        if (!ready) setActiveSection('contract')
       }
       setLoading(false)
     })
@@ -59,24 +104,18 @@ export function EventPortal() {
   const questionnairePath = booking.slug ? `/vragenlijst/${booking.slug}?direct=1` : `/formulier/${booking.id}?direct=1`
   const hasContract = !!(booking.contract_pdf || booking.has_contract_pdf)
   const hasFactuur = !!(booking.billit_factuur_pdf || booking.has_billit_factuur_pdf)
-  const contractInfoComplete = !!(
-    contractInfo?.naam?.trim() &&
-    contractInfo?.email?.trim() &&
-    contractInfo?.gsm?.trim() &&
-    contractInfo?.klant_adres?.trim() &&
-    contractInfo?.event_type?.trim() &&
-    contractInfo?.event_datum?.trim() &&
-    contractInfo?.locatie_naam?.trim() &&
-    contractInfo?.locatie_adres?.trim()
-  )
+  const contractInfoComplete = isContractInfoComplete(contractInfo)
   const questionnaireFiles = parseQuestionnaireUploads(booking.zaal_fotos)
   const contractLocked = !!((booking.status_contract || booking.has_contract_pdf) && !booking.contract_info_unlocked)
-  const completeContractAndOpenQuestionnaire = (info: BookingContractInfo) => {
+  const customerTabsUnlocked = contractInfoSubmitted || contractLocked
+  const handleContractSaved = (info: BookingContractInfo) => {
     setContractInfo(info)
-    const seenKey = `event-portal-contract-popup-seen-${booking.slug || booking.id}`
-    localStorage.setItem(seenKey, '1')
+    setContractInfoSubmitted(true)
     setShowFirstContractPopup(false)
-    setActiveSection('vragenlijst')
+  }
+  const openLockedSection = () => {
+    setActiveSection('contract')
+    setShowFirstContractPopup(true)
   }
 
   const openBase64PDF = (base64: string) => {
@@ -126,11 +165,11 @@ export function EventPortal() {
             <p className="font-bold text-gray-900 text-sm">Contract Info</p>
             <p className="text-xs text-gray-400 mt-0.5">Korte basisinfo</p>
           </button>
-          {contractInfoComplete ? (
+          {customerTabsUnlocked ? (
             <button onClick={() => setActiveSection(activeSection === 'vragenlijst' ? null : 'vragenlijst')} className="text-left bg-white rounded-2xl p-4 shadow-sm border border-transparent hover:border-[#007AFF] transition-colors">
               <ClipboardList size={20} className="text-[#007AFF] mb-2" />
               <p className="font-bold text-gray-900 text-sm">Vragenlijst</p>
-              <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">Kan vanaf nu ingevuld en later aangepast worden. Een maand voor het feest sturen we automatisch een herinnering om alles nog eens na te kijken.</p>
+              <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">Kan vanaf nu ingevuld en later aangepast worden. Een maand voor het feest maken we intern een opvolgtaak aan.</p>
             </button>
           ) : (
             <div className="bg-gray-100 rounded-2xl p-4 shadow-sm opacity-70">
@@ -139,16 +178,32 @@ export function EventPortal() {
               <p className="text-xs text-gray-400 mt-0.5">Eerst Contract Info invullen</p>
             </div>
           )}
-          <button onClick={() => setActiveSection(activeSection === 'bestanden' ? null : 'bestanden')} className="text-left bg-white rounded-2xl p-4 shadow-sm border border-transparent hover:border-[#007AFF] transition-colors">
-            <FolderOpen size={20} className="text-[#007AFF] mb-2" />
-            <p className="font-bold text-gray-900 text-sm">Bestanden</p>
-            <p className="text-xs text-gray-400 mt-0.5">Contract, factuur & bijlagen</p>
-          </button>
-          <button onClick={() => setActiveSection(activeSection === 'communicatie' ? null : 'communicatie')} className="text-left bg-white rounded-2xl p-4 shadow-sm border border-transparent hover:border-[#007AFF] transition-colors">
-            <MessageSquare size={20} className="text-[#007AFF] mb-2" />
-            <p className="font-bold text-gray-900 text-sm">Communicatie</p>
-            <p className="text-xs text-gray-400 mt-0.5">Later beschikbaar</p>
-          </button>
+          {customerTabsUnlocked ? (
+            <button onClick={() => setActiveSection(activeSection === 'bestanden' ? null : 'bestanden')} className="text-left bg-white rounded-2xl p-4 shadow-sm border border-transparent hover:border-[#007AFF] transition-colors">
+              <FolderOpen size={20} className="text-[#007AFF] mb-2" />
+              <p className="font-bold text-gray-900 text-sm">Bestanden</p>
+              <p className="text-xs text-gray-400 mt-0.5">Contract, factuur & bijlagen</p>
+            </button>
+          ) : (
+            <button type="button" onClick={openLockedSection} className="text-left bg-gray-100 rounded-2xl p-4 shadow-sm opacity-70">
+              <Lock size={20} className="text-gray-400 mb-2" />
+              <p className="font-bold text-gray-500 text-sm">Bestanden</p>
+              <p className="text-xs text-gray-400 mt-0.5">Eerst Contract Info invullen</p>
+            </button>
+          )}
+          {customerTabsUnlocked ? (
+            <button onClick={() => setActiveSection(activeSection === 'communicatie' ? null : 'communicatie')} className="text-left bg-white rounded-2xl p-4 shadow-sm border border-transparent hover:border-[#007AFF] transition-colors">
+              <MessageSquare size={20} className="text-[#007AFF] mb-2" />
+              <p className="font-bold text-gray-900 text-sm">Communicatie</p>
+              <p className="text-xs text-gray-400 mt-0.5">Later beschikbaar</p>
+            </button>
+          ) : (
+            <button type="button" onClick={openLockedSection} className="text-left bg-gray-100 rounded-2xl p-4 shadow-sm opacity-70">
+              <Lock size={20} className="text-gray-400 mb-2" />
+              <p className="font-bold text-gray-500 text-sm">Communicatie</p>
+              <p className="text-xs text-gray-400 mt-0.5">Eerst Contract Info invullen</p>
+            </button>
+          )}
         </div>
 
         {activeSection === 'contract' && (
@@ -157,7 +212,7 @@ export function EventPortal() {
             <FileText size={16} className="text-[#007AFF]" />
             <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider">Contract Info</h2>
           </div>
-          {contractInfoComplete && !contractLocked && !booking.contract_info_unlocked ? (
+          {contractInfoSubmitted && contractInfoComplete && !contractLocked && !booking.contract_info_unlocked ? (
             <div className="bg-white rounded-2xl shadow-sm p-5 border border-green-100 space-y-3">
               <div className="flex items-start gap-3">
                 <CheckCircle2 size={20} className="text-green-600 mt-0.5" />
@@ -167,12 +222,15 @@ export function EventPortal() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
+                <button onClick={() => setShowFirstContractPopup(true)} className="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors">
+                  <FileText size={15} /> Bekijk contractinfo
+                </button>
                 <button onClick={() => setActiveSection('vragenlijst')} className="inline-flex items-center gap-2 bg-[#007AFF] hover:bg-[#0066CC] text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors">
                   <ClipboardList size={15} /> Naar vragenlijst
                 </button>
               </div>
             </div>
-          ) : contractInfo ? <ContractInfoForm bookingId={booking.id} initial={contractInfo} showFinancial={false} readOnly={contractLocked} onChange={setContractInfo} requireCompleteBeforeSave notifyOnComplete onSaved={completeContractAndOpenQuestionnaire} saveLabel="Opslaan" /> : <div className="text-gray-400">Contract info laden...</div>}
+          ) : contractInfo ? <ContractInfoForm bookingId={booking.id} initial={contractInfo} showFinancial={false} readOnly={contractLocked} onChange={setContractInfo} requireCompleteBeforeSave notifyOnComplete onSaved={handleContractSaved} saveLabel="Opslaan" enableAutosave={false} /> : <div className="text-gray-400">Contract info laden...</div>}
           {!contractInfoComplete && (
             <div className="mt-3 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl p-3 text-sm">
               Vul eerst alle verplichte Contract Info velden in. Daarna wordt de vragenlijst beschikbaar.
@@ -181,15 +239,15 @@ export function EventPortal() {
         </section>
         )}
 
-        {activeSection === 'vragenlijst' && (
+        {activeSection === 'vragenlijst' && customerTabsUnlocked && (
         <section className="bg-white rounded-2xl shadow-sm p-5 space-y-3">
           <h2 className="font-bold text-gray-900 flex items-center gap-2"><ClipboardList size={18} className="text-[#007AFF]" /> Uitgebreide vragenlijst</h2>
           <p className="text-sm text-gray-500 leading-relaxed">
             De info uit Contract Info wordt automatisch overgenomen in de vragenlijst. Deze lijst kan vanaf nu ingevuld worden en blijft daarna aanpasbaar.
-            Een maand voor het feest sturen we automatisch een herinnering om de vragenlijst nog eens te controleren en eventueel aan te passen.
+            Een maand voor het feest maken we intern een opvolgtaak aan om de vragenlijst nog eens te controleren en eventueel aan te passen.
             Nadien overlopen we de vragenlijst samen, zodat alle praktische details en muziekwensen duidelijk zijn.
           </p>
-          {contractInfoComplete ? (
+          {customerTabsUnlocked ? (
             <a href={questionnairePath} className="inline-flex items-center gap-2 bg-[#007AFF] hover:bg-[#0066CC] text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors">
               <ExternalLink size={15} /> Open vragenlijst
             </a>
@@ -201,7 +259,7 @@ export function EventPortal() {
         </section>
         )}
 
-        {activeSection === 'bestanden' && (
+        {activeSection === 'bestanden' && customerTabsUnlocked && (
         <section id="bestanden" className="bg-white rounded-2xl shadow-sm p-5">
           <h2 className="font-bold text-gray-900 flex items-center gap-2"><FolderOpen size={18} className="text-[#007AFF]" /> Bestanden</h2>
           <p className="text-sm text-gray-400 mt-2">Hier staan documenten zoals overeenkomst, voorschotfactuur en extra bestanden van DJ Kwinten.</p>
@@ -224,11 +282,11 @@ export function EventPortal() {
               <div className="pt-2 space-y-2">
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Uploads uit vragenlijst</p>
                 {questionnaireFiles.map(file => (
-                  <a key={`${file.key}-${file.category}`} href={`${API_ROOT}/api/uploads/${file.key}`} target="_blank" rel="noopener noreferrer" className="w-full flex items-center gap-3 p-3 rounded-xl border border-indigo-100 bg-indigo-50 hover:bg-indigo-100 transition-colors text-left">
+                  <button key={`${file.key}-${file.category}`} type="button" onClick={() => openRemoteFile(`${API_ROOT}/api/uploads/${file.key}`, file.naam)} className="w-full flex items-center gap-3 p-3 rounded-xl border border-indigo-100 bg-indigo-50 hover:bg-indigo-100 transition-colors text-left">
                     <FileText size={18} className="text-indigo-600" />
                     <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-gray-800 truncate"><span className="text-indigo-700">{categoryLabel(file.category)} · </span>{file.naam}</p><p className="text-xs text-indigo-500">Openen/downloaden</p></div>
                     <Download size={15} className="text-indigo-500" />
-                  </a>
+                  </button>
                 ))}
               </div>
             )}
@@ -236,11 +294,11 @@ export function EventPortal() {
               <div className="pt-2 space-y-2">
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Extra bestanden</p>
                 {manualFiles.map(file => (
-                  <a key={file.id} href={bookingFileDownloadUrl(file.id)} target="_blank" rel="noopener noreferrer" className="w-full flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors text-left">
+                  <button key={file.id} type="button" onClick={() => openRemoteFile(bookingFileDownloadUrl(file.id), file.name)} className="w-full flex items-center gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition-colors text-left">
                     <FileText size={18} className="text-gray-600" />
                     <div className="flex-1 min-w-0"><p className="text-sm font-semibold text-gray-800 truncate">{file.name}</p><p className="text-xs text-gray-400">Downloaden</p></div>
                     <Download size={15} className="text-gray-500" />
-                  </a>
+                  </button>
                 ))}
               </div>
             )}
@@ -248,7 +306,7 @@ export function EventPortal() {
         </section>
         )}
 
-        {activeSection === 'communicatie' && (
+        {activeSection === 'communicatie' && customerTabsUnlocked && (
         <section id="communicatie" className="bg-white rounded-2xl shadow-sm p-5">
           <h2 className="font-bold text-gray-900 flex items-center gap-2"><MessageSquare size={18} className="text-[#007AFF]" /> Communicatie</h2>
           <p className="text-sm text-gray-400 mt-2">Binnenkort verschijnt hier een eenvoudige communicatie-timeline.</p>
@@ -267,8 +325,11 @@ export function EventPortal() {
               <div className="flex items-start justify-between gap-3 p-4 border-b border-gray-100">
                 <div>
                   <h2 className="font-bold text-gray-900">Eerst even Contract Info controleren</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">Dit verschijnt alleen bij het eerste bezoek aan deze klantpagina.</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Vul eerst alle verplichte velden in en klik expliciet op Opslaan.</p>
                 </div>
+                <button type="button" onClick={() => setShowFirstContractPopup(false)} className="p-2 rounded-xl text-gray-400 hover:text-gray-700 hover:bg-gray-100" aria-label="Sluiten">
+                  <X size={18} />
+                </button>
               </div>
               <div className="p-4">
                 <ContractInfoForm
@@ -279,8 +340,9 @@ export function EventPortal() {
                   onChange={setContractInfo}
                   requireCompleteBeforeSave
                   notifyOnComplete
-                  onSaved={completeContractAndOpenQuestionnaire}
+                  onSaved={handleContractSaved}
                   saveLabel="Opslaan"
+                  enableAutosave={false}
                 />
               </div>
             </div>

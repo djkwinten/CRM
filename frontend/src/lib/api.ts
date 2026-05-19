@@ -238,7 +238,7 @@ export async function getReminderStatuses(): Promise<ReminderStatus[]> {
   })
 }
 
-export async function runReminderCheck(): Promise<{ sent: number; checked: number; results: { id: number; naam: string; sent: boolean; reason?: string }[] }> {
+export async function runReminderCheck(): Promise<{ sent: number; created?: number; checked: number; results: { id: number; naam: string; sent: boolean; reason?: string }[] }> {
   const res = await fetch(`${API_ROOT}/api/reminders/check`, { method: 'POST' })
   return res.json()
 }
@@ -246,6 +246,62 @@ export async function runReminderCheck(): Promise<{ sent: number; checked: numbe
 export async function sendReminder(id: number): Promise<{ success: boolean; error?: string; sent_to?: string }> {
   const res = await fetch(`${API_ROOT}/api/reminders/send/${id}`, { method: 'POST' })
   return res.json()
+}
+
+
+export interface InternalTodo {
+  id: number
+  booking_id?: number | null
+  kind: string
+  text: string
+  due_date?: string | null
+  done: number
+  created_at?: string
+}
+
+export async function getInternalTodos(): Promise<InternalTodo[]> {
+  try {
+    const res = await fetch(`${API_ROOT}/api/reminders/todos`)
+    const data = await res.json() as { todos: InternalTodo[] }
+    return data.todos || []
+  } catch {
+    return []
+  }
+}
+
+export async function createInternalTodo(text: string): Promise<{ success: boolean; id?: number; error?: string }> {
+  try {
+    const res = await fetch(`${API_ROOT}/api/reminders/todos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text })
+    })
+    return res.json()
+  } catch {
+    return { success: false, error: 'Todo opslaan mislukt' }
+  }
+}
+
+export async function updateInternalTodo(id: number, done: boolean): Promise<{ success: boolean }> {
+  try {
+    const res = await fetch(`${API_ROOT}/api/reminders/todos/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ done })
+    })
+    return res.json()
+  } catch {
+    return { success: false }
+  }
+}
+
+export async function deleteInternalTodo(id: number): Promise<{ success: boolean }> {
+  try {
+    const res = await fetch(`${API_ROOT}/api/reminders/todos/${id}`, { method: 'DELETE' })
+    return res.json()
+  } catch {
+    return { success: false }
+  }
 }
 
 export async function testSmtp(): Promise<{ connected: boolean; message: string }> {

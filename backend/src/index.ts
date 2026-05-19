@@ -59,8 +59,8 @@ app.notFound((c) => {
 export default {
   fetch: app.fetch,
   scheduled(_event: ScheduledEvent, env: Bindings, ctx: ExecutionContext) {
-    // Dagelijkse automatische check: stuur 1 maand voor het feest een mail
-    // om de vragenlijst nog eens te controleren en aan te passen.
+    // Dagelijkse automatische check: maak 1 maand voor het feest enkel een
+    // interne opvolg-todo aan. Er wordt hier bewust geen e-mail verstuurd.
     ctx.waitUntil(Promise.resolve(
       app.fetch(new Request('https://internal.local/api/reminders/feest-herinnering-check', { method: 'POST' }), env)
     ))
