@@ -3,14 +3,14 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   Wifi, CheckCircle2, ChevronRight, ChevronLeft, Heart, Download, FileText,
 } from 'lucide-react'
-import { getBooking, submitQuestionnaire, getBookingPDF, getContractInfo } from '../lib/api'
+import { getBooking, submitQuestionnaire, getBookingPDF, getContractInfo, getVenue, suggestVenues } from '../lib/api'
 import { Booking } from '../types/booking'
 import { format, parseISO } from 'date-fns'
 import { nl } from 'date-fns/locale'
 
 // ─── Reusable form components ─────────────────────────────────────────────────
 
-function FormField({ label, sublabel, children }: { label: string; sublabel?: string; children: React.ReactNode }) {
+function FormField({ label, sublabel, children }: { label: React.ReactNode; sublabel?: string; children: React.ReactNode }) {
   return (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
@@ -180,34 +180,137 @@ function StepLeveranciers({ form, setForm, isTrouw }: { form: FormState; setForm
   )
 }
 
-function StepContact({ form, setForm, isTrouw }: { form: FormState; setForm: (u: Partial<FormState>) => void; isTrouw: boolean }) {
+function OptionalBadge() {
+  return <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-600 border border-blue-100">optioneel</span>
+}
+
+function SectionCard({ title, subtitle, tone = 'gray', children }: {
+  title: string
+  subtitle?: string
+  tone?: 'pink' | 'blue' | 'gray'
+  children: React.ReactNode
+}) {
+  const styles = tone === 'pink'
+    ? 'bg-pink-50 border-pink-200'
+    : tone === 'blue'
+      ? 'bg-blue-50 border-blue-200'
+      : 'bg-gray-50 border-gray-200'
+  const titleColor = tone === 'pink' ? 'text-pink-800' : tone === 'blue' ? 'text-blue-800' : 'text-gray-800'
+  const subtitleColor = tone === 'pink' ? 'text-pink-700' : tone === 'blue' ? 'text-blue-700' : 'text-gray-500'
+  return (
+    <section className={`rounded-2xl border ${styles} p-4 sm:p-5 space-y-4`}>
+      <div>
+        <h3 className={`text-sm font-bold ${titleColor}`}>{title}</h3>
+        {subtitle && <p className={`text-xs mt-1 leading-relaxed ${subtitleColor}`}>{subtitle}</p>}
+      </div>
+      {children}
+    </section>
+  )
+}
+
+function StepTrouwKoppel({ form, setForm }: { form: FormState; setForm: (u: Partial<FormState>) => void }) {
   return (
     <div className="space-y-5">
-      {isTrouw && (
-        <div className="bg-pink-50 border border-pink-200 rounded-2xl p-4 space-y-3">
-          <p className="text-sm font-semibold text-pink-700">💍 Namen van het Koppel</p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <FormField label="Partner 1">
-              <Input value={form.naam_partner1 || ''} onChange={v => setForm({ naam_partner1: v })} placeholder="Voornaam Achternaam" />
-            </FormField>
-            <FormField label="Partner 2">
-              <Input value={form.naam_partner2 || ''} onChange={v => setForm({ naam_partner2: v })} placeholder="Voornaam Achternaam" />
-            </FormField>
-          </div>
+      <SectionCard title="💍 Gegevens van het koppel" subtitle="Deze gegevens gebruiken we voor de praktische voorbereiding en de communicatie rond jullie feest." tone="pink">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <FormField label="Naam partner 1 *">
+            <Input value={form.naam_partner1 || ''} onChange={v => setForm({ naam_partner1: v })} placeholder="Voornaam Achternaam" required />
+          </FormField>
+          <FormField label="Naam partner 2 *">
+            <Input value={form.naam_partner2 || ''} onChange={v => setForm({ naam_partner2: v })} placeholder="Voornaam Achternaam" required />
+          </FormField>
         </div>
-      )}
+        <FormField label="Adres van het koppel" sublabel="Straat, nummer, postcode en gemeente — handig voor administratie en contractgegevens.">
+          <Input value={form.adres_organisator || ''} onChange={v => setForm({ adres_organisator: v })} placeholder="Kerkstraat 12, 9000 Gent" />
+        </FormField>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <FormField label="E-mailadres *">
+            <Input type="email" value={form.email || ''} onChange={v => setForm({ email: v })} placeholder="jullie@email.be" required />
+          </FormField>
+          <FormField label="GSM-nummer *">
+            <Input type="tel" value={form.telefoon || ''} onChange={v => setForm({ telefoon: v })} placeholder="+32 xxx xx xx xx" required />
+          </FormField>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Leer jullie graag wat beter kennen" subtitle="Volledig vrijblijvend 😊 — dit helpt mij om jullie feest persoonlijker aan te voelen, maar niets in deze sectie is verplicht." tone="blue">
+        <div className="flex justify-end -mt-2"><OptionalBadge /></div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <FormField label="Werk partner 1">
+            <Input value={form.werk_partner1 || ''} onChange={v => setForm({ werk_partner1: v })} placeholder="Bijv. leerkracht, zelfstandige, verpleegkundige..." />
+          </FormField>
+          <FormField label="Werk partner 2">
+            <Input value={form.werk_partner2 || ''} onChange={v => setForm({ werk_partner2: v })} placeholder="Bijv. IT, zorg, bouw, marketing..." />
+          </FormField>
+          <FormField label="Leeftijd partner 1">
+            <Input type="number" value={form.leeftijd_partner1?.toString() || ''} onChange={v => setForm({ leeftijd_partner1: v === '' ? undefined : Number(v) })} placeholder="Bijv. 29" />
+          </FormField>
+          <FormField label="Leeftijd partner 2">
+            <Input type="number" value={form.leeftijd_partner2?.toString() || ''} onChange={v => setForm({ leeftijd_partner2: v === '' ? undefined : Number(v) })} placeholder="Bijv. 31" />
+          </FormField>
+        </div>
+        <FormField label="Hobby’s / interesses">
+          <Textarea value={form.hobbys_interesses || ''} onChange={v => setForm({ hobbys_interesses: v })} placeholder="Wat doen jullie graag samen of apart? Reizen, festivals, sport, koken, series..." rows={3} />
+        </FormField>
+        <FormField label="Nog iets leuks of interessants dat ik over jullie mag weten?" sublabel="Dit is volledig vrijblijvend 😊">
+          <Textarea value={form.extra_koppel_info || ''} onChange={v => setForm({ extra_koppel_info: v })} placeholder="Een grappig weetje, jullie favoriete herinnering, hoe jullie elkaar leerden kennen..." rows={3} />
+        </FormField>
+      </SectionCard>
+    </div>
+  )
+}
+
+function StepTrouwFeestGasten({ form, setForm }: { form: FormState; setForm: (u: Partial<FormState>) => void }) {
+  return (
+    <div className="space-y-5">
+      <SectionCard title="Vertel wat meer over jullie feest" subtitle="Deze info helpt mij om de sfeer, communicatie en muziekkeuzes beter af te stemmen op jullie gasten." tone="gray">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <FormField label="Aantal gasten (schatting)">
+            <Input type="number" value={form.aantal_gasten?.toString() || ''} onChange={v => setForm({ aantal_gasten: parseInt(v) || undefined })} placeholder="150" />
+          </FormField>
+          <FormField label="Gemiddelde leeftijd van de gasten" sublabel="Op wie focust de DJ tijdens het feest?">
+            <Select value={form.publiek_leeftijd || ''} onChange={v => setForm({ publiek_leeftijd: v })}>
+              <option value="">— Kies een optie —</option>
+              <option value="mix">Gemengd — alle leeftijden gelijk</option>
+              <option value="jong">Voornamelijk jong publiek (20–35j)</option>
+              <option value="middel">Voornamelijk 35–55 jaar</option>
+              <option value="ouder">Voornamelijk 55+ jaar</option>
+              <option value="jong_focus">Alle leeftijden, maar focus op jongeren</option>
+              <option value="ouder_focus">Alle leeftijden, maar focus op 50+</option>
+            </Select>
+          </FormField>
+        </div>
+        <FormField label="Hebben jullie een thema, stijl of kleurenpalet?" sublabel="Niet verplicht — voorbeelden: classy, festival, boho, black & white, chic, summer vibes.">
+          <Input value={form.thema || ''} onChange={v => setForm({ thema: v })} placeholder="Bijv. boho chic, summer vibes, black & white..." />
+        </FormField>
+        <FormField label="Zijn er veel anderstalige gasten aanwezig?" sublabel="Dit helpt mij als DJ om communicatie en aankondigingen beter af te stemmen.">
+          <Select value={form.anderstalige_gasten || ''} onChange={v => setForm({ anderstalige_gasten: v })}>
+            <option value="">— Kies een optie —</option>
+            <option value="nee">Nee</option>
+            <option value="enkele">Enkele</option>
+            <option value="veel">Veel</option>
+          </Select>
+        </FormField>
+      </SectionCard>
+
+      <StepLeveranciers form={form} setForm={setForm} isTrouw />
+      <UitnodigingUpload form={form} setForm={setForm} />
+    </div>
+  )
+}
+
+function StepContact({ form, setForm, isTrouw }: { form: FormState; setForm: (u: Partial<FormState>) => void; isTrouw: boolean }) {
+  if (isTrouw) return <StepTrouwKoppel form={form} setForm={setForm} />
+  return (
+    <div className="space-y-5">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-        {!isTrouw && (
-          <FormField label="Naam Organisator *">
-            <Input value={form.naam_organisator || ''} onChange={v => setForm({ naam_organisator: v })} placeholder="Voornaam Achternaam" required />
-          </FormField>
-        )}
-        {!isTrouw && (
-          <FormField label="Bedrijfsnaam">
-            <Input value={form.bedrijfsnaam || ''} onChange={v => setForm({ bedrijfsnaam: v })} placeholder="Optioneel" />
-          </FormField>
-        )}
-        {!isTrouw && form.bedrijfsnaam && (
+        <FormField label="Naam Organisator *">
+          <Input value={form.naam_organisator || ''} onChange={v => setForm({ naam_organisator: v })} placeholder="Voornaam Achternaam" required />
+        </FormField>
+        <FormField label="Bedrijfsnaam">
+          <Input value={form.bedrijfsnaam || ''} onChange={v => setForm({ bedrijfsnaam: v })} placeholder="Optioneel" />
+        </FormField>
+        {form.bedrijfsnaam && (
           <FormField label="BTW-nummer" sublabel="Verplicht voor bedrijfsfactuur">
             <Input value={form.btw_nr || ''} onChange={v => setForm({ btw_nr: v })} placeholder="BE 0xxx.xxx.xxx" />
           </FormField>
@@ -238,35 +341,18 @@ function StepContact({ form, setForm, isTrouw }: { form: FormState; setForm: (u:
       <FormField label="Thema of Dress Code" sublabel="Optioneel — geef gerust een sfeervolle beschrijving">
         <Input value={form.thema || ''} onChange={v => setForm({ thema: v })} placeholder="Bijv. Tropical, Bohemian, Zwart-Wit, ..." />
       </FormField>
-      {!isTrouw && (
-        <FormField label="Type Feest">
-          <Select value={form.subtype || 'Verjaardag'} onChange={v => setForm({ subtype: v })}>
-            {FEEST_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-          </Select>
-        </FormField>
-      )}
+      <FormField label="Type Feest">
+        <Select value={form.subtype || 'Verjaardag'} onChange={v => setForm({ subtype: v })}>
+          {FEEST_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+        </Select>
+      </FormField>
 
       <FormField label="Adres Organisator" sublabel="Straat, nummer, postcode en gemeente — nodig voor het contract">
         <Input value={form.adres_organisator || ''} onChange={v => setForm({ adres_organisator: v })} placeholder="Kerkstraat 12, 9000 Gent" />
       </FormField>
 
-      <StepLeveranciers form={form} setForm={setForm} isTrouw={isTrouw} />
-
+      <StepLeveranciers form={form} setForm={setForm} isTrouw={false} />
       <UitnodigingUpload form={form} setForm={setForm} />
-
-      {/* Back-up contact */}
-      <div className="pt-2">
-        <p className="text-sm font-medium text-gray-700 mb-1">📞 Back-up Contact op de Avond</p>
-        <p className="text-xs text-gray-500 mb-3">Wie is de ceremoniemeester of contactpersoon tijdens het feest, indien dit niet de organisator is?</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <FormField label="Naam">
-            <Input value={form.backup_contact_naam || ''} onChange={v => setForm({ backup_contact_naam: v })} placeholder="Voornaam Achternaam" />
-          </FormField>
-          <FormField label="Telefoonnummer">
-            <Input type="tel" value={form.backup_contact_telefoon || ''} onChange={v => setForm({ backup_contact_telefoon: v })} placeholder="+32 xxx xx xx xx" />
-          </FormField>
-        </div>
-      </div>
     </div>
   )
 }
@@ -1129,6 +1215,68 @@ function StepZaal({ form, setForm }: { form: FormState; setForm: (u: Partial<For
   const uitnodigingen = alleUploads.filter(f => f.category === 'uitnodiging')
   const [uploading, setUploading] = useState(false)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [venueSuggestions, setVenueSuggestions] = useState<{ id: number; naam: string; adres?: string | null }[]>([])
+  const [venueAutofillNotice, setVenueAutofillNotice] = useState<string | null>(null)
+
+  useEffect(() => {
+    const q = form.locatie_naam?.trim() || ''
+    if (q.length < 2) { setVenueSuggestions([]); return }
+    const timer = setTimeout(async () => {
+      try { setVenueSuggestions(await suggestVenues(q)) } catch { setVenueSuggestions([]) }
+    }, 250)
+    return () => clearTimeout(timer)
+  }, [form.locatie_naam])
+
+  const composeVenueContact = (venue: Awaited<ReturnType<typeof getVenue>>) => {
+    if (!venue) return ''
+    const lines = []
+    if (venue.contact_naam) lines.push(venue.contact_naam)
+    const details = [venue.contact_telefoon, venue.contact_email].filter(Boolean).join(' · ')
+    if (details) lines.push(details)
+    return lines.join(' — ')
+  }
+
+  const composeVenueLimit = (venue: Awaited<ReturnType<typeof getVenue>>) => {
+    if (!venue) return ''
+    const parts = []
+    if (venue.geluidsbeperking_db) parts.push(`Geluidslimiet: ${venue.geluidsbeperking_db} dB`)
+    else if (venue.geluidsbeperking) parts.push('Er is een geluidsbeperking van toepassing')
+    if (venue.notities) parts.push(venue.notities)
+    return parts.join(' · ')
+  }
+
+  const applyVenue = async (venueId: number) => {
+    try {
+      const venue = await getVenue(venueId)
+      if (!venue) return
+      const contact = composeVenueContact(venue)
+      const limit = composeVenueLimit(venue)
+      setForm({
+        locatie_naam: venue.naam,
+        locatie_adres: venue.adres || form.locatie_adres,
+        zaal_contact: contact || form.zaal_contact,
+        geluidsbeperking_info: limit || form.geluidsbeperking_info,
+        wifi_code: venue.wifi_code || form.wifi_code,
+        parkeren_info: venue.parkeren_info || form.parkeren_info,
+        gelijkvloers: venue.gelijkvloers ?? form.gelijkvloers,
+      })
+      setVenueAutofillNotice('Zaalgegevens automatisch ingevuld. Je kan alles nog aanpassen indien nodig.')
+      setTimeout(() => setVenueAutofillNotice(null), 5000)
+    } catch { /* geen zaalgegevens gevonden */ }
+  }
+
+  const handleVenueNameChange = (value: string) => {
+    setForm({ locatie_naam: value })
+    const match = venueSuggestions.find(v => v.naam.toLowerCase() === value.trim().toLowerCase())
+    if (match) void applyVenue(match.id)
+  }
+
+  const handleVenueBlur = () => {
+    const value = form.locatie_naam?.trim().toLowerCase()
+    if (!value) return
+    const match = venueSuggestions.find(v => v.naam.toLowerCase() === value)
+    if (match) void applyVenue(match.id)
+  }
 
   const handleFiles = async (files: FileList | null, category: 'zaal_foto' | 'grondplan' = 'zaal_foto') => {
     if (!files || uploading) return
@@ -1163,8 +1311,29 @@ function StepZaal({ form, setForm }: { form: FormState; setForm: (u: Partial<For
 
   return (
     <div className="space-y-5">
-      <FormField label="Naam Feestzaal / Locatie">
-        <Input value={form.locatie_naam || ''} onChange={v => setForm({ locatie_naam: v })} placeholder="Feestzaal De Roos" />
+      <FormField label="Naam Feestzaal / Locatie" sublabel="Typ of selecteer een gekende zaal. Beschikbare zaalgegevens worden automatisch ingevuld en blijven aanpasbaar.">
+        <input
+          list="venue-suggestions"
+          value={form.locatie_naam || ''}
+          onChange={e => handleVenueNameChange(e.target.value)}
+          onBlur={handleVenueBlur}
+          placeholder="Feestzaal De Roos"
+          className="w-full bg-gray-50 border border-gray-200 text-gray-900 placeholder-gray-400 rounded-xl px-4 py-3 focus:outline-none focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/20 transition-all"
+        />
+        <datalist id="venue-suggestions">
+          {venueSuggestions.map(venue => <option key={venue.id} value={venue.naam}>{venue.adres || ''}</option>)}
+        </datalist>
+        {venueSuggestions.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {venueSuggestions.slice(0, 4).map(venue => (
+              <button key={venue.id} type="button" onClick={() => void applyVenue(venue.id)}
+                className="text-xs px-3 py-1.5 rounded-full bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 transition-colors">
+                {venue.naam}
+              </button>
+            ))}
+          </div>
+        )}
+        {venueAutofillNotice && <p className="text-xs text-green-700 bg-green-50 border border-green-100 rounded-xl px-3 py-2 mt-2">{venueAutofillNotice}</p>}
       </FormField>
 
       <FormField label="Adres van de Zaal" sublabel="Straat, nummer, postcode en gemeente">
@@ -1175,11 +1344,11 @@ function StepZaal({ form, setForm }: { form: FormState; setForm: (u: Partial<For
         <FormField label="Contactpersoon Zaal" sublabel="Naam + telefoon/e-mailadres van de zaalverantwoordelijke">
           <Textarea value={form.zaal_contact || ''} onChange={v => setForm({ zaal_contact: v })} placeholder="Jan Janssen — 0478 xx xx xx" rows={2} />
         </FormField>
-        <FormField label="Geluidsbeperking" sublabel="Is er een geluidslimiet of tijdsbeperking?">
+        <FormField label="Geluidslimiet / einduur" sublabel="Is er een geluidslimiet of tijdsbeperking? Wordt automatisch ingevuld bij gekende zalen, maar blijft aanpasbaar.">
           <Textarea value={form.geluidsbeperking_info || ''} onChange={v => setForm({ geluidsbeperking_info: v })} placeholder="Bijv. Max 95dB, muziek stopt om 01:00, ..." rows={2} />
         </FormField>
       </div>
-      <FormField label={<span className="flex items-center gap-2"><Wifi size={14} className="text-blue-400" /> Wifi Code</span> as unknown as string}>
+      <FormField label={<span className="flex items-center gap-2"><Wifi size={14} className="text-blue-400" /> Wifi Code</span>}>
         <Input value={form.wifi_code || ''} onChange={v => setForm({ wifi_code: v })} placeholder="Naam: ... / Wachtwoord: ..." />
       </FormField>
 
@@ -1680,7 +1849,7 @@ function StepBevestiging({ form, setForm, gdprAccepted, setGdprAccepted, questio
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 
-const STEPS_TROUW = ['Contact', 'Zaal', 'Voorzieningen', 'Planning', 'Muziek', 'Bevestiging']
+const STEPS_TROUW = ['Over jullie als koppel', 'Over jullie feest & gasten', 'Zaal', 'Voorzieningen', 'Planning', 'Muziek', 'Bevestiging']
 const STEPS_ALGEMEEN = ['Contact', 'Zaal', 'Voorzieningen', 'Planning', 'Muziek', 'Bevestiging']
 
 // ─── LocalStorage helpers ──────────────────────────────────────────────────
@@ -2245,12 +2414,14 @@ export function CustomerForm() {
 
         {/* Step content */}
         <div className="bg-white rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_16px_rgba(0,0,0,0.04)] p-5 sm:p-6">
-          {step === 0 && <StepContact form={form} setForm={updateForm} isTrouw={isTrouw} />}
-          {step === 1 && <StepZaal form={form} setForm={updateForm} />}
-          {step === 2 && <StepExtras form={form} setForm={updateForm} isTrouw={isTrouw} />}
-          {step === 3 && <StepPlanning form={form} setForm={updateForm} isTrouw={isTrouw} />}
-          {step === 4 && <StepMuziek form={form} setForm={updateForm} isTrouw={isTrouw} />}
-          {step === 5 && <StepBevestiging form={form} setForm={updateForm} gdprAccepted={gdprAccepted} setGdprAccepted={setGdprAccepted} questionnaireOnly={directMode} />}
+          {steps[step] === 'Contact' && <StepContact form={form} setForm={updateForm} isTrouw={isTrouw} />}
+          {steps[step] === 'Over jullie als koppel' && <StepTrouwKoppel form={form} setForm={updateForm} />}
+          {steps[step] === 'Over jullie feest & gasten' && <StepTrouwFeestGasten form={form} setForm={updateForm} />}
+          {steps[step] === 'Zaal' && <StepZaal form={form} setForm={updateForm} />}
+          {steps[step] === 'Voorzieningen' && <StepExtras form={form} setForm={updateForm} isTrouw={isTrouw} />}
+          {steps[step] === 'Planning' && <StepPlanning form={form} setForm={updateForm} isTrouw={isTrouw} />}
+          {steps[step] === 'Muziek' && <StepMuziek form={form} setForm={updateForm} isTrouw={isTrouw} />}
+          {steps[step] === 'Bevestiging' && <StepBevestiging form={form} setForm={updateForm} gdprAccepted={gdprAccepted} setGdprAccepted={setGdprAccepted} questionnaireOnly={directMode} />}
         </div>
 
       </main>

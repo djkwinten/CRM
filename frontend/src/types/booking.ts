@@ -25,6 +25,13 @@ export interface Booking {
   aantal_gasten?: number
   thema?: string
   publiek_leeftijd?: string
+  werk_partner1?: string
+  werk_partner2?: string
+  hobbys_interesses?: string
+  leeftijd_partner1?: number
+  leeftijd_partner2?: number
+  extra_koppel_info?: string
+  anderstalige_gasten?: string
   // Logistiek
   parkeren_info?: string
   gelijkvloers?: number

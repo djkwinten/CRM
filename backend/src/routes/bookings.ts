@@ -99,6 +99,13 @@ const bookingDetailColumns: Record<string, string> = {
   adres_organisator: 'NULL',
   locatie_adres: 'NULL',
   publiek_leeftijd: 'NULL',
+  werk_partner1: 'NULL',
+  werk_partner2: 'NULL',
+  hobbys_interesses: 'NULL',
+  leeftijd_partner1: 'NULL',
+  leeftijd_partner2: 'NULL',
+  extra_koppel_info: 'NULL',
+  anderstalige_gasten: 'NULL',
   parkeren_info: 'NULL',
   gelijkvloers: '1',
   backup_contact_naam: 'NULL',
@@ -348,6 +355,13 @@ bookingsRoutes.post('/init', async (c) => {
       `ALTER TABLE bookings ADD COLUMN flop_genres_extra TEXT`,
       `ALTER TABLE bookings ADD COLUMN einde_feest TEXT`,
       `ALTER TABLE bookings ADD COLUMN publiek_leeftijd TEXT`,
+      `ALTER TABLE bookings ADD COLUMN werk_partner1 TEXT`,
+      `ALTER TABLE bookings ADD COLUMN werk_partner2 TEXT`,
+      `ALTER TABLE bookings ADD COLUMN hobbys_interesses TEXT`,
+      `ALTER TABLE bookings ADD COLUMN leeftijd_partner1 INTEGER`,
+      `ALTER TABLE bookings ADD COLUMN leeftijd_partner2 INTEGER`,
+      `ALTER TABLE bookings ADD COLUMN extra_koppel_info TEXT`,
+      `ALTER TABLE bookings ADD COLUMN anderstalige_gasten TEXT`,
       `ALTER TABLE bookings ADD COLUMN btw_nr TEXT`,
       `ALTER TABLE bookings ADD COLUMN toestemming_foto INTEGER DEFAULT NULL`,
       // Melding: tijdstip waarop klant de vragenlijst (opnieuw) indiende (alleen aanpassingen na eerste invulling)
@@ -375,6 +389,13 @@ bookingsRoutes.post('/init', async (c) => {
       // Laat DJ tijdelijk Contract Info opnieuw openzetten ondanks bestaand contract/PDF
       `ALTER TABLE bookings ADD COLUMN contract_info_unlocked INTEGER NOT NULL DEFAULT 0`,
       `ALTER TABLE bookings ADD COLUMN leveranciers_info TEXT`,
+    `ALTER TABLE bookings ADD COLUMN werk_partner1 TEXT`,
+    `ALTER TABLE bookings ADD COLUMN werk_partner2 TEXT`,
+    `ALTER TABLE bookings ADD COLUMN hobbys_interesses TEXT`,
+    `ALTER TABLE bookings ADD COLUMN leeftijd_partner1 INTEGER`,
+    `ALTER TABLE bookings ADD COLUMN leeftijd_partner2 INTEGER`,
+    `ALTER TABLE bookings ADD COLUMN extra_koppel_info TEXT`,
+    `ALTER TABLE bookings ADD COLUMN anderstalige_gasten TEXT`,
     ]
     for (const m of migrations) {
       try { await execute(c.env, m) } catch { /* column already exists */ }
@@ -825,6 +846,13 @@ async function ensureQuestionnaireColumns(env: Bindings) {
     `ALTER TABLE bookings ADD COLUMN feedback_herkomst TEXT`,
     `ALTER TABLE bookings ADD COLUMN contract_info_unlocked INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE bookings ADD COLUMN leveranciers_info TEXT`,
+    `ALTER TABLE bookings ADD COLUMN werk_partner1 TEXT`,
+    `ALTER TABLE bookings ADD COLUMN werk_partner2 TEXT`,
+    `ALTER TABLE bookings ADD COLUMN hobbys_interesses TEXT`,
+    `ALTER TABLE bookings ADD COLUMN leeftijd_partner1 INTEGER`,
+    `ALTER TABLE bookings ADD COLUMN leeftijd_partner2 INTEGER`,
+    `ALTER TABLE bookings ADD COLUMN extra_koppel_info TEXT`,
+    `ALTER TABLE bookings ADD COLUMN anderstalige_gasten TEXT`,
   ]
   for (const m of migrations) {
     try { await execute(env, m) } catch { /* column already exists */ }
@@ -973,6 +1001,24 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
     (body as Record<string, unknown>).feedback_herkomst as string ?? null,
     ...whereParams
   ])
+
+  const extraQuestionnaireFields = [
+    'werk_partner1', 'werk_partner2', 'hobbys_interesses',
+    'leeftijd_partner1', 'leeftijd_partner2', 'extra_koppel_info', 'anderstalige_gasten'
+  ]
+  const extraUpdates: string[] = []
+  const extraValues: unknown[] = []
+  for (const field of extraQuestionnaireFields) {
+    if (questionnaireColumns.has(field) && hasBodyField(field)) {
+      extraUpdates.push(`${field} = COALESCE(?, ${field})`)
+      const rawValue = body[field]
+      extraValues.push(field.startsWith('leeftijd_') && rawValue !== '' && rawValue != null ? Number(rawValue) : rawValue ?? null)
+    }
+  }
+  if (extraUpdates.length > 0) {
+    extraValues.push(...whereParams)
+    await execute(c.env, `UPDATE bookings SET ${extraUpdates.join(', ')} WHERE ${where}`, extraValues)
+  }
   } catch (e: unknown) {
     console.error('Questionnaire UPDATE error:', e)
     return c.json({ success: false, error: String(e) }, 500)
