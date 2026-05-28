@@ -75,8 +75,8 @@ const bookingListColumns: Record<string, string> = {
   aanvraag_reminder_sent_at: 'NULL',
   review_sent_at: 'NULL',
   feest_herinnering_sent_at: 'NULL',
-  wedding_meeting_at: 'NULL',
-  wedding_meeting_note: 'NULL',
+  wedding_meeting_at: '(SELECT meeting_at FROM wedding_meetings wm WHERE wm.booking_id = bookings.id)',
+  wedding_meeting_note: '(SELECT note FROM wedding_meetings wm WHERE wm.booking_id = bookings.id)',
   vragenlijst_diff: 'NULL',
 }
 
@@ -86,6 +86,7 @@ async function bookingColumnSet(env: Bindings) {
 }
 
 async function bookingListSelectSql(env: Bindings) {
+  await ensureWeddingMeetingsTable(env)
   const existing = await bookingColumnSet(env)
   const fields = Object.entries(bookingListColumns).map(([name, fallback]) =>
     existing.has(name) ? name : `${fallback} AS ${name}`
@@ -179,6 +180,7 @@ const bookingDetailColumns: Record<string, string> = {
 }
 
 async function bookingDetailSelectFields(env: Bindings) {
+  await ensureWeddingMeetingsTable(env)
   const existing = await bookingColumnSet(env)
   const fields = Object.entries(bookingDetailColumns).map(([name, fallback]) =>
     existing.has(name) ? name : `${fallback} AS ${name}`
@@ -842,14 +844,22 @@ bookingsRoutes.patch('/:id/portal', async (c) => {
   return c.json({ success: true })
 })
 
+async function ensureWeddingMeetingsTable(env: Bindings) {
+  await execute(env, `
+    CREATE TABLE IF NOT EXISTS wedding_meetings (
+      booking_id INTEGER PRIMARY KEY,
+      meeting_at TEXT,
+      note TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+}
+
 async function ensureWeddingMeetingColumns(env: Bindings) {
-  const migrations = [
-    `ALTER TABLE bookings ADD COLUMN wedding_meeting_at TEXT`,
-    `ALTER TABLE bookings ADD COLUMN wedding_meeting_note TEXT`,
-  ]
-  for (const m of migrations) {
-    try { await execute(env, m) } catch { /* column already exists */ }
-  }
+  // Nieuwe installaties mogen de velden op bookings hebben, maar productie gebruikt
+  // bewust de aparte wedding_meetings tabel zodat oude D1-tabellen zonder ALTER werken.
+  await ensureWeddingMeetingsTable(env)
 }
 
 // Update afspraakmoment met trouwkoppel
@@ -874,11 +884,19 @@ bookingsRoutes.patch('/:id/wedding-meeting', async (c) => {
       ? body.wedding_meeting_note.trim()
       : null
 
-    const result = await execute(c.env, `
-      UPDATE bookings
-      SET wedding_meeting_at = ?, wedding_meeting_note = ?, updated_at = datetime('now')
-      WHERE id = ?
-    `, [meetingAt, meetingNote, id])
+    if (meetingAt || meetingNote) {
+      const result = await execute(c.env, `
+        INSERT INTO wedding_meetings (booking_id, meeting_at, note, updated_at)
+        VALUES (?, ?, ?, datetime('now'))
+        ON CONFLICT(booking_id) DO UPDATE SET
+          meeting_at = excluded.meeting_at,
+          note = excluded.note,
+          updated_at = datetime('now')
+      `, [id, meetingAt, meetingNote])
+      return c.json({ success: true, changes: result.changes })
+    }
+
+    const result = await execute(c.env, `DELETE FROM wedding_meetings WHERE booking_id = ?`, [id])
     return c.json({ success: true, changes: result.changes })
   } catch (e: any) {
     console.error('Wedding meeting update failed:', e)
