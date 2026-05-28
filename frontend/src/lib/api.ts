@@ -116,16 +116,18 @@ export async function updatePortalSettings(id: number, payload: { portal_title?:
 }
 
 export async function updateWeddingMeeting(id: number, payload: { wedding_meeting_at?: string | null; wedding_meeting_note?: string | null }) {
-  updateLocalBooking(id, payload as Partial<Booking>)
   try {
     const res = await fetch(`${BASE}/${id}/wedding-meeting`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     })
-    return res.json()
-  } catch {
-    return { success: true, local: true }
+    const data = await res.json() as { success?: boolean; error?: string }
+    if (!res.ok || data.success === false) throw new Error(data.error || 'Afspraak opslaan mislukt')
+    updateLocalBooking(id, payload as Partial<Booking>)
+    return data
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : 'Afspraak opslaan mislukt' }
   }
 }
 

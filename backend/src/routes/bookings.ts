@@ -854,21 +854,36 @@ async function ensureWeddingMeetingColumns(env: Bindings) {
 
 // Update afspraakmoment met trouwkoppel
 bookingsRoutes.patch('/:id/wedding-meeting', async (c) => {
-  const id = c.req.param('id')
-  const body = await c.req.json()
-  await ensureWeddingMeetingColumns(c.env)
-  const meetingAt = typeof body.wedding_meeting_at === 'string' && body.wedding_meeting_at.trim()
-    ? body.wedding_meeting_at.trim()
-    : null
-  const meetingNote = typeof body.wedding_meeting_note === 'string' && body.wedding_meeting_note.trim()
-    ? body.wedding_meeting_note.trim()
-    : null
-  await execute(c.env, `
-    UPDATE bookings
-    SET wedding_meeting_at = ?, wedding_meeting_note = ?, updated_at = datetime('now')
-    WHERE id = ? AND type_feest = 'Trouw'
-  `, [meetingAt, meetingNote, id])
-  return c.json({ success: true })
+  try {
+    const id = c.req.param('id')
+    const body = await c.req.json()
+    await ensureWeddingMeetingColumns(c.env)
+
+    const booking = await queryOne<{ id: number; type_feest: string }>(
+      c.env,
+      `SELECT id, type_feest FROM bookings WHERE id = ?`,
+      [id]
+    )
+    if (!booking) return c.json({ success: false, error: 'Boeking niet gevonden' }, 404)
+    if (booking.type_feest !== 'Trouw') return c.json({ success: false, error: 'Afspraak kan alleen bij trouwfeesten worden opgeslagen' }, 400)
+
+    const meetingAt = typeof body.wedding_meeting_at === 'string' && body.wedding_meeting_at.trim()
+      ? body.wedding_meeting_at.trim()
+      : null
+    const meetingNote = typeof body.wedding_meeting_note === 'string' && body.wedding_meeting_note.trim()
+      ? body.wedding_meeting_note.trim()
+      : null
+
+    const result = await execute(c.env, `
+      UPDATE bookings
+      SET wedding_meeting_at = ?, wedding_meeting_note = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `, [meetingAt, meetingNote, id])
+    return c.json({ success: true, changes: result.changes })
+  } catch (e: any) {
+    console.error('Wedding meeting update failed:', e)
+    return c.json({ success: false, error: e?.message || String(e) }, 500)
+  }
 })
 
 // Update booking status (DJ side - contract/voorschot)

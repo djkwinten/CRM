@@ -137,9 +137,14 @@ function WeddingMeetingModal({ booking, onSave, onClose }: { booking: Booking; o
 
   const save = async (clear = false) => {
     setSaving(true)
-    await onSave(booking.id, clear ? null : (meetingAt || null), clear ? null : (note || null))
-    setSaving(false)
-    onClose()
+    try {
+      await onSave(booking.id, clear ? null : (meetingAt || null), clear ? null : (note || null))
+      onClose()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Afspraak opslaan mislukt')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -1106,7 +1111,8 @@ export function Dashboard() {
   }
 
   const handleSaveWeddingMeeting = async (id: number, at: string | null, note: string | null) => {
-    await updateWeddingMeeting(id, { wedding_meeting_at: at, wedding_meeting_note: note })
+    const res = await updateWeddingMeeting(id, { wedding_meeting_at: at, wedding_meeting_note: note })
+    if (!res.success) throw new Error(res.error || 'Afspraak opslaan mislukt')
     setBookings(prev => {
       const updated = prev.map(x => x.id === id ? { ...x, wedding_meeting_at: at || undefined, wedding_meeting_note: note || undefined } : x)
       writeCache(updated)
