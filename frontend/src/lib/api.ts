@@ -115,6 +115,20 @@ export async function updatePortalSettings(id: number, payload: { portal_title?:
   }
 }
 
+export async function updateWeddingMeeting(id: number, payload: { wedding_meeting_at?: string | null; wedding_meeting_note?: string | null }) {
+  updateLocalBooking(id, payload as Partial<Booking>)
+  try {
+    const res = await fetch(`${BASE}/${id}/wedding-meeting`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    return res.json()
+  } catch {
+    return { success: true, local: true }
+  }
+}
+
 export async function updateBasisInfo(id: number, payload: {
   naam_organisator?: string
   naam_partner1?: string

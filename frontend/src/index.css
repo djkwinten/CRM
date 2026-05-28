@@ -44,6 +44,32 @@ body {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
+
+  .document-print-root {
+    background: white !important;
+  }
+
+  .print-page {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .print-page:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+
+  .print-page section,
+  .print-page table,
+  .print-page tr,
+  .print-page .break-inside-avoid {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
 }
 
 /* ── Time input — light-mode icon ── */

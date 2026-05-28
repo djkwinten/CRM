@@ -453,7 +453,11 @@ export function BookingDetail() {
               </button>
               <button onClick={() => navigate(`/gigsheet/${id}`)}
                 className="flex items-center gap-1.5 bg-white text-gray-900 hover:bg-white/90 px-3 py-2 rounded-xl text-sm font-semibold transition-colors">
-                <Printer size={14} /> Gig Sheet
+                <Printer size={14} /> DJ Sheet
+              </button>
+              <button onClick={() => navigate(`/prijs/${id}`)}
+                className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white px-3 py-2 rounded-xl text-sm font-semibold transition-colors">
+                <Euro size={14} /> Prijsoverzicht
               </button>
             </div>
           </div>

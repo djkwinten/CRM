@@ -115,6 +115,8 @@ export interface Booking {
   aanvraag_reminder_sent_at?: string
   review_sent_at?: string
   feest_herinnering_sent_at?: string
+  wedding_meeting_at?: string
+  wedding_meeting_note?: string
   vragenlijst_diff?: string
   // Klantpagina boolean vlaggen (grote PDFs worden niet meegestuurd)
   has_contract_pdf?: number

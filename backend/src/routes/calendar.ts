@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import { query } from '../lib/db'
+import { query, execute } from '../lib/db'
 
 type Bindings = {
   DB?: D1Database
@@ -19,6 +19,8 @@ interface BookingRow {
   uur_dansfeest?: string
   einduur?: string
   is_aanvraag: number
+  wedding_meeting_at?: string
+  wedding_meeting_note?: string
   updated_at?: string
 }
 
@@ -33,6 +35,21 @@ function icalDateTime(dateStr: string, timeStr?: string): string {
   // "20:00" → "200000"
   const timePart = timeStr.replace(':', '') + '00'
   return `${datePart}T${timePart}`
+}
+
+function icalDateTimeFromLocal(value: string): string | null {
+  const normalized = value.replace(' ', 'T')
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/)
+  if (!match) return null
+  return `${match[1]}${match[2]}${match[3]}T${match[4]}${match[5]}00`
+}
+
+function addMinutesToLocal(value: string, minutes: number): string | null {
+  const d = new Date(value.replace(' ', 'T'))
+  if (Number.isNaN(d.getTime())) return null
+  d.setMinutes(d.getMinutes() + minutes)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`
 }
 
 function escapeIcal(str: string): string {
@@ -71,9 +88,13 @@ function foldLine(line: string): string {
 }
 
 calendarRoutes.get('/bookings.ics', async (c) => {
+  try { await execute(c.env, `ALTER TABLE bookings ADD COLUMN wedding_meeting_at TEXT`) } catch { /* already exists */ }
+  try { await execute(c.env, `ALTER TABLE bookings ADD COLUMN wedding_meeting_note TEXT`) } catch { /* already exists */ }
+
   const bookings = await query<BookingRow>(c.env, `
     SELECT id, feest_datum, type_feest, naam_organisator, naam_partner1, naam_partner2,
-           locatie_naam, locatie_adres, uur_dansfeest, einduur, is_aanvraag, updated_at
+           locatie_naam, locatie_adres, uur_dansfeest, einduur, is_aanvraag,
+           wedding_meeting_at, wedding_meeting_note, updated_at
     FROM bookings
     ORDER BY feest_datum ASC
   `)
@@ -161,6 +182,30 @@ calendarRoutes.get('/bookings.ics', async (c) => {
     lines.push(`STATUS:${b.is_aanvraag ? 'TENTATIVE' : 'CONFIRMED'}`)
     lines.push('TRANSP:OPAQUE')
     lines.push('END:VEVENT')
+
+    // Optionele aparte agenda-afspraak met het trouwkoppel.
+    if (b.type_feest === 'Trouw' && b.wedding_meeting_at) {
+      const meetingStart = icalDateTimeFromLocal(b.wedding_meeting_at)
+      const meetingEnd = addMinutesToLocal(b.wedding_meeting_at, 60)
+      if (meetingStart && meetingEnd) {
+        const meetingDescParts = [
+          `Voorbespreking voor: ${titel}`,
+          b.feest_datum ? `Trouwfeest: ${b.feest_datum}` : '',
+          b.wedding_meeting_note ? `Notitie: ${b.wedding_meeting_note}` : '',
+        ].filter(Boolean)
+        lines.push('BEGIN:VEVENT')
+        lines.push(`UID:wedding-meeting-${b.id}@djkwinten.be`)
+        lines.push(`DTSTAMP:${dtstamp}`)
+        lines.push(`DTSTART;TZID=Europe/Brussels:${meetingStart}`)
+        lines.push(`DTEND;TZID=Europe/Brussels:${meetingEnd}`)
+        lines.push(`SUMMARY:${escapeIcal(`💍 Afspraak koppel — ${titel.replace(/^💍\s*/, '')}`)}`)
+        if (b.locatie_naam) lines.push(`LOCATION:${escapeIcal(b.locatie_naam)}`)
+        lines.push(`DESCRIPTION:${escapeIcal(meetingDescParts.join('\n'))}`)
+        lines.push('STATUS:CONFIRMED')
+        lines.push('TRANSP:OPAQUE')
+        lines.push('END:VEVENT')
+      }
+    }
   }
 
   lines.push('END:VCALENDAR')

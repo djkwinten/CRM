@@ -5,7 +5,7 @@ import {
   Clock, Users,
   PartyPopper, Trash2, Copy, RefreshCw, Bell, AlertTriangle, CalendarDays, X, Shield, Download, FileDown, Building2, FileText
 } from 'lucide-react'
-import { getBookings, createBooking, updateStatus, deleteBooking, initDb, getReminderStatuses, confirmBooking, rejectBooking, restoreBooking, suggestVenues, previewTemplate, sendTemplate, TemplateKey } from '../lib/api'
+import { getBookings, createBooking, updateStatus, updateWeddingMeeting, deleteBooking, initDb, getReminderStatuses, confirmBooking, rejectBooking, restoreBooking, suggestVenues, previewTemplate, sendTemplate, TemplateKey } from '../lib/api'
 import { VenueSuggestion } from '../types/venue'
 import { Booking } from '../types/booking'
 import { format, parseISO } from 'date-fns'
@@ -33,6 +33,47 @@ function StatusBadge({ value, label, updated }: { value: number; label: string; 
     }`}>
       {updated ? '!' : value ? <CheckCircle2 size={11} /> : <XCircle size={11} />}
       {label}
+    </span>
+  )
+}
+
+function daysUntil(date?: string | null): number | null {
+  if (!date) return null
+  const event = new Date(`${date}T12:00:00`)
+  if (Number.isNaN(event.getTime())) return null
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12)
+  return Math.ceil((event.getTime() - today.getTime()) / 86400000)
+}
+
+function formatMeetingDate(value?: string | null): string {
+  if (!value) return ''
+  const normalized = value.includes('T') ? value : value.replace(' ', 'T')
+  const d = new Date(normalized)
+  if (Number.isNaN(d.getTime())) return value
+  return format(d, 'd MMM yyyy HH:mm', { locale: nl })
+}
+
+function WeddingMeetingBadge({ booking, compact = false }: { booking: Booking; compact?: boolean }) {
+  if (booking.type_feest !== 'Trouw') return null
+  const days = daysUntil(booking.feest_datum)
+  const hasMeeting = !!booking.wedding_meeting_at
+  const urgent = !hasMeeting && days !== null && days >= 0 && days <= 14
+  const soon = !hasMeeting && days !== null && days >= 0 && days <= 30
+
+  if (hasMeeting) {
+    return (
+      <span className={`inline-flex items-center gap-1.5 rounded-full border bg-green-50 text-green-700 border-green-200 ${compact ? 'px-2 py-0.5 text-xs' : 'px-3 py-1.5 text-sm font-semibold'}`}>
+        <CheckCircle2 size={compact ? 11 : 14} /> ✓ Afspraak gepland
+        <span className="font-medium">{formatMeetingDate(booking.wedding_meeting_at)}</span>
+      </span>
+    )
+  }
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border ${urgent ? 'bg-red-50 text-red-600 border-red-200' : soon ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-amber-50 text-amber-600 border-amber-200'} ${compact ? 'px-2 py-0.5 text-xs' : 'px-3 py-1.5 text-sm font-semibold'}`}>
+      <AlertTriangle size={compact ? 11 : 14} /> ⚠ Nog geen afspraak
+      {urgent ? <span className="font-bold">binnen 14d!</span> : soon ? <span className="font-bold">binnen 1 maand</span> : null}
     </span>
   )
 }
@@ -75,6 +116,85 @@ function DeleteConfirmModal({ naam, onConfirm, onClose }: { naam: string; onConf
           <button onClick={onConfirm} disabled={!isValid}
             className="flex-1 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors">
             Verwijderen
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function WeddingMeetingModal({ booking, onSave, onClose }: { booking: Booking; onSave: (id: number, at: string | null, note: string | null) => Promise<void>; onClose: () => void }) {
+  const [meetingAt, setMeetingAt] = useState((booking.wedding_meeting_at || '').replace(' ', 'T').slice(0, 16))
+  const [note, setNote] = useState(booking.wedding_meeting_note || '')
+  const [saving, setSaving] = useState(false)
+  const suggestedDate = (() => {
+    if (!booking.feest_datum) return ''
+    const d = new Date(`${booking.feest_datum}T12:00:00`)
+    if (Number.isNaN(d.getTime())) return ''
+    d.setDate(d.getDate() - 14)
+    return format(d, 'd MMM yyyy', { locale: nl })
+  })()
+
+  const save = async (clear = false) => {
+    setSaving(true)
+    await onSave(booking.id, clear ? null : (meetingAt || null), clear ? null : (note || null))
+    setSaving(false)
+    onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-[0_8px_40px_rgba(0,0,0,0.18)]">
+        <div className="flex items-start justify-between gap-3 mb-5">
+          <div>
+            <h3 className="font-bold text-gray-900 text-lg flex items-center gap-2">💍 Afspraak met koppel</h3>
+            <p className="text-xs text-gray-400 mt-0.5">{displayNaam(booking)} · feest op {booking.feest_datum ? format(parseISO(booking.feest_datum), 'd MMM yyyy', { locale: nl }) : '—'}</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-xl text-gray-400"><X size={16} /></button>
+        </div>
+
+        {suggestedDate && (
+          <div className="mb-4 rounded-xl bg-blue-50 border border-blue-100 px-3 py-2 text-sm text-blue-700">
+            Richtmoment: ongeveer 2 weken vóór het trouwfeest → <span className="font-semibold">{suggestedDate}</span>
+          </div>
+        )}
+
+        <div className="space-y-4">
+          <div>
+            <label className="text-xs font-semibold uppercase text-gray-500">Datum & uur afspraak</label>
+            <input
+              type="datetime-local"
+              value={meetingAt}
+              onChange={e => setMeetingAt(e.target.value)}
+              className="mt-1 w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/20"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-semibold uppercase text-gray-500">Notitie <span className="normal-case text-gray-400">optioneel</span></label>
+            <textarea
+              rows={3}
+              value={note}
+              onChange={e => setNote(e.target.value)}
+              placeholder="Bijv. videogesprek, locatie, vragen voorbereiden..."
+              className="mt-1 w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/20 resize-none"
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-2 mt-5">
+          {booking.wedding_meeting_at && (
+            <button onClick={() => save(true)} disabled={saving}
+              className="sm:w-auto px-4 py-2.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-sm font-semibold disabled:opacity-50">
+              Wissen
+            </button>
+          )}
+          <button onClick={onClose}
+            className="flex-1 py-2.5 rounded-xl border border-gray-200 text-gray-600 font-medium text-sm hover:bg-gray-50 transition-colors">
+            Annuleren
+          </button>
+          <button onClick={() => save(false)} disabled={saving || !meetingAt}
+            className="flex-1 py-2.5 rounded-xl bg-[#007AFF] hover:bg-[#0066CC] disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm transition-colors">
+            {saving ? 'Opslaan...' : 'Opslaan'}
           </button>
         </div>
       </div>
@@ -893,7 +1013,7 @@ export function Dashboard() {
   const [showNewModal, setShowNewModal] = useState(false)
   const [search, setSearch] = useState('')
   const [pendingReminders, setPendingReminders] = useState(0)
-  const [activeFilter, setActiveFilter] = useState<'all' | 'aanvragen' | 'boekingen' | 'afgelopen' | 'afgewezen'>('all')
+  const [activeFilter, setActiveFilter] = useState<'all' | 'aanvragen' | 'boekingen' | 'afgelopen' | 'afgewezen' | 'trouw-afspraken'>('all')
   const [deleteToConfirm, setDeleteToConfirm] = useState<Booking | null>(null)
   const [showCalendarModal, setShowCalendarModal] = useState(false)
   const [showBackupModal, setShowBackupModal] = useState(false)
@@ -901,6 +1021,7 @@ export function Dashboard() {
   const [reviewSending] = useState<number | null>(null)
   const [feestHerinneringSending] = useState<number | null>(null)
   const [rejectToConfirm, setRejectToConfirm] = useState<Booking | null>(null)
+  const [meetingToPlan, setMeetingToPlan] = useState<Booking | null>(null)
   const [mailToSend, setMailToSend] = useState<{ booking: Booking; key: TemplateKey } | null>(null)
   const navigate = useNavigate()
 
@@ -984,6 +1105,15 @@ export function Dashboard() {
     setMailToSend({ booking: b, key })
   }
 
+  const handleSaveWeddingMeeting = async (id: number, at: string | null, note: string | null) => {
+    await updateWeddingMeeting(id, { wedding_meeting_at: at, wedding_meeting_note: note })
+    setBookings(prev => {
+      const updated = prev.map(x => x.id === id ? { ...x, wedding_meeting_at: at || undefined, wedding_meeting_note: note || undefined } : x)
+      writeCache(updated)
+      return updated
+    })
+  }
+
   const handleTemplateSent = (key: TemplateKey) => {
     if (!mailToSend) return
     const id = mailToSend.booking.id
@@ -1029,13 +1159,26 @@ export function Dashboard() {
     b.locatie_naam?.toLowerCase().includes(search.toLowerCase()) ||
     b.feest_datum?.includes(search)
 
-  const filteredBoekingen = (activeFilter === 'afgelopen' ? afgelopen : komend).filter(filterFn)
+  const trouwZonderAfspraak = komend.filter(b => b.type_feest === 'Trouw' && !b.wedding_meeting_at)
+  const trouwUrgentZonderAfspraak = trouwZonderAfspraak.filter(b => {
+    const days = daysUntil(b.feest_datum)
+    return days !== null && days >= 0 && days <= 30
+  })
+
+  const boekingenBase = activeFilter === 'afgelopen'
+    ? afgelopen
+    : activeFilter === 'trouw-afspraken'
+      ? trouwZonderAfspraak
+      : komend
+  const filteredBoekingen = boekingenBase.filter(filterFn)
   const filteredAanvragen = aanvragen.filter(filterFn)
   const filteredAfgewezen = afgewezen.filter(filterFn)
 
   const stats = {
     aanvragen: aanvragen.length,
     total: komend.length,
+    trouwAfspraken: trouwZonderAfspraak.length,
+    trouwUrgent: trouwUrgentZonderAfspraak.length,
     afgelopen: afgelopen.length,
     afgewezen: afgewezen.length,
   }
@@ -1084,10 +1227,11 @@ export function Dashboard() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 pb-24 md:pb-6 space-y-6">
         {/* Stats — klikbaar om te filteren */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           {[
             { label: 'Aanvragen', value: stats.aanvragen, icon: <Clock size={18} />, color: 'text-amber-500 bg-amber-50', filter: 'aanvragen' as const },
             { label: 'Komend', value: stats.total, icon: <Calendar size={18} />, color: 'text-[#007AFF] bg-[#007AFF]/10', filter: 'boekingen' as const },
+            { label: stats.trouwUrgent > 0 ? 'Trouw afspraak ⚠' : 'Trouw afspraak', value: stats.trouwAfspraken, icon: <CalendarDays size={18} />, color: stats.trouwUrgent > 0 ? 'text-red-500 bg-red-50' : 'text-pink-500 bg-pink-50', filter: 'trouw-afspraken' as const },
             { label: 'Afgelopen', value: stats.afgelopen, icon: <CheckCircle2 size={18} />, color: 'text-gray-400 bg-gray-100', filter: 'afgelopen' as const },
             { label: 'Afgewezen', value: stats.afgewezen, icon: <XCircle size={18} />, color: 'text-red-400 bg-red-50', filter: 'afgewezen' as const },
           ].map(s => (
@@ -1131,7 +1275,7 @@ export function Dashboard() {
           <div className="space-y-6">
 
             {/* ── Aanvragen ── */}
-            {(filteredAanvragen.length > 0 || aanvragen.length > 0) && activeFilter !== 'boekingen' && activeFilter !== 'afgelopen' && activeFilter !== 'afgewezen' && (
+            {(filteredAanvragen.length > 0 || aanvragen.length > 0) && activeFilter !== 'boekingen' && activeFilter !== 'afgelopen' && activeFilter !== 'afgewezen' && activeFilter !== 'trouw-afspraken' && (
               <div className="space-y-3">
                 <h2 className="font-semibold text-amber-600 text-sm uppercase tracking-wider flex items-center gap-2">
                   <Clock size={14} /> Aanvragen ({filteredAanvragen.length})
@@ -1165,6 +1309,15 @@ export function Dashboard() {
                         {b.created_at && (
                           <div className="mt-0.5 text-xs text-gray-400">
                             Ontvangen: {format(new Date(b.created_at), 'd MMM yyyy HH:mm', { locale: nl })}
+                          </div>
+                        )}
+                        {b.type_feest === 'Trouw' && (
+                          <div className="mt-2 flex items-center gap-2 flex-wrap">
+                            <WeddingMeetingBadge booking={b} compact />
+                            <button onClick={() => setMeetingToPlan(b)}
+                              className="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg bg-pink-50 hover:bg-pink-100 text-pink-600 border border-pink-100">
+                              <CalendarDays size={11} /> {b.wedding_meeting_at ? 'Wijzig afspraak' : 'Plan afspraak'}
+                            </button>
                           </div>
                         )}
                       </div>
@@ -1232,7 +1385,11 @@ export function Dashboard() {
             {activeFilter !== 'aanvragen' && activeFilter !== 'afgewezen' && <div className="space-y-3">
               <h2 className="font-semibold text-gray-500 text-sm uppercase tracking-wider flex items-center gap-2">
                 <CheckCircle2 size={14} />
-                {activeFilter === 'afgelopen' ? `Afgelopen feesten (${filteredBoekingen.length})` : `Komende boekingen (${filteredBoekingen.length})`}
+                {activeFilter === 'afgelopen'
+                  ? `Afgelopen feesten (${filteredBoekingen.length})`
+                  : activeFilter === 'trouw-afspraken'
+                    ? `Trouwfeesten zonder afspraak (${filteredBoekingen.length})`
+                    : `Komende boekingen (${filteredBoekingen.length})`}
               </h2>
               {filteredBoekingen.length === 0 ? (
                 <div className="text-center py-12">
@@ -1261,8 +1418,8 @@ export function Dashboard() {
                           <Calendar size={11} />
                           <span>{b.feest_datum ? format(parseISO(b.feest_datum), 'd MMM yyyy', { locale: nl }) : '—'}</span>
                           {b.feest_datum && (() => {
-                            const days = Math.ceil((new Date(b.feest_datum).getTime() - Date.now()) / 86400000)
-                            if (days < 0) return null
+                            const days = daysUntil(b.feest_datum)
+                            if (days === null || days < 0) return null
                             const cls = days <= 14
                               ? 'bg-red-100 text-red-600 font-semibold'
                               : days <= 30
@@ -1278,6 +1435,15 @@ export function Dashboard() {
                           {b.aantal_gasten && <><span className="text-gray-300">·</span><span className="flex items-center gap-0.5 text-gray-400"><Users size={11} /> {b.aantal_gasten}</span></>}
                           {b.einduur && <><span className="text-gray-300">·</span><span className="flex items-center gap-0.5 text-gray-400"><Clock size={11} /> {b.einduur}</span></>}
                         </div>
+                        {b.type_feest === 'Trouw' && (
+                          <div className="mt-2 flex items-center gap-2 flex-wrap">
+                            <WeddingMeetingBadge booking={b} />
+                            <button onClick={() => setMeetingToPlan(b)}
+                              className={`inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-xl border transition-colors ${b.wedding_meeting_at ? 'bg-green-50 hover:bg-green-100 text-green-700 border-green-200' : 'bg-pink-500 hover:bg-pink-600 text-white border-pink-500 shadow-sm'}`}>
+                              <CalendarDays size={14} /> {b.wedding_meeting_at ? 'Wijzig afspraak' : 'Plan afspraak'}
+                            </button>
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-0.5 flex-shrink-0">
                         <button onClick={() => copyFormLink(b)} title="Kopieer formulier-link"
@@ -1423,6 +1589,13 @@ export function Dashboard() {
           naam={displayNaam(rejectToConfirm)}
           onConfirm={handleRejectConfirmed}
           onClose={() => setRejectToConfirm(null)}
+        />
+      )}
+      {meetingToPlan && (
+        <WeddingMeetingModal
+          booking={meetingToPlan}
+          onSave={handleSaveWeddingMeeting}
+          onClose={() => setMeetingToPlan(null)}
         />
       )}
       {mailToSend && (

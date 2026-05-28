@@ -75,6 +75,8 @@ const bookingListColumns: Record<string, string> = {
   aanvraag_reminder_sent_at: 'NULL',
   review_sent_at: 'NULL',
   feest_herinnering_sent_at: 'NULL',
+  wedding_meeting_at: 'NULL',
+  wedding_meeting_note: 'NULL',
   vragenlijst_diff: 'NULL',
 }
 
@@ -252,6 +254,9 @@ bookingsRoutes.post('/init', async (c) => {
       status_contract INTEGER NOT NULL DEFAULT 0,
       status_voorschot INTEGER NOT NULL DEFAULT 0,
       status_vragenlijst INTEGER NOT NULL DEFAULT 0,
+      -- Trouw-afspraak
+      wedding_meeting_at TEXT,
+      wedding_meeting_note TEXT,
       -- Contact
       naam_organisator TEXT,
       bedrijfsnaam TEXT,
@@ -376,6 +381,9 @@ bookingsRoutes.post('/init', async (c) => {
       `ALTER TABLE bookings ADD COLUMN review_sent_at TEXT`,
       // Feest nadert herinnering
       `ALTER TABLE bookings ADD COLUMN feest_herinnering_sent_at TEXT`,
+      // Trouw-afspraak met koppel
+      `ALTER TABLE bookings ADD COLUMN wedding_meeting_at TEXT`,
+      `ALTER TABLE bookings ADD COLUMN wedding_meeting_note TEXT`,
       // Vragenlijst diff — JSON met gewijzigde velden (oud → nieuw)
       `ALTER TABLE bookings ADD COLUMN vragenlijst_diff TEXT`,
       // Venue koppeling
@@ -831,6 +839,35 @@ bookingsRoutes.patch('/:id/portal', async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json()
   await execute(c.env, `UPDATE bookings SET portal_title = ?, updated_at = datetime('now') WHERE id = ?`, [body.portal_title || null, id])
+  return c.json({ success: true })
+})
+
+async function ensureWeddingMeetingColumns(env: Bindings) {
+  const migrations = [
+    `ALTER TABLE bookings ADD COLUMN wedding_meeting_at TEXT`,
+    `ALTER TABLE bookings ADD COLUMN wedding_meeting_note TEXT`,
+  ]
+  for (const m of migrations) {
+    try { await execute(env, m) } catch { /* column already exists */ }
+  }
+}
+
+// Update afspraakmoment met trouwkoppel
+bookingsRoutes.patch('/:id/wedding-meeting', async (c) => {
+  const id = c.req.param('id')
+  const body = await c.req.json()
+  await ensureWeddingMeetingColumns(c.env)
+  const meetingAt = typeof body.wedding_meeting_at === 'string' && body.wedding_meeting_at.trim()
+    ? body.wedding_meeting_at.trim()
+    : null
+  const meetingNote = typeof body.wedding_meeting_note === 'string' && body.wedding_meeting_note.trim()
+    ? body.wedding_meeting_note.trim()
+    : null
+  await execute(c.env, `
+    UPDATE bookings
+    SET wedding_meeting_at = ?, wedding_meeting_note = ?, updated_at = datetime('now')
+    WHERE id = ? AND type_feest = 'Trouw'
+  `, [meetingAt, meetingNote, id])
   return c.json({ success: true })
 })
 

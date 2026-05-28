@@ -3,6 +3,7 @@ import { Providers } from './components/Providers'
 import { Dashboard } from './pages/Dashboard'
 import { BookingDetail } from './pages/BookingDetail'
 import { GigSheet } from './pages/GigSheet'
+import { PricingOverview } from './pages/PricingOverview'
 import { CustomerForm } from './pages/CustomerForm'
 import { Reminders } from './pages/Reminders'
 import { Agenda } from './pages/Agenda'
@@ -21,6 +22,7 @@ function AppRoutes() {
       <Route path="/agenda" element={<Agenda />} />
       <Route path="/boeking/:id" element={<BookingDetail />} />
       <Route path="/gigsheet/:id" element={<GigSheet />} />
+      <Route path="/prijs/:id" element={<PricingOverview />} />
       <Route path="/herinneringen" element={<Reminders />} />
       <Route path="/leeg-formulier" element={<BlankForm />} />
       <Route path="/zalen" element={<Venues />} />

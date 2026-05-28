@@ -197,7 +197,14 @@ const mockEnv = {
   DB: db ? (new MockD1Database(db) as any) : undefined,
   CACHE: undefined,
   STORAGE: new LocalR2Bucket() as any,
-  ENVIRONMENT: 'development'
+  ENVIRONMENT: 'development',
+  SMTP_HOST: process.env.SMTP_HOST,
+  SMTP_PORT: process.env.SMTP_PORT,
+  SMTP_USER: process.env.SMTP_USER,
+  SMTP_PASS: process.env.SMTP_PASS,
+  SMTP_FROM: process.env.SMTP_FROM,
+  BREVO_API_KEY: process.env.BREVO_API_KEY,
+  APP_URL: process.env.APP_URL,
 }
 
 console.log(`🚀 Dev server running at http://localhost:${port}`)

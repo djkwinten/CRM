@@ -122,6 +122,10 @@ CREATE TABLE IF NOT EXISTS bookings (
   contract_pdf TEXT,
   contract_info_unlocked INTEGER NOT NULL DEFAULT 0,
 
+  -- Trouw-afspraak
+  wedding_meeting_at TEXT,
+  wedding_meeting_note TEXT,
+
   -- Meta
   reminder_sent_at TEXT,
   created_at TEXT DEFAULT (datetime('now')),
