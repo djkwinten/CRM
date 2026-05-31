@@ -24,7 +24,7 @@ function displayNaam(b: Booking): string {
 
 function StatusBadge({ value, label, updated }: { value: number; label: string; updated?: boolean }) {
   return (
-    <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${
+    <span className={`inline-flex items-center gap-1 text-[11px] sm:text-xs font-medium px-2 py-0.5 rounded-full ${
       updated
         ? 'bg-amber-50 text-amber-600 border border-amber-300'
         : value
@@ -63,17 +63,21 @@ function WeddingMeetingBadge({ booking, compact = false }: { booking: Booking; c
 
   if (hasMeeting) {
     return (
-      <span className={`inline-flex items-center gap-1.5 rounded-full border bg-green-50 text-green-700 border-green-200 ${compact ? 'px-2 py-0.5 text-xs' : 'px-3 py-1.5 text-sm font-semibold'}`}>
-        <CheckCircle2 size={compact ? 11 : 14} /> ✓ Afspraak gepland
-        <span className="font-medium">{formatMeetingDate(booking.wedding_meeting_at)}</span>
+      <span className={`inline-flex items-center gap-1 rounded-full border bg-green-50 text-green-700 border-green-200 ${compact ? 'px-2 py-0.5 text-xs' : 'px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold'}`} title={`Afspraak gepland: ${formatMeetingDate(booking.wedding_meeting_at)}`}>
+        <CheckCircle2 size={compact ? 11 : 14} />
+        <span className="sm:hidden">Afspraak</span>
+        <span className="hidden sm:inline">Afspraak gepland</span>
+        <span className="hidden sm:inline font-medium">{formatMeetingDate(booking.wedding_meeting_at)}</span>
       </span>
     )
   }
 
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border ${urgent ? 'bg-red-50 text-red-600 border-red-200' : soon ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-amber-50 text-amber-600 border-amber-200'} ${compact ? 'px-2 py-0.5 text-xs' : 'px-3 py-1.5 text-sm font-semibold'}`}>
-      <AlertTriangle size={compact ? 11 : 14} /> ⚠ Nog geen afspraak
-      {urgent ? <span className="font-bold">binnen 14d!</span> : soon ? <span className="font-bold">binnen 1 maand</span> : null}
+    <span className={`inline-flex items-center gap-1 rounded-full border ${urgent ? 'bg-red-50 text-red-600 border-red-200' : soon ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-amber-50 text-amber-600 border-amber-200'} ${compact ? 'px-2 py-0.5 text-xs' : 'px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold'}`} title={urgent ? 'Nog geen trouw-afspraak — binnen 14 dagen' : soon ? 'Nog geen trouw-afspraak — binnen 1 maand' : 'Nog geen trouw-afspraak'}>
+      <AlertTriangle size={compact ? 11 : 14} />
+      <span className="sm:hidden">Geen afspraak</span>
+      <span className="hidden sm:inline">Nog geen afspraak</span>
+      {urgent ? <span className="font-bold hidden sm:inline">binnen 14d!</span> : soon ? <span className="font-bold hidden sm:inline">binnen 1 maand</span> : null}
     </span>
   )
 }
@@ -1028,6 +1032,7 @@ export function Dashboard() {
   const [rejectToConfirm, setRejectToConfirm] = useState<Booking | null>(null)
   const [meetingToPlan, setMeetingToPlan] = useState<Booking | null>(null)
   const [mailToSend, setMailToSend] = useState<{ booking: Booking; key: TemplateKey } | null>(null)
+  const [mobileActionsOpen, setMobileActionsOpen] = useState<number | null>(null)
   const navigate = useNavigate()
 
   const load = useCallback(async (silent = false) => {
@@ -1233,27 +1238,34 @@ export function Dashboard() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 pb-24 md:pb-6 space-y-6">
         {/* Stats — klikbaar om te filteren */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
           {[
-            { label: 'Aanvragen', value: stats.aanvragen, icon: <Clock size={18} />, color: 'text-amber-500 bg-amber-50', filter: 'aanvragen' as const },
-            { label: 'Komend', value: stats.total, icon: <Calendar size={18} />, color: 'text-[#007AFF] bg-[#007AFF]/10', filter: 'boekingen' as const },
-            { label: stats.trouwUrgent > 0 ? 'Trouw afspraak ⚠' : 'Trouw afspraak', value: stats.trouwAfspraken, icon: <CalendarDays size={18} />, color: stats.trouwUrgent > 0 ? 'text-red-500 bg-red-50' : 'text-pink-500 bg-pink-50', filter: 'trouw-afspraken' as const },
-            { label: 'Afgelopen', value: stats.afgelopen, icon: <CheckCircle2 size={18} />, color: 'text-gray-400 bg-gray-100', filter: 'afgelopen' as const },
-            { label: 'Afgewezen', value: stats.afgewezen, icon: <XCircle size={18} />, color: 'text-red-400 bg-red-50', filter: 'afgewezen' as const },
-          ].map(s => (
+            { label: 'Aanvragen', value: stats.aanvragen, icon: <Clock size={18} />, color: 'text-amber-500 bg-amber-50', active: 'bg-amber-500', filter: 'aanvragen' as const },
+            { label: 'Afgewezen', value: stats.afgewezen, icon: <XCircle size={18} />, color: 'text-red-400 bg-red-50', active: 'bg-red-500', filter: 'afgewezen' as const },
+            { label: 'Komend', value: stats.total, icon: <Calendar size={18} />, color: 'text-[#007AFF] bg-[#007AFF]/10', active: 'bg-[#007AFF]', filter: 'boekingen' as const },
+            { label: 'Afgelopen', value: stats.afgelopen, icon: <CheckCircle2 size={18} />, color: 'text-gray-400 bg-gray-100', active: 'bg-gray-700', filter: 'afgelopen' as const },
+            { label: stats.trouwUrgent > 0 ? 'Trouw afspraak ⚠' : 'Trouw afspraak', value: stats.trouwAfspraken, icon: <CalendarDays size={18} />, color: stats.trouwUrgent > 0 ? 'text-red-500 bg-red-50' : 'text-pink-500 bg-pink-50', active: stats.trouwUrgent > 0 ? 'bg-red-500' : 'bg-pink-500', filter: 'trouw-afspraken' as const, wideMobile: true },
+          ].map(s => {
+            const selected = activeFilter === s.filter
+            return (
             <div key={s.label}
-              onClick={() => setActiveFilter(activeFilter === s.filter ? 'all' : s.filter)}
-              className={`bg-white rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.12),0_1px_4px_rgba(0,0,0,0.06)] p-4 transition-all cursor-pointer hover:shadow-[0_6px_24px_rgba(0,0,0,0.14),0_2px_6px_rgba(0,0,0,0.08)] ${
-                activeFilter === s.filter ? 'ring-2 ring-[#007AFF]/40' : ''
+              onClick={() => setActiveFilter(selected ? 'all' : s.filter)}
+              className={`rounded-xl sm:rounded-2xl shadow-sm sm:shadow-[0_4px_20px_rgba(0,0,0,0.12),0_1px_4px_rgba(0,0,0,0.06)] px-3 py-2.5 sm:p-4 transition-all cursor-pointer hover:shadow-[0_6px_24px_rgba(0,0,0,0.14),0_2px_6px_rgba(0,0,0,0.08)] ${s.wideMobile ? 'col-span-2 sm:col-span-1' : ''} ${
+                selected ? `${s.active} text-white sm:bg-white sm:text-gray-900 sm:ring-2 sm:ring-[#007AFF]/40` : 'bg-white text-gray-900'
               }`}>
-              <div className={`w-10 h-10 rounded-xl ${s.color} flex items-center justify-center mb-3`}>{s.icon}</div>
-              <div className="text-2xl font-bold text-gray-900">{s.value}</div>
-              <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
-                {s.label}
-                {activeFilter === s.filter && <span className="text-[#007AFF] font-medium">✓</span>}
+              <div className="flex items-center gap-2 sm:block">
+                <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center sm:mb-3 ${selected ? 'bg-white/20 text-white sm:bg-[#007AFF]/10 sm:text-[#007AFF]' : s.color}`}>{s.icon}</div>
+                <div className="min-w-0 flex-1">
+                  <div className={`text-xl sm:text-2xl font-bold leading-none ${selected ? 'text-white sm:text-gray-900' : 'text-gray-900'}`}>{s.value}</div>
+                  <div className={`text-[11px] sm:text-xs mt-0.5 flex items-center gap-1 leading-tight ${selected ? 'text-white/90 sm:text-gray-400' : 'text-gray-400'}`}>
+                    <span className="truncate">{s.label}</span>
+                    {selected && <span className="font-bold sm:text-[#007AFF]">✓</span>}
+                  </div>
+                </div>
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
 
         {/* Controls */}
@@ -1442,7 +1454,7 @@ export function Dashboard() {
                           {b.einduur && <><span className="text-gray-300">·</span><span className="flex items-center gap-0.5 text-gray-400"><Clock size={11} /> {b.einduur}</span></>}
                         </div>
                         {b.type_feest === 'Trouw' && (
-                          <div className="mt-2 flex items-center gap-2 flex-wrap">
+                          <div className="hidden sm:flex mt-2 items-center gap-2 flex-wrap">
                             <WeddingMeetingBadge booking={b} />
                             <button onClick={() => setMeetingToPlan(b)}
                               className={`inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-xl border transition-colors ${b.wedding_meeting_at ? 'bg-green-50 hover:bg-green-100 text-green-700 border-green-200' : 'bg-pink-500 hover:bg-pink-600 text-white border-pink-500 shadow-sm'}`}>
@@ -1462,7 +1474,7 @@ export function Dashboard() {
                         </button>
                       </div>
                     </div>
-                    {/* Onderste rij: status pills + knoppen */}
+                    {/* Onderste rij: mobiel alleen belangrijkste status + acties; desktop volledig */}
                     <div className="flex items-center gap-2 mt-3 flex-wrap">
                       <div className="flex gap-1.5 flex-1 flex-wrap">
                         <button onClick={() => handleToggleStatus(b, 'status_contract')} title="Klik om te wisselen">
@@ -1471,11 +1483,19 @@ export function Dashboard() {
                         <button onClick={() => handleToggleStatus(b, 'status_voorschot')} title="Klik om te wisselen">
                           <StatusBadge value={b.status_voorschot} label="Voorschot" />
                         </button>
-                        <a href={`/event/${b.slug || b.id}?section=vragenlijst`} target="_blank" rel="noopener noreferrer" title="Open klantpagina bij vragenlijst">
+                        <a className="hidden sm:inline-flex" href={`/event/${b.slug || b.id}?section=vragenlijst`} target="_blank" rel="noopener noreferrer" title="Open klantpagina bij vragenlijst">
                           <StatusBadge value={b.status_vragenlijst} label="Vragenlijst" updated={!!b.vragenlijst_updated_at && !!b.vragenlijst_first_submitted_at} />
                         </a>
                       </div>
-                      <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setMobileActionsOpen(mobileActionsOpen === b.id ? null : b.id)}
+                        className={`sm:hidden inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-colors ${mobileActionsOpen === b.id ? 'bg-orange-500 text-white border-orange-500' : 'bg-orange-50 text-orange-600 border-orange-200'}`}
+                        title="Extra acties en aandachtspunten"
+                      >
+                        <AlertTriangle size={13} /> Acties
+                      </button>
+                      <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
                         {/* Feest nadert knop — alleen zichtbaar vóór feestdatum */}
                         {b.feest_datum && new Date(b.feest_datum) >= new Date() && b.email && (
                           <button
@@ -1484,12 +1504,12 @@ export function Dashboard() {
                             title={b.feest_herinnering_sent_at
                               ? `"Feest nadert"-mail verstuurd op ${new Date(b.feest_herinnering_sent_at).toLocaleDateString('nl-BE')}`
                               : 'Stuur "feest nadert"-herinnering'}
-                            className={`flex items-center gap-1 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
+                            className={`flex items-center gap-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-colors ${
                               b.feest_herinnering_sent_at
                                 ? 'bg-sky-50 text-sky-600 border border-sky-200 hover:bg-sky-100'
                                 : 'bg-sky-500 hover:bg-sky-600 text-white font-semibold shadow-sm'
                             }`}>
-                            {feestHerinneringSending === b.id ? '...' : b.feest_herinnering_sent_at ? '📅 Verstuurd' : '📅 Feest nadert'}
+                            {feestHerinneringSending === b.id ? '...' : b.feest_herinnering_sent_at ? <><span>📅</span><span className="sm:hidden">Mail ✓</span><span className="hidden sm:inline">Verstuurd</span></> : <><span>📅</span><span className="sm:hidden">Nadert</span><span className="hidden sm:inline">Feest nadert</span></>}
                           </button>
                         )}
                         {/* Review knop — alleen zichtbaar na feestdatum */}
@@ -1500,16 +1520,64 @@ export function Dashboard() {
                             title={b.review_sent_at
                               ? `Review-verzoek verstuurd op ${new Date(b.review_sent_at).toLocaleDateString('nl-BE')}`
                               : 'Stuur review-verzoek'}
-                            className={`flex items-center gap-1 px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
+                            className={`flex items-center gap-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-medium transition-colors ${
                               b.review_sent_at
                                 ? 'bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-100'
                                 : 'bg-purple-500 hover:bg-purple-600 text-white font-semibold shadow-sm'
                             }`}>
-                            {reviewSending === b.id ? '...' : b.review_sent_at ? '⭐ Verstuurd' : '⭐ Review'}
+                            {reviewSending === b.id ? '...' : b.review_sent_at ? <><span>⭐</span><span className="sm:hidden">Mail ✓</span><span className="hidden sm:inline">Verstuurd</span></> : '⭐ Review'}
                           </button>
                         )}
                       </div>
                     </div>
+                    {mobileActionsOpen === b.id && (
+                      <div className="sm:hidden mt-3 rounded-2xl border border-orange-100 bg-orange-50/60 p-3 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-bold text-orange-700 uppercase tracking-wide">Aandacht & acties</span>
+                          <button type="button" onClick={() => setMobileActionsOpen(null)} className="text-orange-400 hover:text-orange-700">
+                            <X size={14} />
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <a href={`/event/${b.slug || b.id}?section=vragenlijst`} target="_blank" rel="noopener noreferrer" title="Open klantpagina bij vragenlijst">
+                            <StatusBadge value={b.status_vragenlijst} label="Vragenlijst" updated={!!b.vragenlijst_updated_at && !!b.vragenlijst_first_submitted_at} />
+                          </a>
+                          {b.type_feest === 'Trouw' && <WeddingMeetingBadge booking={b} compact />}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {b.type_feest === 'Trouw' && (
+                            <button onClick={() => setMeetingToPlan(b)}
+                              className={`inline-flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-xl border transition-colors ${b.wedding_meeting_at ? 'bg-green-50 hover:bg-green-100 text-green-700 border-green-200' : 'bg-pink-500 hover:bg-pink-600 text-white border-pink-500 shadow-sm'}`}>
+                              <CalendarDays size={13} /> {b.wedding_meeting_at ? 'Wijzig afspraak' : 'Plan afspraak'}
+                            </button>
+                          )}
+                          {b.feest_datum && new Date(b.feest_datum) >= new Date() && b.email && (
+                            <button
+                              onClick={() => openMailTemplate(b, 'feest_nadert')}
+                              disabled={feestHerinneringSending === b.id}
+                              className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                                b.feest_herinnering_sent_at
+                                  ? 'bg-sky-50 text-sky-600 border border-sky-200 hover:bg-sky-100'
+                                  : 'bg-sky-500 hover:bg-sky-600 text-white shadow-sm'
+                              }`}>
+                              {feestHerinneringSending === b.id ? '...' : b.feest_herinnering_sent_at ? '📅 Mail verstuurd' : '📅 Feest nadert'}
+                            </button>
+                          )}
+                          {b.feest_datum && new Date(b.feest_datum) < new Date() && b.email && (
+                            <button
+                              onClick={() => openMailTemplate(b, 'review_request')}
+                              disabled={reviewSending === b.id}
+                              className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-colors ${
+                                b.review_sent_at
+                                  ? 'bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-100'
+                                  : 'bg-purple-500 hover:bg-purple-600 text-white shadow-sm'
+                              }`}>
+                              {reviewSending === b.id ? '...' : b.review_sent_at ? '⭐ Mail verstuurd' : '⭐ Review vragen'}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))
               )}

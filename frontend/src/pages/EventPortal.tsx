@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { Calendar, CheckCircle2, ClipboardList, FileText, FolderOpen, MessageSquare, ExternalLink, Download, Lock, X } from 'lucide-react'
 import { bookingFileDownloadUrl, BookingFile, getBooking, getBookingFiles, getContractInfo, getBookingPDF } from '../lib/api'
+import { getContractGateState } from '../lib/contractGate'
 import { Booking } from '../types/booking'
 import { BookingContractInfo } from '../features/event-workspace/types'
 
@@ -16,19 +17,6 @@ function categoryLabel(category?: string) {
   if (category === 'grondplan') return 'Grondplan'
   if (category === 'zaal_foto') return 'Zaalfoto'
   return 'Vragenlijst-upload'
-}
-
-function isContractInfoComplete(info: BookingContractInfo | null | undefined) {
-  return !!(
-    info?.naam?.trim() &&
-    info?.email?.trim() &&
-    info?.gsm?.trim() &&
-    info?.klant_adres?.trim() &&
-    info?.event_type?.trim() &&
-    info?.event_datum?.trim() &&
-    info?.locatie_naam?.trim() &&
-    info?.locatie_adres?.trim()
-  )
 }
 
 async function openRemoteFile(url: string, name: string) {
@@ -88,10 +76,10 @@ export function EventPortal() {
         const info = await getContractInfo(b.id)
         setContractInfo(info)
         setManualFiles(await getBookingFiles(b.id))
-        const ready = isContractInfoComplete(info) || !!(b.status_contract || b.has_contract_pdf)
-        setContractInfoSubmitted(ready)
-        setShowFirstContractPopup(!ready)
-        if (!ready) setActiveSection('contract')
+        const gate = getContractGateState(b, info)
+        setContractInfoSubmitted(gate.contractCompleted)
+        setShowFirstContractPopup(!gate.canAccessQuestionnaire)
+        if (!gate.canAccessQuestionnaire) setActiveSection('contract')
       }
       setLoading(false)
     })
@@ -104,14 +92,37 @@ export function EventPortal() {
   const questionnairePath = booking.slug ? `/vragenlijst/${booking.slug}?direct=1` : `/formulier/${booking.id}?direct=1`
   const hasContract = !!(booking.contract_pdf || booking.has_contract_pdf)
   const hasFactuur = !!(booking.billit_factuur_pdf || booking.has_billit_factuur_pdf)
-  const contractInfoComplete = isContractInfoComplete(contractInfo)
+  const contractGate = getContractGateState(booking, contractInfo, contractInfoSubmitted)
+  const contractInfoComplete = contractGate.contractInfoComplete
   const questionnaireFiles = parseQuestionnaireUploads(booking.zaal_fotos)
-  const contractLocked = !!((booking.status_contract || booking.has_contract_pdf) && !booking.contract_info_unlocked)
-  const customerTabsUnlocked = contractInfoSubmitted || contractLocked
+  const contractLocked = contractGate.contractLocked
+  const customerTabsUnlocked = contractGate.canAccessQuestionnaire
   const handleContractSaved = (info: BookingContractInfo) => {
     setContractInfo(info)
-    setContractInfoSubmitted(true)
-    setShowFirstContractPopup(false)
+    const nextGate = getContractGateState(booking, info, true)
+    setContractInfoSubmitted(nextGate.contractCompleted)
+    setShowFirstContractPopup(!nextGate.canAccessQuestionnaire)
+  }
+  const logQuestionnaireGate = (source: string) => {
+    console.info('[EventPortal] questionnaire gate', {
+      source,
+      bookingId: booking.id,
+      phase: contractGate.phase,
+      contractCompleted: contractGate.contractCompleted,
+      contractLocked: contractGate.contractLocked,
+      contractCreated: contractGate.contractCreated,
+      questionnaireUnlocked: contractGate.questionnaireUnlocked,
+      contractInfoComplete: contractGate.contractInfoComplete,
+      contractInfoSubmitted,
+      status_contract: booking.status_contract,
+      has_contract_pdf: booking.has_contract_pdf,
+      contract_info_unlocked: booking.contract_info_unlocked,
+    })
+  }
+  const openQuestionnaireSection = () => {
+    logQuestionnaireGate('portal-tab-click')
+    if (contractGate.canAccessQuestionnaire) setActiveSection(activeSection === 'vragenlijst' ? null : 'vragenlijst')
+    else openLockedSection()
   }
   const openLockedSection = () => {
     setActiveSection('contract')
@@ -166,7 +177,7 @@ export function EventPortal() {
             <p className="text-xs text-gray-400 mt-0.5">Korte basisinfo</p>
           </button>
           {customerTabsUnlocked ? (
-            <button onClick={() => setActiveSection(activeSection === 'vragenlijst' ? null : 'vragenlijst')} className="text-left bg-white rounded-2xl p-4 shadow-sm border border-transparent hover:border-[#007AFF] transition-colors">
+            <button onClick={openQuestionnaireSection} className="text-left bg-white rounded-2xl p-4 shadow-sm border border-transparent hover:border-[#007AFF] transition-colors">
               <ClipboardList size={20} className="text-[#007AFF] mb-2" />
               <p className="font-bold text-gray-900 text-sm">Vragenlijst</p>
               <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">Kan vanaf nu ingevuld en later aangepast worden. Een maand voor het feest maken we intern een opvolgtaak aan.</p>
@@ -225,13 +236,13 @@ export function EventPortal() {
                 <button onClick={() => setShowFirstContractPopup(true)} className="inline-flex items-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors">
                   <FileText size={15} /> Bekijk contractinfo
                 </button>
-                <button onClick={() => setActiveSection('vragenlijst')} className="inline-flex items-center gap-2 bg-[#007AFF] hover:bg-[#0066CC] text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors">
+                <button onClick={openQuestionnaireSection} className="inline-flex items-center gap-2 bg-[#007AFF] hover:bg-[#0066CC] text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors">
                   <ClipboardList size={15} /> Naar vragenlijst
                 </button>
               </div>
             </div>
           ) : contractInfo ? <ContractInfoForm bookingId={booking.id} initial={contractInfo} showFinancial={false} readOnly={contractLocked} onChange={setContractInfo} requireCompleteBeforeSave notifyOnComplete onSaved={handleContractSaved} saveLabel="Opslaan" enableAutosave={false} /> : <div className="text-gray-400">Contract info laden...</div>}
-          {!contractInfoComplete && (
+          {!contractGate.canAccessQuestionnaire && (
             <div className="mt-3 bg-amber-50 border border-amber-200 text-amber-700 rounded-xl p-3 text-sm">
               Vul eerst alle verplichte Contract Info velden in. Daarna wordt de vragenlijst beschikbaar.
             </div>

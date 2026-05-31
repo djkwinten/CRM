@@ -4,6 +4,7 @@ import {
   Wifi, CheckCircle2, ChevronRight, ChevronLeft, Heart, Download, FileText,
 } from 'lucide-react'
 import { getBooking, submitQuestionnaire, getBookingPDF, getContractInfo, getVenue, suggestVenues } from '../lib/api'
+import { getContractGateState } from '../lib/contractGate'
 import { Booking } from '../types/booking'
 import { format, parseISO } from 'date-fns'
 import { nl } from 'date-fns/locale'
@@ -2113,11 +2114,24 @@ export function CustomerForm() {
     getBooking(ref).then(async data => {
       if (!data) { setNotFound(true); setLoading(false); return }
       setBooking(data)
+      setContractBlocked(false)
       let contractPatch: Partial<FormState> = {}
       if (directMode) {
         const ci = await getContractInfo(data.id)
-        const complete = !!(ci?.naam?.trim() && ci?.email?.trim() && ci?.gsm?.trim() && ci?.klant_adres?.trim() && ci?.event_type?.trim() && ci?.event_datum?.trim() && ci?.locatie_naam?.trim() && ci?.locatie_adres?.trim())
-        if (!complete) setContractBlocked(true)
+        const gate = getContractGateState(data, ci)
+        console.info('[CustomerForm] direct questionnaire gate', {
+          bookingId: data.id,
+          phase: gate.phase,
+          contractCompleted: gate.contractCompleted,
+          contractLocked: gate.contractLocked,
+          contractCreated: gate.contractCreated,
+          questionnaireUnlocked: gate.questionnaireUnlocked,
+          contractInfoComplete: gate.contractInfoComplete,
+          status_contract: data.status_contract,
+          has_contract_pdf: data.has_contract_pdf,
+          contract_info_unlocked: data.contract_info_unlocked,
+        })
+        if (!gate.canAccessQuestionnaire) setContractBlocked(true)
         if (ci) {
           const [partner1, partner2] = (ci.naam || '').split(/\s*&\s*/).map(v => v.trim())
           contractPatch = {
