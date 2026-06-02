@@ -763,12 +763,22 @@ function StepMuziek({ form, setForm, isTrouw }: { form: FormState; setForm: (u: 
           extraValue={form.flop_genres_extra || ''} onExtraChange={v => setForm({ flop_genres_extra: v })}
         />
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-        <FormField label="✅ Must Play" sublabel="Nummers die zeker moeten draaien">
-          <Textarea value={form.must_play || ''} onChange={v => setForm({ must_play: v })} placeholder="Bijv. Dancing Queen, Mr. Brightside, ..." rows={3} />
+      <div className="grid grid-cols-1 gap-5">
+        <FormField label="✅ Must Play" sublabel="Nummers die zeker moeten draaien — liefst één nummer per regel: Artiest — Titel">
+          <Textarea
+            value={form.must_play || ''}
+            onChange={v => setForm({ must_play: v })}
+            placeholder={'Artiest — Titel\nABBA — Dancing Queen\nThe Killers — Mr. Brightside\n...'}
+            rows={7}
+          />
         </FormField>
-        <FormField label="❌ Do Not Play" sublabel="Nummers die absoluut niet mogen">
-          <Textarea value={form.do_not_play || ''} onChange={v => setForm({ do_not_play: v })} placeholder="Bijv. ..." rows={3} />
+        <FormField label="❌ Do Not Play" sublabel="Nummers die absoluut niet mogen — liefst één nummer per regel: Artiest — Titel">
+          <Textarea
+            value={form.do_not_play || ''}
+            onChange={v => setForm({ do_not_play: v })}
+            placeholder={'Artiest — Titel\nBijv. Frans Bauer — Heb je even voor mij\n...'}
+            rows={7}
+          />
         </FormField>
       </div>
       <FormField label="🎧 Spotify Playlist" sublabel="Deel een playlist als inspiratie voor de sfeer">
