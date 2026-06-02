@@ -1,8 +1,10 @@
 import { Hono } from 'hono'
 import { query, execute } from '../lib/db'
+import { importCloudBookings, readCloudBookings } from '../lib/cloudBookings'
 
 type Bindings = {
   DB?: D1Database
+  STORAGE?: R2Bucket
 }
 
 function extractBookingsFromImportBody(body: unknown): unknown[] | null {
@@ -40,6 +42,23 @@ export const exportRoutes = new Hono<{ Bindings: Bindings }>()
 // GET /api/export/bookings.json — volledige backup van alle boekingen
 exportRoutes.get('/bookings.json', async (c) => {
   if (!c.env.DB) {
+    if (c.env.STORAGE) {
+      const bookings = await readCloudBookings(c.env)
+      const exportData = {
+        exported_at: new Date().toISOString(),
+        version: 1,
+        storage: 'r2',
+        count: bookings.length,
+        bookings,
+      }
+      return new Response(JSON.stringify(exportData, null, 2), {
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Content-Disposition': `attachment; filename="djkwinten-backup-${new Date().toISOString().slice(0, 10)}.json"`,
+          'Cache-Control': 'no-cache',
+        }
+      })
+    }
     return c.json({ success: false, error: 'Database niet geconfigureerd. Koppel eerst een D1 database aan deze Worker.' }, 500)
   }
 
@@ -111,7 +130,27 @@ exportRoutes.get('/bookings.csv', async (c) => {
 
 // POST /api/export/import — herstel database vanuit JSON-backup
 exportRoutes.post('/import', async (c) => {
+  let body: unknown
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ success: false, error: 'Ongeldig JSON-bestand' }, 400)
+  }
+
+  const bookingsToImport = extractBookingsFromImportBody(body)
+
+  if (!Array.isArray(bookingsToImport) || bookingsToImport.length === 0) {
+    return c.json({
+      success: false,
+      error: 'Geen boekingen gevonden in het bestand. Ondersteunde formaten: { "bookings": [...] }, een directe array [...], { "data": [...] } of { "data": { "bookings": [...] } }.',
+    }, 400)
+  }
+
   if (!c.env.DB) {
+    if (c.env.STORAGE) {
+      const result = await importCloudBookings(c.env, bookingsToImport)
+      return c.json({ success: true, storage: 'r2', ...result })
+    }
     return c.json({
       success: false,
       error: 'Database niet geconfigureerd. De import kan niet worden opgeslagen. Koppel eerst een D1 database aan deze Worker.',
@@ -147,22 +186,6 @@ exportRoutes.post('/import', async (c) => {
     'voorschot_instructies', 'billit_factuur_pdf', 'billit_factuur_naam', 'contract_pdf',
     'created_at', 'updated_at',
   ])
-
-  let body: unknown
-  try {
-    body = await c.req.json()
-  } catch {
-    return c.json({ success: false, error: 'Ongeldig JSON-bestand' }, 400)
-  }
-
-  const bookingsToImport = extractBookingsFromImportBody(body)
-
-  if (!Array.isArray(bookingsToImport) || bookingsToImport.length === 0) {
-    return c.json({
-      success: false,
-      error: 'Geen boekingen gevonden in het bestand. Ondersteunde formaten: { "bookings": [...] }, een directe array [...], { "data": [...] } of { "data": { "bookings": [...] } }.',
-    }, 400)
-  }
 
   let imported = 0
   let skipped = 0

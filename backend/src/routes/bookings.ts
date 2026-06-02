@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { query, queryOne, execute } from '../lib/db'
+import { createCloudBooking, deleteCloudBooking, findCloudBooking, patchCloudBooking, readCloudBookings } from '../lib/cloudBookings'
 import { sendContractInfoNotification, sendUpdateNotification, SmtpConfig } from '../lib/mailer'
 import { randomBytes } from 'crypto'
 
@@ -42,6 +43,7 @@ type Bindings = {
   BREVO_API_KEY?: string
   SMTP_FROM?: string
   APP_URL?: string
+  STORAGE?: R2Bucket
 }
 
 export const bookingsRoutes = new Hono<{ Bindings: Bindings }>()
@@ -462,6 +464,10 @@ bookingsRoutes.post('/init', async (c) => {
 // Get all bookings
 bookingsRoutes.get('/', async (c) => {
   try {
+    if (!c.env.DB && c.env.STORAGE) {
+      const bookings = await readCloudBookings(c.env)
+      return c.json({ bookings, storage: 'r2' })
+    }
     const sql = await bookingListSelectSql(c.env)
     const bookings = await query(c.env, sql)
     return c.json({ bookings })
@@ -757,6 +763,11 @@ bookingsRoutes.put('/:id/contract-info', async (c) => {
 bookingsRoutes.get('/:ref', async (c) => {
   const ref = c.req.param('ref')
   const isNumeric = /^\d+$/.test(ref)
+  if (!c.env.DB && c.env.STORAGE) {
+    const booking = await findCloudBooking(c.env, ref)
+    if (!booking) return c.json({ error: 'Booking not found' }, 404)
+    return c.json({ booking, storage: 'r2' })
+  }
   try {
     const { fields, existing } = await bookingDetailSelectFields(c.env)
     let where = ''
@@ -797,6 +808,12 @@ bookingsRoutes.get('/:ref/pdf/:type', async (c) => {
   const ref = c.req.param('ref')
   const type = c.req.param('type') // 'contract' or 'factuur'
   const col = type === 'contract' ? 'contract_pdf' : 'billit_factuur_pdf'
+  if (!c.env.DB && c.env.STORAGE) {
+    const booking = await findCloudBooking(c.env, ref)
+    const pdf = booking?.[col]
+    if (!pdf) return c.json({ error: 'Not found' }, 404)
+    return c.json({ pdf })
+  }
   const isNumeric = /^\d+$/.test(ref)
   const row = isNumeric
     ? await queryOne(c.env, `SELECT ${col} as pdf FROM bookings WHERE id = ?`, [ref])
@@ -808,6 +825,10 @@ bookingsRoutes.get('/:ref/pdf/:type', async (c) => {
 // Create booking (DJ side)
 bookingsRoutes.post('/', async (c) => {
   const body = await c.req.json()
+  if (!c.env.DB && c.env.STORAGE) {
+    const booking = await createCloudBooking(c.env, body)
+    return c.json({ success: true, id: booking.id, slug: booking.slug, access_token: booking.access_token, storage: 'r2' })
+  }
   const naam = body.naam_organisator || ''
   const type = body.type_feest || 'Algemeen'
   const datum = body.feest_datum || ''
@@ -840,6 +861,10 @@ bookingsRoutes.post('/', async (c) => {
 bookingsRoutes.patch('/:id/portal', async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json()
+  if (!c.env.DB && c.env.STORAGE) {
+    await patchCloudBooking(c.env, id, { portal_title: body.portal_title || null })
+    return c.json({ success: true, storage: 'r2' })
+  }
   await execute(c.env, `UPDATE bookings SET portal_title = ?, updated_at = datetime('now') WHERE id = ?`, [body.portal_title || null, id])
   return c.json({ success: true })
 })
@@ -867,6 +892,14 @@ bookingsRoutes.patch('/:id/wedding-meeting', async (c) => {
   try {
     const id = c.req.param('id')
     const body = await c.req.json()
+    if (!c.env.DB && c.env.STORAGE) {
+      const updated = await patchCloudBooking(c.env, id, {
+        wedding_meeting_at: body.wedding_meeting_at || null,
+        wedding_meeting_note: body.wedding_meeting_note || null,
+      })
+      if (!updated) return c.json({ success: false, error: 'Boeking niet gevonden' }, 404)
+      return c.json({ success: true, storage: 'r2' })
+    }
     await ensureWeddingMeetingColumns(c.env)
 
     const booking = await queryOne<{ id: number; type_feest: string }>(
@@ -936,6 +969,18 @@ async function ensureQuestionnaireColumns(env: Bindings) {
 bookingsRoutes.patch('/:id/status', async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json()
+  if (!c.env.DB && c.env.STORAGE) {
+    const patch: Record<string, unknown> = {}
+    if (body.status_contract !== undefined) patch.status_contract = body.status_contract ? 1 : 0
+    if (body.status_voorschot !== undefined) patch.status_voorschot = body.status_voorschot ? 1 : 0
+    if (body.status_vragenlijst !== undefined) patch.status_vragenlijst = body.status_vragenlijst ? 1 : 0
+    if (body.is_aanvraag !== undefined) patch.is_aanvraag = body.is_aanvraag ? 1 : 0
+    if (body.is_afgewezen !== undefined) patch.is_afgewezen = body.is_afgewezen ? 1 : 0
+    if (body.afgewezen_reden !== undefined) patch.afgewezen_reden = body.afgewezen_reden || null
+    if (body.contract_info_unlocked !== undefined) patch.contract_info_unlocked = body.contract_info_unlocked ? 1 : 0
+    await patchCloudBooking(c.env, id, patch)
+    return c.json({ success: true, storage: 'r2' })
+  }
   const fields: string[] = []
   const values: unknown[] = []
   if (body.status_contract !== undefined) { fields.push('status_contract = ?'); values.push(body.status_contract ? 1 : 0) }
@@ -964,6 +1009,14 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
     )
   } catch (e: unknown) {
     return c.json({ success: false, error: 'Invalid JSON: ' + String(e) }, 400)
+  }
+  if (!c.env.DB && c.env.STORAGE) {
+    const patch = { ...body, status_vragenlijst: 1, vragenlijst_updated_at: new Date().toISOString() }
+    const existing = await findCloudBooking(c.env, ref)
+    if (existing && !existing.vragenlijst_first_submitted_at) patch.vragenlijst_first_submitted_at = new Date().toISOString()
+    const updated = await patchCloudBooking(c.env, ref, patch)
+    if (!updated) return c.json({ success: false, error: 'Boeking niet gevonden' }, 404)
+    return c.json({ success: true, storage: 'r2' })
   }
   await ensureQuestionnaireColumns(c.env)
   const questionnaireColumns = await bookingColumnSet(c.env)
@@ -1189,6 +1242,10 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
 bookingsRoutes.patch('/:id/contract', async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json()
+  if (!c.env.DB && c.env.STORAGE) {
+    await patchCloudBooking(c.env, id, body)
+    return c.json({ success: true, storage: 'r2' })
+  }
   try { await execute(c.env, `ALTER TABLE bookings ADD COLUMN contract_info_unlocked INTEGER NOT NULL DEFAULT 0`) } catch { /* already exists */ }
   const fields: string[] = []
   const values: unknown[] = []
@@ -1212,6 +1269,10 @@ bookingsRoutes.patch('/:id/contract', async (c) => {
 bookingsRoutes.patch('/:id/basisinfo', async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json()
+  if (!c.env.DB && c.env.STORAGE) {
+    await patchCloudBooking(c.env, id, body)
+    return c.json({ success: true, storage: 'r2' })
+  }
   const fields: string[] = []
   const values: unknown[] = []
   if (body.naam_organisator !== undefined) { fields.push('naam_organisator = ?'); values.push(body.naam_organisator || null) }
@@ -1232,6 +1293,10 @@ bookingsRoutes.patch('/:id/basisinfo', async (c) => {
 // Delete booking
 bookingsRoutes.delete('/:id', async (c) => {
   const id = c.req.param('id')
+  if (!c.env.DB && c.env.STORAGE) {
+    await deleteCloudBooking(c.env, id)
+    return c.json({ success: true, storage: 'r2' })
+  }
   // Ruim gekoppelde records eerst op, zodat oude D1 databases met FK constraints niet falen.
   try { await execute(c.env, 'DELETE FROM booking_files WHERE booking_id = ?', [id]) } catch { /* table may not exist */ }
   try { await execute(c.env, 'DELETE FROM booking_contract_info WHERE booking_id = ?', [id]) } catch { /* table may not exist */ }
