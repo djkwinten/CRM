@@ -67,6 +67,29 @@ function GigBool({ label, value }: { label: string; value?: number | null }) {
   )
 }
 
+function GigProvision({ label, value }: { label: string; value?: number | null }) {
+  const active = !!value
+  return (
+    <div className={`rounded-lg border px-3 py-2 flex items-center gap-2 ${
+      active ? 'border-black bg-gray-900 text-white' : 'border-gray-200 bg-gray-50 text-gray-400'
+    }`}>
+      <span className={`w-4 h-4 rounded-full border flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+        active ? 'border-white bg-white text-black' : 'border-gray-300 bg-white text-transparent'
+      }`}>✓</span>
+      <span className={`text-xs font-semibold leading-tight ${active ? 'text-white' : 'text-gray-400'}`}>{label}</span>
+    </div>
+  )
+}
+
+function GigInfoCard({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 min-h-[72px]">
+      <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500 mb-1.5">{title}</p>
+      <div className="text-sm text-gray-900 font-medium whitespace-pre-line leading-snug">{children}</div>
+    </div>
+  )
+}
+
 export function generateDjSheet(booking: Booking, dateStr: string, isTrouw: boolean) {
   return (
     <>
@@ -213,33 +236,37 @@ export function generateDjSheet(booking: Booking, dateStr: string, isTrouw: bool
         {/* Zaal & Techniek */}
         <div className="mb-5">
           <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500 border-b border-gray-300 pb-1 mb-3">🔊 Zaal & Techniek</h2>
-          <div className="grid grid-cols-2 gap-4">
+
+          <div className="space-y-3">
             <div>
-              <table className="w-full">
-                <tbody>
-                  <GigRow label="📍 Adres Zaal" value={booking.locatie_adres} />
-                  <GigRow label="Zaal Contact" value={booking.zaal_contact} />
-                  <GigRow label="Geluidslimiet" value={booking.geluidsbeperking_info} />
-                  <GigRow label="Wifi Code" value={booking.wifi_code} />
-                  <GigRow label="🚗 Parkeren" value={booking.parkeren_info} />
-                  {booking.gelijkvloers !== undefined && booking.gelijkvloers !== null && (
-                    <tr className="border-b border-gray-200">
-                      <td className="py-1.5 pr-4 text-xs font-semibold text-gray-500 uppercase whitespace-nowrap w-40">Toegang</td>
-                      <td className="py-1.5 text-sm text-gray-900">
-                        {booking.gelijkvloers ? '🏠 Gelijkvloers' : '🏢 Verdieping / Lift'}
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+              <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500 mb-2">Te voorzien door DJ</p>
+              <div className="grid grid-cols-5 gap-2">
+                <GigProvision label="Speakers" value={booking.speakers_aanwezig} />
+                <GigProvision label="Licht" value={booking.licht_aanwezig} />
+                <GigProvision label="Micro" value={booking.micro_aanwezig} />
+                <GigProvision label="DJ Booth" value={booking.dj_booth_aanwezig} />
+                <GigProvision label="Uplights" value={booking.uplights_aanwezig} />
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <GigBool label="Speakers" value={booking.speakers_aanwezig} />
-              <GigBool label="Licht" value={booking.licht_aanwezig} />
-              <GigBool label="Micro" value={booking.micro_aanwezig} />
-              <GigBool label="DJ Booth" value={booking.dj_booth_aanwezig} />
-              <GigBool label="Uplights" value={booking.uplights_aanwezig} />
+
+            <div className="grid grid-cols-2 gap-3">
+              <GigInfoCard title="Zaal contact">
+                {booking.zaal_contact || '—'}
+                {booking.geluidsbeperking_info ? `\n\nGeluidslimiet/einduur: ${booking.geluidsbeperking_info}` : ''}
+              </GigInfoCard>
+              <GigInfoCard title="Toegang & logistiek">
+                {booking.gelijkvloers !== undefined && booking.gelijkvloers !== null
+                  ? (booking.gelijkvloers ? '🏠 Gelijkvloers' : '🏢 Verdieping / Lift')
+                  : 'Toegang niet ingevuld'}
+                {booking.parkeren_info ? `\n\n🚗 ${booking.parkeren_info}` : ''}
+              </GigInfoCard>
             </div>
+
+            {booking.wifi_code && (
+              <GigInfoCard title="Wifi code">
+                {booking.wifi_code}
+              </GigInfoCard>
+            )}
           </div>
         </div>
 
