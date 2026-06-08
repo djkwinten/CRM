@@ -1,5 +1,7 @@
 import { Hono } from 'hono'
 import { query, queryOne, execute } from '../lib/db'
+import { DEFAULT_EMAIL_TEMPLATES, EmailTemplate, TemplateKey, readCloudTemplates, upsertCloudTemplate } from '../lib/cloudTemplates'
+import { findCloudBooking } from '../lib/cloudBookings'
 import { sendTemplateEmail, verifySmtpConnection, SmtpConfig } from '../lib/mailer'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
@@ -14,22 +16,12 @@ type Bindings = {
   BREVO_API_KEY?: string
   SMTP_FROM?: string
   APP_URL?: string
+  STORAGE?: R2Bucket
 }
 
 export const templatesRoutes = new Hono<{ Bindings: Bindings }>()
 
 const REVIEW_URL = 'https://g.page/r/CSbMZNi7yTPAEBM/review'
-
-type TemplateKey = 'vragenlijst_reminder' | 'feest_nadert' | 'review_request' | 'aanvraag_followup' | 'afwijzing'
-
-interface EmailTemplate {
-  id: number
-  key: TemplateKey
-  name: string
-  subject: string
-  body: string
-  updated_at: string
-}
 
 interface BookingRow {
   id: number
@@ -45,84 +37,7 @@ interface BookingRow {
   afgewezen_reden?: string | null
 }
 
-const DEFAULT_TEMPLATES: Record<TemplateKey, { name: string; subject: string; body: string }> = {
-  vragenlijst_reminder: {
-    name: 'Vragenlijst herinnering',
-    subject: 'Herinnering: vragenlijst voor jullie feest op {{feest_datum}}',
-    body: `Dag {{naam}},
-
-Jullie feest op {{feest_datum}} komt dichterbij.
-Ik heb de vragenlijst nog niet ontvangen.
-
-Willen jullie die nog even invullen via:
-{{vragenlijst_link}}
-
-Zo kan ik alles goed voorbereiden.
-
-Groetjes,
-DJ Kwinten`
-  },
-  feest_nadert: {
-    name: 'Feest nadert',
-    subject: 'Jullie feest op {{feest_datum}} komt eraan!',
-    body: `Dag {{naam}},
-
-Jullie feest op {{feest_datum}} komt steeds dichterbij — en ik kijk er al enorm naar uit!
-
-Neem gerust nog eens de tijd om jullie vragenlijst te controleren of aan te vullen:
-{{vragenlijst_link}}
-
-Heb je ondertussen nog vragen of wil je iets aanpassen? Laat het gerust weten.
-
-Groetjes,
-DJ Kwinten`
-  },
-  review_request: {
-    name: 'Review vragen',
-    subject: 'Bedankt voor het fijne feest, {{naam}}!',
-    body: `Dag {{naam}},
-
-Nog eens bedankt voor het fijne feest op {{feest_datum}}.
-Ik hoop dat jullie en jullie gasten een fantastische avond hebben gehad.
-
-Als jullie tevreden waren, zouden jullie dan een korte Google review willen achterlaten?
-{{review_link}}
-
-Dat helpt mij enorm.
-
-Groetjes,
-DJ Kwinten`
-  },
-  aanvraag_followup: {
-    name: 'Aanvraag follow-up',
-    subject: 'Even opvolgen over jouw aanvraag bij DJ Kwinten',
-    body: `Dag {{naam}},
-
-Ik wilde even jouw aanvraag voor {{feest_datum}} opvolgen.
-
-Heb je nog vragen, twijfel je nog ergens over of wil je graag bevestigen? Laat gerust iets weten.
-
-Ik help je graag verder.
-
-Groetjes,
-DJ Kwinten`
-  },
-  afwijzing: {
-    name: 'Afwijzing / doorgeven',
-    subject: 'Jouw aanvraag voor {{feest_datum}}',
-    body: `Dag {{naam}},
-
-Bedankt voor je aanvraag voor {{feest_datum}}.
-
-Helaas kan ik deze aanvraag niet verder opnemen.
-Reden: {{afgewezen_reden}}
-
-Indien gewenst kan ik je eventueel doorverwijzen naar een collega-DJ.
-
-Groetjes,
-DJ Kwinten`
-  }
-}
+const DEFAULT_TEMPLATES = DEFAULT_EMAIL_TEMPLATES
 
 function getSmtpConfig(env: Bindings): SmtpConfig {
   return {
@@ -188,14 +103,18 @@ function bodyToHtml(body: string): string {
 
 async function buildPreview(env: Bindings, key: string, bookingId: string, overrides?: { subject?: string; body?: string }) {
   await ensureTemplates(env)
-  const template = await queryOne<EmailTemplate>(env, `SELECT * FROM email_templates WHERE key = ?`, [key])
+  const template = !env.DB && env.STORAGE
+    ? (await readCloudTemplates(env)).find(t => t.key === key)
+    : await queryOne<EmailTemplate>(env, `SELECT * FROM email_templates WHERE key = ?`, [key])
   if (!template) throw new Error('Template niet gevonden')
 
-  const booking = await queryOne<BookingRow>(env, `
-    SELECT id, feest_datum, type_feest, naam_organisator, naam_partner1, naam_partner2, email,
-           locatie_naam, is_aanvraag, slug, afgewezen_reden
-    FROM bookings WHERE id = ?
-  `, [bookingId])
+  const booking = !env.DB && env.STORAGE
+    ? await findCloudBooking(env, bookingId) as unknown as BookingRow | null
+    : await queryOne<BookingRow>(env, `
+      SELECT id, feest_datum, type_feest, naam_organisator, naam_partner1, naam_partner2, email,
+             locatie_naam, is_aanvraag, slug, afgewezen_reden
+      FROM bookings WHERE id = ?
+    `, [bookingId])
   if (!booking) throw new Error('Boeking niet gevonden')
 
   const base = env.APP_URL || 'http://localhost:5173'
@@ -219,15 +138,23 @@ async function buildPreview(env: Bindings, key: string, bookingId: string, overr
 }
 
 templatesRoutes.get('/', async (c) => {
+  if (!c.env.DB && c.env.STORAGE) {
+    const templates = await readCloudTemplates(c.env)
+    return c.json({ templates, storage: 'r2' })
+  }
   await ensureTemplates(c.env)
   const templates = await query<EmailTemplate>(c.env, `SELECT * FROM email_templates ORDER BY id ASC`)
   return c.json({ templates })
 })
 
 templatesRoutes.put('/:key', async (c) => {
-  await ensureTemplates(c.env)
   const key = c.req.param('key')
   const body = await c.req.json<{ subject: string; body: string; name?: string }>()
+  if (!c.env.DB && c.env.STORAGE) {
+    await upsertCloudTemplate(c.env, key, body)
+    return c.json({ success: true, storage: 'r2' })
+  }
+  await ensureTemplates(c.env)
   await execute(c.env, `
     UPDATE email_templates SET name = COALESCE(?, name), subject = ?, body = ?, updated_at = datetime('now')
     WHERE key = ?

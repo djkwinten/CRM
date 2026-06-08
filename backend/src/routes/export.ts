@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import { query, execute } from '../lib/db'
 import { importCloudBookings, readCloudBookings } from '../lib/cloudBookings'
+import { extractTemplatesFromBackupBody, importCloudTemplates, readCloudTemplates } from '../lib/cloudTemplates'
 
 type Bindings = {
   DB?: D1Database
@@ -44,12 +45,15 @@ exportRoutes.get('/bookings.json', async (c) => {
   if (!c.env.DB) {
     if (c.env.STORAGE) {
       const bookings = await readCloudBookings(c.env)
+      const emailTemplates = await readCloudTemplates(c.env)
       const exportData = {
         exported_at: new Date().toISOString(),
-        version: 1,
+        version: 2,
         storage: 'r2',
         count: bookings.length,
+        template_count: emailTemplates.length,
         bookings,
+        email_templates: emailTemplates,
       }
       return new Response(JSON.stringify(exportData, null, 2), {
         headers: {
@@ -62,12 +66,26 @@ exportRoutes.get('/bookings.json', async (c) => {
     return c.json({ success: false, error: 'Database niet geconfigureerd. Koppel eerst een D1 database aan deze Worker.' }, 500)
   }
 
+  await execute(c.env, `
+    CREATE TABLE IF NOT EXISTS email_templates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      key TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      body TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `)
   const bookings = await query(c.env, `SELECT * FROM bookings ORDER BY feest_datum ASC`)
+  const emailTemplates = await query(c.env, `SELECT * FROM email_templates ORDER BY id ASC`)
   const exportData = {
     exported_at: new Date().toISOString(),
-    version: 1,
+    version: 2,
     count: bookings.length,
+    template_count: emailTemplates.length,
     bookings,
+    email_templates: emailTemplates,
   }
   return new Response(JSON.stringify(exportData, null, 2), {
     headers: {
@@ -137,19 +155,31 @@ exportRoutes.post('/import', async (c) => {
     return c.json({ success: false, error: 'Ongeldig JSON-bestand' }, 400)
   }
 
-  const bookingsToImport = extractBookingsFromImportBody(body)
+  const bookingsToImport = extractBookingsFromImportBody(body) || []
+  const templatesToImport = extractTemplatesFromBackupBody(body) || []
 
-  if (!Array.isArray(bookingsToImport) || bookingsToImport.length === 0) {
+  if (bookingsToImport.length === 0 && templatesToImport.length === 0) {
     return c.json({
       success: false,
-      error: 'Geen boekingen gevonden in het bestand. Ondersteunde formaten: { "bookings": [...] }, een directe array [...], { "data": [...] } of { "data": { "bookings": [...] } }.',
+      error: 'Geen boekingen of e-mailtemplates gevonden in het bestand. Ondersteunde velden: "bookings" en "email_templates".',
     }, 400)
   }
 
   if (!c.env.DB) {
     if (c.env.STORAGE) {
-      const result = await importCloudBookings(c.env, bookingsToImport)
-      return c.json({ success: true, storage: 'r2', ...result })
+      const bookingResult = bookingsToImport.length ? await importCloudBookings(c.env, bookingsToImport) : { imported: 0, skipped: 0, total: 0, errors: [] as string[] }
+      const templateResult = await importCloudTemplates(c.env, templatesToImport)
+      return c.json({
+        success: true,
+        storage: 'r2',
+        imported: bookingResult.imported,
+        skipped: bookingResult.skipped,
+        total: bookingResult.total,
+        template_imported: templateResult.imported,
+        template_skipped: templateResult.skipped,
+        template_total: templateResult.total,
+        errors: [...bookingResult.errors, ...templateResult.errors].slice(0, 10),
+      })
     }
     return c.json({
       success: false,
@@ -219,11 +249,50 @@ exportRoutes.post('/import', async (c) => {
     }
   }
 
+  let templateImported = 0
+  let templateSkipped = 0
+  if (templatesToImport.length > 0) {
+    await execute(c.env, `
+      CREATE TABLE IF NOT EXISTS email_templates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        key TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        body TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+      )
+    `)
+    for (const raw of templatesToImport) {
+      if (!raw || typeof raw !== 'object') { templateSkipped++; continue }
+      const template = raw as Record<string, unknown>
+      if (!template.key || !template.subject || !template.body) { templateSkipped++; continue }
+      try {
+        await execute(c.env, `
+          INSERT INTO email_templates (key, name, subject, body, updated_at)
+          VALUES (?, ?, ?, ?, datetime('now'))
+          ON CONFLICT(key) DO UPDATE SET
+            name = excluded.name,
+            subject = excluded.subject,
+            body = excluded.body,
+            updated_at = datetime('now')
+        `, [template.key, template.name || template.key, template.subject, template.body])
+        templateImported++
+      } catch (e: unknown) {
+        templateSkipped++
+        errors.push(`Template ${template.key ?? '?'}: ${String(e)}`)
+      }
+    }
+  }
+
   return c.json({
     success: true,
     imported,
     skipped,
     errors: errors.slice(0, 10), // max 10 foutmeldingen teruggeven
     total: bookingsToImport.length,
+    template_imported: templateImported,
+    template_skipped: templateSkipped,
+    template_total: templatesToImport.length,
   })
 })
