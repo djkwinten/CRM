@@ -1,5 +1,7 @@
 import { Hono } from 'hono'
 import { query, queryOne, execute } from '../lib/db'
+import { createCloudVenue, deleteCloudVenue, findCloudVenue, patchCloudVenue, readCloudVenues } from '../lib/cloudVenues'
+import { readCloudBookings } from '../lib/cloudBookings'
 
 type Bindings = {
   DB?: D1Database
@@ -40,6 +42,14 @@ interface VenueRow {
 // ── GET /api/venues — lijst met booking_count ──────────────────────────────
 
 venuesRoutes.get('/', async (c) => {
+  if (!c.env.DB && c.env.STORAGE) {
+    const [venues, bookings] = await Promise.all([readCloudVenues(c.env), readCloudBookings(c.env)])
+    const withCount = venues.map(v => ({
+      ...v,
+      booking_count: bookings.filter(b => Number(b.venue_id) === Number(v.id)).length,
+    }))
+    return c.json({ venues: withCount, storage: 'r2' })
+  }
   const venues = await query<VenueRow>(c.env, `
     SELECT v.*,
       (SELECT COUNT(*) FROM bookings b WHERE b.venue_id = v.id) as booking_count
@@ -55,6 +65,15 @@ venuesRoutes.get('/', async (c) => {
 venuesRoutes.get('/suggest', async (c) => {
   const q = c.req.query('q') || ''
   if (!q.trim()) return c.json({ venues: [] })
+  if (!c.env.DB && c.env.STORAGE) {
+    const needle = q.trim().toLowerCase()
+    const [venues, bookings] = await Promise.all([readCloudVenues(c.env), readCloudBookings(c.env)])
+    const suggestions = venues
+      .filter(v => String(v.naam || '').toLowerCase().includes(needle))
+      .slice(0, 8)
+      .map(v => ({ id: v.id!, naam: v.naam, adres: v.adres || null, booking_count: bookings.filter(b => Number(b.venue_id) === Number(v.id)).length }))
+    return c.json({ venues: suggestions, storage: 'r2' })
+  }
   const venues = await query<{ id: number; naam: string; adres: string | null; booking_count: number }>(
     c.env,
     `SELECT v.id, v.naam, v.adres,
@@ -72,6 +91,11 @@ venuesRoutes.get('/suggest', async (c) => {
 
 venuesRoutes.get('/:id', async (c) => {
   const id = c.req.param('id')
+  if (!c.env.DB && c.env.STORAGE) {
+    const [venue, bookings] = await Promise.all([findCloudVenue(c.env, id), readCloudBookings(c.env)])
+    if (!venue) return c.json({ error: 'Zaal niet gevonden' }, 404)
+    return c.json({ venue: { ...venue, booking_count: bookings.filter(b => Number(b.venue_id) === Number(venue.id)).length }, storage: 'r2' })
+  }
   const venue = await queryOne<VenueRow>(c.env, `
     SELECT v.*,
       (SELECT COUNT(*) FROM bookings b WHERE b.venue_id = v.id) as booking_count
@@ -86,6 +110,12 @@ venuesRoutes.get('/:id', async (c) => {
 
 venuesRoutes.get('/:id/bookings', async (c) => {
   const id = c.req.param('id')
+  if (!c.env.DB && c.env.STORAGE) {
+    const bookings = (await readCloudBookings(c.env))
+      .filter(b => Number(b.venue_id) === Number(id))
+      .sort((a, b) => String(b.feest_datum || '').localeCompare(String(a.feest_datum || '')))
+    return c.json({ bookings, storage: 'r2' })
+  }
   const bookings = await query<{
     id: number
     feest_datum: string
@@ -109,6 +139,10 @@ venuesRoutes.get('/:id/bookings', async (c) => {
 venuesRoutes.post('/', async (c) => {
   const body = await c.req.json()
   if (!body.naam?.trim()) return c.json({ error: 'Naam is verplicht' }, 400)
+  if (!c.env.DB && c.env.STORAGE) {
+    const venue = await createCloudVenue(c.env, body)
+    return c.json({ success: true, id: venue.id, storage: 'r2' })
+  }
 
   const bool = (v: unknown) => (v ? 1 : 0)
 
@@ -150,6 +184,38 @@ venuesRoutes.post('/', async (c) => {
 // ── POST /api/venues/populate — auto-import vanuit boekingen ─────────────
 
 venuesRoutes.post('/populate', async (c) => {
+  if (!c.env.DB && c.env.STORAGE) {
+    const bookings = await readCloudBookings(c.env)
+    const venues = await readCloudVenues(c.env)
+    const knownVenueNames = new Set(venues.map(v => String(v.naam || '').trim().toLowerCase()).filter(Boolean))
+    let created = 0
+    let linked = 0
+    let skipped = 0
+    for (const b of bookings) {
+      const name = String(b.locatie_naam || '').trim()
+      const key = name.toLowerCase()
+      if (!name) { skipped++; continue }
+      if (knownVenueNames.has(key)) { skipped++; continue }
+      await createCloudVenue(c.env, {
+        naam: name,
+        adres: b.locatie_adres as string | null,
+        contact_naam: b.zaal_contact as string | null,
+        wifi_code: b.wifi_code as string | null,
+        parkeren_info: b.parkeren_info as string | null,
+        gelijkvloers: Number(b.gelijkvloers ?? 1),
+        speakers_aanwezig: Number(b.speakers_aanwezig ?? 0),
+        licht_aanwezig: Number(b.licht_aanwezig ?? 0),
+        micro_aanwezig: Number(b.micro_aanwezig ?? 0),
+        dj_booth_aanwezig: Number(b.dj_booth_aanwezig ?? 0),
+        uplights_aanwezig: Number(b.uplights_aanwezig ?? 0),
+        speakers_buiten: Number(b.speakers_buiten ?? 0),
+        fotos: b.zaal_fotos as string | null,
+      })
+      knownVenueNames.add(key)
+      created++
+    }
+    return c.json({ success: true, created, linked, skipped, storage: 'r2' })
+  }
   // Haal unieke locatienamen op die nog niet gekoppeld zijn
   const rows = await query<{
     locatie_naam: string
@@ -239,6 +305,11 @@ venuesRoutes.post('/populate', async (c) => {
 venuesRoutes.patch('/:id', async (c) => {
   const id = c.req.param('id')
   const body = await c.req.json()
+  if (!c.env.DB && c.env.STORAGE) {
+    const venue = await patchCloudVenue(c.env, id, body)
+    if (!venue) return c.json({ error: 'Zaal niet gevonden' }, 404)
+    return c.json({ success: true, storage: 'r2' })
+  }
 
   const bool = (v: unknown) => (v ? 1 : 0)
   const fields: string[] = []
@@ -281,6 +352,15 @@ venuesRoutes.patch('/:id', async (c) => {
 venuesRoutes.delete('/:id', async (c) => {
   const id = c.req.param('id')
   const force = c.req.query('force') === 'true'
+  if (!c.env.DB && c.env.STORAGE) {
+    const bookings = await readCloudBookings(c.env)
+    const bookingCount = bookings.filter(b => Number(b.venue_id) === Number(id)).length
+    if (bookingCount > 0 && !force) {
+      return c.json({ error: `Kan niet verwijderen: ${bookingCount} boeking(en) gekoppeld aan deze zaal.`, booking_count: bookingCount }, 409)
+    }
+    await deleteCloudVenue(c.env, id)
+    return c.json({ success: true, storage: 'r2' })
+  }
 
   // Check gekoppelde boekingen
   const count = await queryOne<{ cnt: number }>(

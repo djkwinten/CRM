@@ -2,6 +2,7 @@ import { Hono } from 'hono'
 import { query, execute } from '../lib/db'
 import { importCloudBookings, readCloudBookings } from '../lib/cloudBookings'
 import { extractTemplatesFromBackupBody, importCloudTemplates, readCloudTemplates } from '../lib/cloudTemplates'
+import { extractVenuesFromBackupBody, importCloudVenues, readCloudVenues } from '../lib/cloudVenues'
 
 type Bindings = {
   DB?: D1Database
@@ -45,14 +46,17 @@ exportRoutes.get('/bookings.json', async (c) => {
   if (!c.env.DB) {
     if (c.env.STORAGE) {
       const bookings = await readCloudBookings(c.env)
+      const venues = await readCloudVenues(c.env)
       const emailTemplates = await readCloudTemplates(c.env)
       const exportData = {
         exported_at: new Date().toISOString(),
-        version: 2,
+        version: 3,
         storage: 'r2',
         count: bookings.length,
+        venue_count: venues.length,
         template_count: emailTemplates.length,
         bookings,
+        venues,
         email_templates: emailTemplates,
       }
       return new Response(JSON.stringify(exportData, null, 2), {
@@ -78,13 +82,16 @@ exportRoutes.get('/bookings.json', async (c) => {
     )
   `)
   const bookings = await query(c.env, `SELECT * FROM bookings ORDER BY feest_datum ASC`)
+  const venues = await query(c.env, `SELECT * FROM venues ORDER BY naam ASC`)
   const emailTemplates = await query(c.env, `SELECT * FROM email_templates ORDER BY id ASC`)
   const exportData = {
     exported_at: new Date().toISOString(),
-    version: 2,
+    version: 3,
     count: bookings.length,
+    venue_count: venues.length,
     template_count: emailTemplates.length,
     bookings,
+    venues,
     email_templates: emailTemplates,
   }
   return new Response(JSON.stringify(exportData, null, 2), {
@@ -156,18 +163,20 @@ exportRoutes.post('/import', async (c) => {
   }
 
   const bookingsToImport = extractBookingsFromImportBody(body) || []
+  const venuesToImport = extractVenuesFromBackupBody(body) || []
   const templatesToImport = extractTemplatesFromBackupBody(body) || []
 
-  if (bookingsToImport.length === 0 && templatesToImport.length === 0) {
+  if (bookingsToImport.length === 0 && venuesToImport.length === 0 && templatesToImport.length === 0) {
     return c.json({
       success: false,
-      error: 'Geen boekingen of e-mailtemplates gevonden in het bestand. Ondersteunde velden: "bookings" en "email_templates".',
+      error: 'Geen boekingen, zalen of e-mailtemplates gevonden in het bestand. Ondersteunde velden: "bookings", "venues" en "email_templates".',
     }, 400)
   }
 
   if (!c.env.DB) {
     if (c.env.STORAGE) {
       const bookingResult = bookingsToImport.length ? await importCloudBookings(c.env, bookingsToImport) : { imported: 0, skipped: 0, total: 0, errors: [] as string[] }
+      const venueResult = await importCloudVenues(c.env, venuesToImport)
       const templateResult = await importCloudTemplates(c.env, templatesToImport)
       return c.json({
         success: true,
@@ -175,10 +184,13 @@ exportRoutes.post('/import', async (c) => {
         imported: bookingResult.imported,
         skipped: bookingResult.skipped,
         total: bookingResult.total,
+        venue_imported: venueResult.imported,
+        venue_skipped: venueResult.skipped,
+        venue_total: venueResult.total,
         template_imported: templateResult.imported,
         template_skipped: templateResult.skipped,
         template_total: templateResult.total,
-        errors: [...bookingResult.errors, ...templateResult.errors].slice(0, 10),
+        errors: [...bookingResult.errors, ...venueResult.errors, ...templateResult.errors].slice(0, 10),
       })
     }
     return c.json({
@@ -249,6 +261,74 @@ exportRoutes.post('/import', async (c) => {
     }
   }
 
+
+  let venueImported = 0
+  let venueSkipped = 0
+  if (venuesToImport.length > 0) {
+    await execute(c.env, `
+      CREATE TABLE IF NOT EXISTS venues (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        naam TEXT NOT NULL,
+        adres TEXT,
+        capaciteit INTEGER,
+        contact_naam TEXT,
+        contact_telefoon TEXT,
+        contact_email TEXT,
+        geluidsbeperking INTEGER DEFAULT 0,
+        geluidsbeperking_db INTEGER,
+        speakers_aanwezig INTEGER DEFAULT 0,
+        licht_aanwezig INTEGER DEFAULT 0,
+        micro_aanwezig INTEGER DEFAULT 0,
+        dj_booth_aanwezig INTEGER DEFAULT 0,
+        uplights_aanwezig INTEGER DEFAULT 0,
+        speakers_buiten INTEGER DEFAULT 0,
+        parkeren_info TEXT,
+        gelijkvloers INTEGER DEFAULT 1,
+        wifi_code TEXT,
+        fotos TEXT,
+        notities TEXT,
+        afstand_km REAL,
+        rijtijd_min INTEGER,
+        website TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      )
+    `)
+    const allowedVenueColumns = new Set([
+      'id', 'naam', 'adres', 'capaciteit', 'contact_naam', 'contact_telefoon', 'contact_email', 'website',
+      'geluidsbeperking', 'geluidsbeperking_db', 'speakers_aanwezig', 'licht_aanwezig', 'micro_aanwezig',
+      'dj_booth_aanwezig', 'uplights_aanwezig', 'speakers_buiten', 'parkeren_info', 'gelijkvloers',
+      'wifi_code', 'fotos', 'notities', 'afstand_km', 'rijtijd_min', 'created_at', 'updated_at'
+    ])
+    for (const raw of venuesToImport) {
+      if (!raw || typeof raw !== 'object') { venueSkipped++; continue }
+      const venue = raw as Record<string, unknown>
+      if (!venue.naam) { venueSkipped++; continue }
+      const cols = Object.keys(venue).filter(k => allowedVenueColumns.has(k) && k !== 'id' && k !== 'booking_count')
+      if (cols.length === 0) { venueSkipped++; continue }
+      const vals = cols.map(k => venue[k] ?? null)
+      try {
+        const existing = await queryOne<{ id: number }>(c.env, `SELECT id FROM venues WHERE LOWER(naam) = LOWER(?) LIMIT 1`, [venue.naam])
+        if (existing) {
+          const assignments = cols.filter(k => k !== 'naam').map(k => `${k} = ?`)
+          const updateVals = cols.filter(k => k !== 'naam').map(k => venue[k] ?? null)
+          if (assignments.length > 0) {
+            assignments.push("updated_at = datetime('now')")
+            updateVals.push(existing.id)
+            await execute(c.env, `UPDATE venues SET ${assignments.join(', ')} WHERE id = ?`, updateVals)
+          }
+        } else {
+          const placeholders = cols.map(() => '?').join(', ')
+          await execute(c.env, `INSERT INTO venues (${cols.join(', ')}) VALUES (${placeholders})`, vals)
+        }
+        venueImported++
+      } catch (e: unknown) {
+        venueSkipped++
+        errors.push(`Zaal ${venue.naam ?? '?'}: ${String(e)}`)
+      }
+    }
+  }
+
   let templateImported = 0
   let templateSkipped = 0
   if (templatesToImport.length > 0) {
@@ -291,6 +371,9 @@ exportRoutes.post('/import', async (c) => {
     skipped,
     errors: errors.slice(0, 10), // max 10 foutmeldingen teruggeven
     total: bookingsToImport.length,
+    venue_imported: venueImported,
+    venue_skipped: venueSkipped,
+    venue_total: venuesToImport.length,
     template_imported: templateImported,
     template_skipped: templateSkipped,
     template_total: templatesToImport.length,

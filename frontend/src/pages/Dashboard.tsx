@@ -685,6 +685,12 @@ type ImportApiResult = {
   imported?: number
   skipped?: number
   total?: number
+  venue_imported?: number
+  venue_skipped?: number
+  venue_total?: number
+  template_imported?: number
+  template_skipped?: number
+  template_total?: number
   errors?: string[]
   error?: string
 }
@@ -712,6 +718,24 @@ function extractBookingsFromBackupBody(body: unknown): unknown[] | null {
   }
 
   return null
+}
+
+function extractArrayFromBackupBody(body: unknown, keys: string[]): unknown[] {
+  if (!body || typeof body !== 'object') return []
+  const obj = body as Record<string, unknown>
+  for (const key of keys) {
+    if (Array.isArray(obj[key])) return obj[key] as unknown[]
+  }
+  for (const wrapperKey of ['data', 'backup', 'export', 'payload']) {
+    const nested = obj[wrapperKey]
+    if (nested && typeof nested === 'object') {
+      const nestedObj = nested as Record<string, unknown>
+      for (const key of keys) {
+        if (Array.isArray(nestedObj[key])) return nestedObj[key] as unknown[]
+      }
+    }
+  }
+  return []
 }
 
 const LARGE_IMPORT_FIELDS = new Set([
@@ -760,11 +784,11 @@ function chunkBookingsBySize(bookings: unknown[], maxPayloadBytes = 75_000): unk
   return chunks
 }
 
-async function postImportChunk(endpoint: string, bookings: unknown[]): Promise<ImportApiResult> {
+async function postImportChunk(endpoint: string, bookings: unknown[], extra: { venues?: unknown[]; email_templates?: unknown[] } = {}): Promise<ImportApiResult> {
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ bookings }),
+    body: JSON.stringify({ bookings, ...extra }),
   })
 
   const responseText = await res.text()
@@ -802,8 +826,17 @@ function BackupModal({ onClose, onImported }: { onClose: () => void; onImported:
   }
 
   const handleLocalJsonExport = async () => {
+    try {
+      const res = await fetch(`${API_ROOT}/api/export/bookings.json`)
+      if (res.ok) {
+        const content = await res.text()
+        downloadTextFile(`dj-kwinten-crm-backup-${new Date().toISOString().slice(0, 10)}.json`, content, 'application/json')
+        return
+      }
+    } catch { /* fallback hieronder */ }
+
     const data = await getBookings()
-    downloadTextFile(`dj-kwinten-crm-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ exported_at: new Date().toISOString(), bookings: data }, null, 2), 'application/json')
+    downloadTextFile(`dj-kwinten-crm-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ exported_at: new Date().toISOString(), version: 1, bookings: data }, null, 2), 'application/json')
   }
 
   const handleLocalCsvExport = async () => {
@@ -835,9 +868,11 @@ function BackupModal({ onClose, onImported }: { onClose: () => void; onImported:
 
       const endpoint = `${API_ROOT}/api/export/import`
 
-      const bookingsToImport = extractBookingsFromBackupBody(json)
-      if (!bookingsToImport || bookingsToImport.length === 0) {
-        setImportError('Geen boekingen gevonden in het bestand. Ondersteunde formaten: { "bookings": [...] }, een directe array [...], { "data": [...] } of { "data": { "bookings": [...] } }.')
+      const bookingsToImport = extractBookingsFromBackupBody(json) || []
+      const venuesToImport = extractArrayFromBackupBody(json, ['venues', 'zalen'])
+      const templatesToImport = extractArrayFromBackupBody(json, ['email_templates', 'templates', 'emailTemplates'])
+      if (bookingsToImport.length === 0 && venuesToImport.length === 0 && templatesToImport.length === 0) {
+        setImportError('Geen boekingen, zalen of e-mailtemplates gevonden in het bestand. Ondersteunde velden: "bookings", "venues" en "email_templates".')
         setImporting(false)
         return
       }
@@ -846,13 +881,22 @@ function BackupModal({ onClose, onImported }: { onClose: () => void; onImported:
       const chunks = chunkBookingsBySize(sanitizedBookings)
       let imported = 0
       let skipped = 0
+      let venueImported = 0
+      let venueSkipped = 0
+      let templateImported = 0
+      let templateSkipped = 0
       const errors: string[] = []
 
       try {
-        for (let i = 0; i < chunks.length; i++) {
-          const result = await postImportChunk(endpoint, chunks[i])
+        const chunksToSend = chunks.length ? chunks : [[]]
+        for (let i = 0; i < chunksToSend.length; i++) {
+          const result = await postImportChunk(endpoint, chunksToSend[i], i === 0 ? { venues: venuesToImport, email_templates: templatesToImport } : {})
           imported += result.imported || 0
           skipped += result.skipped || 0
+          venueImported += result.venue_imported || 0
+          venueSkipped += result.venue_skipped || 0
+          templateImported += result.template_imported || 0
+          templateSkipped += result.template_skipped || 0
           errors.push(...(result.errors || []))
         }
       } catch (serverErr) {
@@ -864,7 +908,11 @@ function BackupModal({ onClose, onImported }: { onClose: () => void; onImported:
         errors.push('Cloud database niet beschikbaar; backup is lokaal in deze browser hersteld.')
       }
 
-      setImportResult({ imported, skipped, errors: errors.slice(0, 10) })
+      setImportResult({
+        imported: imported + venueImported + templateImported,
+        skipped: skipped + venueSkipped + templateSkipped,
+        errors: errors.slice(0, 10),
+      })
       onImported() // herlaad de dashboard-lijst
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Onbekende fout'
