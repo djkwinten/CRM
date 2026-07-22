@@ -4,6 +4,7 @@ import { Booking } from '../types/booking'
 import { format, parseISO } from 'date-fns'
 import { nl } from 'date-fns/locale'
 import logoUrl from '../assets/logo-dj-kwinten.jpg'
+import { getWeddingFormulaFromExtraPrices, isWeddingBooking, WeddingFormula } from '../config/weddingFormulas'
 
 const DJ_INFO = {
   naam: 'Den Tandt Kwinten (DJ Kwinten)',
@@ -41,12 +42,13 @@ function euroFmt(val?: number | null) {
 }
 
 /** Bereken totaal vanuit basisprijs + extra_prijzen JSON — zelfde logica als BookingDetail */
-function berekenTotaal(b: Booking): { basisprijs: number; extras: { label: string; prijs: number }[]; korting: number; totaal: number; kmInfo?: string } {
+function berekenTotaal(b: Booking): { basisprijs: number; extras: { label: string; prijs: number }[]; korting: number; totaal: number; kmInfo?: string; formule?: WeddingFormula | null } {
   const basisprijs = Number(b.basisprijs) || 0
   let extraPrijzen: Record<string, number> = {}
   try { extraPrijzen = JSON.parse(b.extra_prijzen || '{}') } catch {}
 
   const korting = Number(extraPrijzen['_korting']) || 0
+  const formule = isWeddingBooking(b) ? getWeddingFormulaFromExtraPrices(b.extra_prijzen) : null
   const extras: { label: string; prijs: number }[] = []
 
   for (const [key, label] of Object.entries(EXTRA_LABELS)) {
@@ -70,7 +72,7 @@ function berekenTotaal(b: Booking): { basisprijs: number; extras: { label: strin
 
   const extrasTotal = extras.reduce((s, e) => s + e.prijs, 0)
   const totaal = Math.max(0, Number(basisprijs) + extrasTotal - korting)
-  return { basisprijs, extras, korting, totaal, kmInfo }
+  return { basisprijs, extras, korting, totaal, kmInfo, formule }
 }
 
 /** Gebruik de unwrapped jsPDF output functie — omzeilt de SAFE wrapper die errors slikt */
@@ -125,7 +127,7 @@ function _buildContractPDF(booking: Booking): jsPDF {
     : '—'
   const gegeneerdOp = format(new Date(), 'd MMMM yyyy', { locale: nl })
 
-  const { basisprijs, extras, korting, totaal, kmInfo } = berekenTotaal(booking)
+  const { basisprijs, extras, korting, totaal, kmInfo, formule } = berekenTotaal(booking)
   const restbedrag = Math.max(0, totaal - VOORSCHOT)
   const voorzieningen = Object.entries(VOORZIENING_LABELS)
     .filter(([key]) => !!(booking as unknown as Record<string, unknown>)[key])
@@ -240,6 +242,18 @@ function _buildContractPDF(booking: Booking): jsPDF {
   // Het contract bevat enkel de basis eventgegevens, financiële afspraken en voorwaarden.
 
   // Voorzieningen en extra's
+  const voorzieningenRows = [
+    ...(formule ? [
+      ['Trouwformule', `${formule.emoji} ${formule.label}`],
+      ['Inbegrepen', formule.includes.join('\n')],
+    ] : []),
+    ['Voorzieningen', voorzieningen.length ? voorzieningen.join(', ') : '—'],
+    ["Extra's", geselecteerdeExtras.length ? geselecteerdeExtras.join(', ') : "Geen extra's geselecteerd"],
+    ["Opmerking", formule
+      ? "De gekozen formule vormt de basis van deze offerte. Extra's en wijzigingen kunnen later in onderling overleg worden aangepast."
+      : "Deze voorzieningen en extra's zijn gebaseerd op de huidige informatie en kunnen later in onderling overleg nog aangepast worden."],
+  ]
+
   autoTable(doc, {
     startY: y,
     margin: { left: margin, right: margin },
@@ -249,11 +263,7 @@ function _buildContractPDF(booking: Booking): jsPDF {
       0: { fontStyle: 'bold', textColor: [80, 80, 80], cellWidth: 45 },
       1: { textColor: [20, 20, 20] },
     },
-    body: [
-      ['Voorzieningen', voorzieningen.length ? voorzieningen.join(', ') : '—'],
-      ["Extra's", geselecteerdeExtras.length ? geselecteerdeExtras.join(', ') : "Geen extra's geselecteerd"],
-      ["Opmerking", "Deze voorzieningen en extra's zijn gebaseerd op de huidige informatie en kunnen later in onderling overleg nog aangepast worden."],
-    ],
+    body: voorzieningenRows,
     alternateRowStyles: { fillColor: [248, 250, 255] },
   })
   y = (doc as any).lastAutoTable.finalY + 5
@@ -273,7 +283,7 @@ function _buildContractPDF(booking: Booking): jsPDF {
 
   if (basisprijs > 0) {
     prijsRows.push([
-      'Basisprijs DJ Kwinten',
+      formule ? `Trouwformule — ${formule.label}` : 'Basisprijs DJ Kwinten',
       { content: euroFmt(basisprijs), styles: { halign: 'right', textColor: [20, 20, 20] } }
     ])
   }

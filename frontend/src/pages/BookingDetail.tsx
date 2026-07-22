@@ -14,6 +14,7 @@ import { generateContractPDFBase64 } from '../lib/contractPDF'
 import { WorkspaceTabs } from '../features/event-workspace/components/WorkspaceTabs'
 import { EventWorkspace } from '../features/event-workspace/EventWorkspace'
 import { WorkspaceTab } from '../features/event-workspace/types'
+import { WEDDING_FORMULAS, WEDDING_FORMULA_EXTRA_KEY, getWeddingFormula, parseExtraPrices, stringifyExtraPrices, formatEuro } from '../config/weddingFormulas'
 
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -247,8 +248,7 @@ export function BookingDetail() {
     setBooking(data)
     if (data) {
       // Auto-fill standaardprijzen voor geselecteerde extra's zonder prijs
-      let extraPrijzen: Record<string, string> = {}
-      try { extraPrijzen = JSON.parse(data.extra_prijzen || '{}') } catch {}
+      let extraPrijzen: Record<string, string> = parseExtraPrices(data.extra_prijzen)
       for (const [key, defaultPrijs] of Object.entries(DEFAULT_EXTRA_PRIJZEN)) {
         const isGeselecteerd = !!(data as unknown as Record<string, unknown>)[key]
         if (isGeselecteerd && !extraPrijzen[key]) {
@@ -651,8 +651,9 @@ export function BookingDetail() {
               draadloze_speaker: 'Extra Luidspreker',
               karaoke: 'Karaoke',
             }
-            let extraPrijzen: Record<string, string> = {}
-            try { extraPrijzen = JSON.parse(contractForm.extra_prijzen || '{}') } catch {}
+            const extraPrijzen: Record<string, string> = parseExtraPrices(contractForm.extra_prijzen)
+            const gekozenFormule = getWeddingFormula(extraPrijzen[WEDDING_FORMULA_EXTRA_KEY])
+            const isTrouwfeest = booking.type_feest === 'Trouw'
 
             const basisVal = contractForm.basisprijs ? parseFloat(contractForm.basisprijs) : 0
             const kortingVal = parseFloat(extraPrijzen['_korting'] || '0')
@@ -676,7 +677,7 @@ export function BookingDetail() {
 
             const updateExtraPreis = (key: string, val: string) => {
               const updated = { ...extraPrijzen, [key]: val }
-              setContractForm(p => ({ ...p, extra_prijzen: JSON.stringify(updated), totaalprijs: recalc(p.basisprijs, updated) }))
+              setContractForm(p => ({ ...p, extra_prijzen: stringifyExtraPrices(updated), totaalprijs: recalc(p.basisprijs, updated) }))
             }
 
             const updateBasis = (val: string) => {
@@ -685,7 +686,19 @@ export function BookingDetail() {
 
             const updateKorting = (val: string) => {
               const updated = { ...extraPrijzen, _korting: val }
-              setContractForm(p => ({ ...p, extra_prijzen: JSON.stringify(updated), totaalprijs: recalc(p.basisprijs, updated) }))
+              setContractForm(p => ({ ...p, extra_prijzen: stringifyExtraPrices(updated), totaalprijs: recalc(p.basisprijs, updated) }))
+            }
+
+            const updateWeddingFormula = (formulaKey: string) => {
+              const formula = getWeddingFormula(formulaKey)
+              if (!formula) return
+              const updated = { ...extraPrijzen, [WEDDING_FORMULA_EXTRA_KEY]: formula.key }
+              setContractForm(p => ({
+                ...p,
+                basisprijs: String(formula.price),
+                extra_prijzen: stringifyExtraPrices(updated),
+                totaalprijs: recalc(String(formula.price), updated),
+              }))
             }
 
             const updateKm = (key: '_km_gratis' | '_km_afstand' | '_km_ritten' | '_km_prijs', val: string) => {
@@ -697,7 +710,7 @@ export function BookingDetail() {
               const vergoeding = Math.max(0, afstand - gratis) * ritten * prijs
               if (vergoeding > 0) updated._km_vergoeding = vergoeding.toFixed(2)
               else delete updated._km_vergoeding
-              setContractForm(p => ({ ...p, extra_prijzen: JSON.stringify(updated), totaalprijs: recalc(p.basisprijs, updated) }))
+              setContractForm(p => ({ ...p, extra_prijzen: stringifyExtraPrices(updated), totaalprijs: recalc(p.basisprijs, updated) }))
             }
 
             const kmGratis = parseFloat(extraPrijzen._km_gratis || '20') || 0
@@ -707,6 +720,49 @@ export function BookingDetail() {
 
             return (
               <div className="mb-4 space-y-3">
+                {isTrouwfeest && (
+                  <div className="bg-pink-50 border border-pink-200 rounded-xl p-3 space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <label className="text-xs font-bold text-pink-700 uppercase tracking-wider">Trouwformule</label>
+                        <p className="text-[11px] text-pink-600 mt-0.5">Bepaalt automatisch de basisprijs. Manueel aanpassen blijft mogelijk.</p>
+                      </div>
+                      {gekozenFormule && <span className="text-xs font-bold text-pink-700 bg-white border border-pink-200 rounded-full px-2.5 py-1">{formatEuro(gekozenFormule.price)}</span>}
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {WEDDING_FORMULAS.map(formule => (
+                        <button
+                          key={formule.key}
+                          type="button"
+                          onClick={() => updateWeddingFormula(formule.key)}
+                          className={`text-left rounded-xl border p-3 transition-all ${
+                            gekozenFormule?.key === formule.key
+                              ? 'bg-white border-pink-500 ring-2 ring-pink-200'
+                              : 'bg-white/70 border-pink-100 hover:border-pink-300'
+                          }`}
+                        >
+                          <div className="text-lg">{formule.emoji}</div>
+                          <div className="text-xs font-bold text-gray-900 mt-1 leading-tight">{formule.shortLabel}</div>
+                          <div className="text-xs text-pink-600 font-semibold mt-1">{formatEuro(formule.price)}</div>
+                        </button>
+                      ))}
+                    </div>
+                    {gekozenFormule && (
+                      <details className="bg-white rounded-xl border border-pink-100 px-3 py-2">
+                        <summary className="cursor-pointer text-xs font-bold text-gray-700">Inbegrepen in {gekozenFormule.label}</summary>
+                        <ul className="mt-2 space-y-1.5 text-xs text-gray-600 list-disc pl-4">
+                          {gekozenFormule.includes.map(item => <li key={item}>{item}</li>)}
+                        </ul>
+                      </details>
+                    )}
+                    {!gekozenFormule && (
+                      <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                        Oude trouwofferte zonder formule. Kies hierboven een formule om het nieuwe systeem te gebruiken; de huidige basisprijs blijft intussen behouden.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {/* Basisprijs + Korting rij */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">

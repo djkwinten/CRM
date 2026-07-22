@@ -12,6 +12,7 @@ import { format, parseISO } from 'date-fns'
 import { nl } from 'date-fns/locale'
 import { BottomTabBar } from '../components/BottomTabBar'
 import { importLocalBookings } from '../lib/localStore'
+import { WEDDING_FORMULAS, WEDDING_FORMULA_EXTRA_KEY, stringifyExtraPrices, getDefaultWeddingFormula } from '../config/weddingFormulas'
 
 function displayNaam(b: Booking): string {
   if (b.type_feest === 'Trouw' && (b.naam_partner1 || b.naam_partner2)) {
@@ -352,7 +353,7 @@ function MailPreviewModal({ booking, templateKey, onClose, onSent }: { booking: 
 }
 
 function NewBookingModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [form, setForm] = useState<{ is_aanvraag: boolean; feest_datum: string; type_feest: 'Trouw' | 'Algemeen'; is_verjaardag: boolean; naam_organisator: string; naam_partner1: string; naam_partner2: string; naam_jarige: string; email: string; telefoon: string; adres_organisator: string; btw_nr: string; basisprijs: string; locatie_naam: string; locatie_adres: string; venue_id: number | null; speakers_aanwezig: boolean; licht_aanwezig: boolean; dj_booth_aanwezig: boolean; opmerkingen: string }>({ is_aanvraag: true, feest_datum: '', type_feest: 'Algemeen', is_verjaardag: false, naam_organisator: '', naam_partner1: '', naam_partner2: '', naam_jarige: '', email: '', telefoon: '', adres_organisator: '', btw_nr: '', basisprijs: '', locatie_naam: '', locatie_adres: '', venue_id: null, speakers_aanwezig: true, licht_aanwezig: true, dj_booth_aanwezig: true, opmerkingen: '' })
+  const [form, setForm] = useState<{ is_aanvraag: boolean; feest_datum: string; type_feest: 'Trouw' | 'Algemeen'; trouw_formule: string; is_verjaardag: boolean; naam_organisator: string; naam_partner1: string; naam_partner2: string; naam_jarige: string; email: string; telefoon: string; adres_organisator: string; btw_nr: string; basisprijs: string; locatie_naam: string; locatie_adres: string; venue_id: number | null; speakers_aanwezig: boolean; licht_aanwezig: boolean; dj_booth_aanwezig: boolean; opmerkingen: string }>({ is_aanvraag: true, feest_datum: '', type_feest: 'Algemeen', trouw_formule: getDefaultWeddingFormula().key, is_verjaardag: false, naam_organisator: '', naam_partner1: '', naam_partner2: '', naam_jarige: '', email: '', telefoon: '', adres_organisator: '', btw_nr: '', basisprijs: '', locatie_naam: '', locatie_adres: '', venue_id: null, speakers_aanwezig: true, licht_aanwezig: true, dj_booth_aanwezig: true, opmerkingen: '' })
   const [loading, setLoading] = useState(false)
   const [venueSuggestions, setVenueSuggestions] = useState<VenueSuggestion[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -372,6 +373,9 @@ function NewBookingModal({ onClose, onCreated }: { onClose: () => void; onCreate
     if (form.adres_organisator) payload.adres_organisator = form.adres_organisator
     if (form.btw_nr) payload.btw_nr = form.btw_nr
     if (form.basisprijs) payload.basisprijs = parseFloat(form.basisprijs)
+    if (form.type_feest === 'Trouw') {
+      payload.extra_prijzen = stringifyExtraPrices({ [WEDDING_FORMULA_EXTRA_KEY]: form.trouw_formule })
+    }
     if (form.naam_partner1) payload.naam_partner1 = form.naam_partner1
     if (form.naam_partner2) payload.naam_partner2 = form.naam_partner2
     if (form.naam_jarige) payload.verjaardag_naam_leeftijd = form.naam_jarige
@@ -426,7 +430,16 @@ function NewBookingModal({ onClose, onCreated }: { onClose: () => void; onCreate
           </div>
           <div>
             <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Type Feest *</label>
-            <select value={form.type_feest} onChange={e => setForm(p => ({...p, type_feest: e.target.value as 'Trouw' | 'Algemeen'}))}
+            <select value={form.type_feest} onChange={e => setForm(p => {
+                const nextType = e.target.value as 'Trouw' | 'Algemeen'
+                const formula = getDefaultWeddingFormula()
+                return {
+                  ...p,
+                  type_feest: nextType,
+                  trouw_formule: nextType === 'Trouw' ? formula.key : p.trouw_formule,
+                  basisprijs: nextType === 'Trouw' && !p.basisprijs ? String(formula.price) : p.basisprijs,
+                }
+              })}
               className="mt-1 w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-3 py-2.5 focus:outline-none focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/20 transition-all">
               <option value="Algemeen">Algemeen Feest</option>
               <option value="Trouw">Trouwfeest</option>
@@ -451,6 +464,20 @@ function NewBookingModal({ onClose, onCreated }: { onClose: () => void; onCreate
                 <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Partner 2</label>
                 <input type="text" placeholder="Voornaam Achternaam" value={form.naam_partner2} onChange={e => setForm(p => ({...p, naam_partner2: e.target.value}))}
                   className="mt-1 w-full bg-white border border-pink-200 text-gray-900 rounded-xl px-3 py-2.5 focus:outline-none focus:border-pink-400 focus:ring-2 focus:ring-pink-400/20 placeholder-gray-400 transition-all" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Formule</label>
+                <select
+                  value={form.trouw_formule}
+                  onChange={e => {
+                    const formule = WEDDING_FORMULAS.find(f => f.key === e.target.value) || getDefaultWeddingFormula()
+                    setForm(p => ({ ...p, trouw_formule: formule.key, basisprijs: String(formule.price) }))
+                  }}
+                  className="mt-1 w-full bg-white border border-pink-200 text-gray-900 rounded-xl px-3 py-2.5 focus:outline-none focus:border-pink-400 focus:ring-2 focus:ring-pink-400/20 transition-all"
+                >
+                  {WEDDING_FORMULAS.map(f => <option key={f.key} value={f.key}>{f.emoji} {f.label} — € {f.price}</option>)}
+                </select>
+                <p className="text-[11px] text-pink-600 mt-1">Deze formule vult automatisch de basisprijs in. Je kan de prijs hieronder nog aanpassen.</p>
               </div>
             </div>
           )}

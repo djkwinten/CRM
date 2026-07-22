@@ -6,6 +6,7 @@ import { getBooking } from '../lib/api'
 import { Booking } from '../types/booking'
 import { format, parseISO } from 'date-fns'
 import { nl } from 'date-fns/locale'
+import { getWeddingFormulaFromExtraPrices, isWeddingBooking } from '../config/weddingFormulas'
 
 class PricingOverviewErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
   constructor(props: { children: ReactNode }) {
@@ -34,9 +35,10 @@ export function generatePricingOverview(booking: Booking, dateStr: string) {
       {/* ── PAGINA 2: PRIJSOVERZICHT ── */}
       {(() => {
         const basisprijs = Number(booking.basisprijs) || 0
-        let extraPrijzenDJ: Record<string, number> = {}
+        let extraPrijzenDJ: Record<string, number | string> = {}
         try { extraPrijzenDJ = JSON.parse(booking.extra_prijzen || '{}') } catch {}
         const korting = Number(extraPrijzenDJ['_korting']) || 0
+        const gekozenFormule = isWeddingBooking(booking) ? getWeddingFormulaFromExtraPrices(booking.extra_prijzen) : null
 
         const EXTRAS_INFO: { key: string; label: string; emoji: string; prijs: number | null; opAanvraag?: boolean }[] = [
           { key: 'ceremonie_set',     label: 'Ceremonie Set',              emoji: '🎵', prijs: 250 },
@@ -86,11 +88,25 @@ export function generatePricingOverview(booking: Booking, dateStr: string) {
             {/* Prijsdetail tabel */}
             <div className="mb-6">
               <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500 border-b border-gray-300 pb-1 mb-3">Gekozen opties</h2>
+              {gekozenFormule && (
+                <div className="mb-4 rounded-xl border border-pink-200 bg-pink-50 p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-xs font-bold uppercase tracking-widest text-pink-700">Trouwformule</p>
+                      <p className="text-base font-black text-gray-900 mt-1">{gekozenFormule.emoji} {gekozenFormule.label}</p>
+                    </div>
+                    <p className="text-lg font-black text-pink-700">€ {basisprijs.toFixed(2)}</p>
+                  </div>
+                  <ul className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-5 gap-y-1 text-xs text-gray-700 list-disc pl-4">
+                    {gekozenFormule.includes.map(item => <li key={item}>{item}</li>)}
+                  </ul>
+                </div>
+              )}
               <table className="w-full">
                 <tbody>
                   {basisprijs > 0 && (
                     <tr className="border-b border-gray-100">
-                      <td className="py-2.5 text-sm text-gray-700 font-medium">🎧 DJ Kwinten — Basisprijs</td>
+                      <td className="py-2.5 text-sm text-gray-700 font-medium">{gekozenFormule ? `${gekozenFormule.emoji} Formule — ${gekozenFormule.label}` : '🎧 DJ Kwinten — Basisprijs'}</td>
                       <td className="py-2.5 text-sm font-bold text-black text-right">€ {basisprijs.toFixed(2)}</td>
                     </tr>
                   )}
