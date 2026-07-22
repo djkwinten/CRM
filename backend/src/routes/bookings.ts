@@ -67,6 +67,7 @@ const bookingListColumns: Record<string, string> = {
   slug: 'NULL',
   access_token: 'NULL',
   portal_title: 'NULL',
+  extra_prijzen: 'NULL',
   contract_info_unlocked: '0',
   is_aanvraag: '0',
   is_afgewezen: '0',

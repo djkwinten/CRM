@@ -12,7 +12,7 @@ import { format, parseISO } from 'date-fns'
 import { nl } from 'date-fns/locale'
 import { BottomTabBar } from '../components/BottomTabBar'
 import { importLocalBookings } from '../lib/localStore'
-import { WEDDING_FORMULAS, WEDDING_FORMULA_EXTRA_KEY, stringifyExtraPrices, getDefaultWeddingFormula } from '../config/weddingFormulas'
+import { WEDDING_FORMULAS, WEDDING_FORMULA_EXTRA_KEY, stringifyExtraPrices, getDefaultWeddingFormula, getWeddingFormulaFromExtraPrices } from '../config/weddingFormulas'
 
 function displayNaam(b: Booking): string {
   if (b.type_feest === 'Trouw' && (b.naam_partner1 || b.naam_partner2)) {
@@ -53,6 +53,26 @@ function formatMeetingDate(value?: string | null): string {
   const d = new Date(normalized)
   if (Number.isNaN(d.getTime())) return value
   return format(d, 'd MMM yyyy HH:mm', { locale: nl })
+}
+
+function WeddingFormulaBadge({ booking }: { booking: Booking }) {
+  if (booking.type_feest !== 'Trouw') return null
+  const formula = getWeddingFormulaFromExtraPrices(booking.extra_prijzen)
+  if (!formula) return null
+  const compactLabel: Record<string, string> = {
+    avondfeest: 'Avond',
+    receptie_avondfeest: 'Receptie',
+    ceremonie_receptie_avondfeest: 'Ceremonie',
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-pink-50 text-pink-600 border border-pink-100 whitespace-nowrap"
+      title={`${formula.label} — € ${formula.price}`}
+    >
+      <span>{formula.emoji}</span>
+      {compactLabel[formula.key] || formula.shortLabel}
+    </span>
+  )
 }
 
 function WeddingMeetingBadge({ booking, compact = false }: { booking: Booking; compact?: boolean }) {
@@ -1393,6 +1413,7 @@ export function Dashboard() {
                           <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 whitespace-nowrap">
                             <Clock size={10} /> Aanvraag
                           </span>
+                          <WeddingFormulaBadge booking={b} />
                         </div>
                         <div className="flex items-center gap-1 mt-0.5 text-xs text-gray-500">
                           <Calendar size={11} />
@@ -1506,6 +1527,7 @@ export function Dashboard() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-semibold text-gray-900 text-sm leading-tight">{displayNaam(b)}</h3>
                           <span className="text-xs text-gray-400">{b.type_feest}</span>
+                          <WeddingFormulaBadge booking={b} />
                         </div>
                         <div className="flex items-center gap-1 mt-0.5 text-xs text-gray-500 flex-wrap">
                           <Calendar size={11} />
