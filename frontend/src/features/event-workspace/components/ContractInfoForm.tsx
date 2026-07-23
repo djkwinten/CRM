@@ -44,9 +44,11 @@ export function ContractInfoForm({
 }) {
   const withDefaultTech = (info: BookingContractInfo): BookingContractInfo => ({
     ...info,
-    geluid_voorzien: 1,
-    licht_voorzien: 1,
-    dj_booth_nodig: 1,
+    // Alleen standaard op JA zetten als er helemaal geen waarde bestaat.
+    // Een expliciete 0 uit de boeking betekent: bewust uitgevinkt, dus behouden.
+    geluid_voorzien: info.geluid_voorzien ?? 1,
+    licht_voorzien: info.licht_voorzien ?? 1,
+    dj_booth_nodig: info.dj_booth_nodig ?? 1,
   })
   const [form, setForm] = useState<BookingContractInfo>(() => withDefaultTech(initial))
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')

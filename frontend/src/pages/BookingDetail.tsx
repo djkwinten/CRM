@@ -312,17 +312,21 @@ export function BookingDetail() {
 
   const openContractInfoForCustomer = async () => {
     if (!booking) return
-    const code = prompt('Voer de code in om Contract Info opnieuw open te zetten voor de klant:')
+    const code = prompt('Voer de code in om Contract Info opnieuw open te zetten:')
     if (code !== '7777') { if (code !== null) alert('Ongeldige code.'); return }
-    await updateContractInfo(booking.id, { contract_info_unlocked: 1 })
-    setBooking(prev => prev ? { ...prev, contract_info_unlocked: 1 } : prev)
-    alert('Contract Info staat opnieuw open op de klantpagina. De bestaande PDF blijft bewaard tot je het contract hernieuwt.')
+    const res = await updateContractInfo(booking.id, { contract_info_unlocked: 1 })
+    if (res?.error) { alert('Openzetten mislukt: ' + res.error); return }
+    const fresh = await getBooking(String(booking.id))
+    setBooking(fresh ? { ...fresh, contract_info_unlocked: 1 } : { ...booking, contract_info_unlocked: 1 })
+    alert('Contract Info staat opnieuw open. Je kan de gegevens nu opnieuw wijzigen via het tabblad Contract Info of via de klantpagina.')
   }
 
   const closeContractInfoForCustomer = async () => {
     if (!booking) return
-    await updateContractInfo(booking.id, { contract_info_unlocked: 0 })
-    setBooking(prev => prev ? { ...prev, contract_info_unlocked: 0 } : prev)
+    const res = await updateContractInfo(booking.id, { contract_info_unlocked: 0 })
+    if (res?.error) { alert('Sluiten mislukt: ' + res.error); return }
+    const fresh = await getBooking(String(booking.id))
+    setBooking(fresh ? { ...fresh, contract_info_unlocked: 0 } : { ...booking, contract_info_unlocked: 0 })
   }
 
   const saveBasisInfo = async () => {
