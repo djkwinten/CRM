@@ -120,7 +120,6 @@ CREATE TABLE IF NOT EXISTS bookings (
   billit_factuur_pdf TEXT,
   billit_factuur_naam TEXT,
   contract_pdf TEXT,
-  contract_info_unlocked INTEGER NOT NULL DEFAULT 0,
 
   -- Trouw-afspraak
   wedding_meeting_at TEXT,
@@ -130,6 +129,14 @@ CREATE TABLE IF NOT EXISTS bookings (
   reminder_sent_at TEXT,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
+);
+
+-- Aparte compatibele opslag voor het tijdelijk heropenen van Contract Info.
+-- Dit voorkomt dat oudere, brede D1-tabellen tijdens een gebruikersactie moeten wijzigen.
+CREATE TABLE IF NOT EXISTS booking_contract_unlocks (
+  booking_id INTEGER PRIMARY KEY,
+  unlocked INTEGER NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS internal_todos (

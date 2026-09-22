@@ -88,11 +88,41 @@ async function bookingColumnSet(env: Bindings) {
   return new Set(rows.map(r => r.name))
 }
 
+async function ensureContractUnlocksTable(env: Bindings) {
+  await execute(env, `
+    CREATE TABLE IF NOT EXISTS booking_contract_unlocks (
+      booking_id INTEGER PRIMARY KEY,
+      unlocked INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `)
+}
+
+function bookingSelectField(name: string, fallback: string, existing: Set<string>) {
+  if (name === 'contract_info_unlocked') {
+    const legacyValue = existing.has(name) ? 'bookings.contract_info_unlocked' : '0'
+    return `COALESCE((SELECT unlocked FROM booking_contract_unlocks cu WHERE cu.booking_id = bookings.id), ${legacyValue}, 0) AS contract_info_unlocked`
+  }
+  return existing.has(name) ? name : `${fallback} AS ${name}`
+}
+
+async function setContractUnlockState(env: Bindings, bookingId: string, unlocked: unknown) {
+  await ensureContractUnlocksTable(env)
+  await execute(env, `
+    INSERT INTO booking_contract_unlocks (booking_id, unlocked, updated_at)
+    VALUES (?, ?, datetime('now'))
+    ON CONFLICT(booking_id) DO UPDATE SET
+      unlocked = excluded.unlocked,
+      updated_at = datetime('now')
+  `, [bookingId, unlocked ? 1 : 0])
+}
+
 async function bookingListSelectSql(env: Bindings) {
   await ensureWeddingMeetingsTable(env)
+  await ensureContractUnlocksTable(env)
   const existing = await bookingColumnSet(env)
   const fields = Object.entries(bookingListColumns).map(([name, fallback]) =>
-    existing.has(name) ? name : `${fallback} AS ${name}`
+    bookingSelectField(name, fallback, existing)
   )
   const orderBy = existing.has('feest_datum') ? 'ORDER BY feest_datum ASC' : 'ORDER BY id ASC'
   return `SELECT ${fields.join(', ')} FROM bookings ${orderBy}`
@@ -184,9 +214,10 @@ const bookingDetailColumns: Record<string, string> = {
 
 async function bookingDetailSelectFields(env: Bindings) {
   await ensureWeddingMeetingsTable(env)
+  await ensureContractUnlocksTable(env)
   const existing = await bookingColumnSet(env)
   const fields = Object.entries(bookingDetailColumns).map(([name, fallback]) =>
-    existing.has(name) ? name : `${fallback} AS ${name}`
+    bookingSelectField(name, fallback, existing)
   )
   fields.push(existing.has('contract_pdf')
     ? `CASE WHEN contract_pdf IS NOT NULL AND contract_pdf != '' THEN 1 ELSE 0 END as has_contract_pdf`
@@ -401,8 +432,6 @@ bookingsRoutes.post('/init', async (c) => {
       `ALTER TABLE bookings ADD COLUMN afgewezen_reden TEXT`,
       // Klantportaal
       `ALTER TABLE bookings ADD COLUMN portal_title TEXT`,
-      // Laat DJ tijdelijk Contract Info opnieuw openzetten ondanks bestaand contract/PDF
-      `ALTER TABLE bookings ADD COLUMN contract_info_unlocked INTEGER NOT NULL DEFAULT 0`,
       `ALTER TABLE bookings ADD COLUMN leveranciers_info TEXT`,
       `ALTER TABLE bookings ADD COLUMN werk_partner1 TEXT`,
       `ALTER TABLE bookings ADD COLUMN werk_partner2 TEXT`,
@@ -951,7 +980,6 @@ async function ensureQuestionnaireColumns(env: Bindings) {
     `ALTER TABLE bookings ADD COLUMN vragenlijst_diff TEXT`,
     `ALTER TABLE bookings ADD COLUMN feedback_vragenlijst TEXT`,
     `ALTER TABLE bookings ADD COLUMN feedback_herkomst TEXT`,
-    `ALTER TABLE bookings ADD COLUMN contract_info_unlocked INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE bookings ADD COLUMN leveranciers_info TEXT`,
     `ALTER TABLE bookings ADD COLUMN werk_partner1 TEXT`,
     `ALTER TABLE bookings ADD COLUMN werk_partner2 TEXT`,
@@ -990,11 +1018,14 @@ bookingsRoutes.patch('/:id/status', async (c) => {
   if (body.is_aanvraag !== undefined) { fields.push('is_aanvraag = ?'); values.push(body.is_aanvraag ? 1 : 0) }
   if (body.is_afgewezen !== undefined) { fields.push('is_afgewezen = ?'); values.push(body.is_afgewezen ? 1 : 0) }
   if (body.afgewezen_reden !== undefined) { fields.push('afgewezen_reden = ?'); values.push(body.afgewezen_reden || null) }
-  if (body.contract_info_unlocked !== undefined) { fields.push('contract_info_unlocked = ?'); values.push(body.contract_info_unlocked ? 1 : 0) }
-  if (fields.length === 0) return c.json({ error: 'No fields to update' }, 400)
-  fields.push("updated_at = datetime('now')")
-  values.push(id)
-  await execute(c.env, `UPDATE bookings SET ${fields.join(', ')} WHERE id = ?`, values)
+  const updatesContractUnlock = body.contract_info_unlocked !== undefined
+  if (fields.length === 0 && !updatesContractUnlock) return c.json({ error: 'No fields to update' }, 400)
+  if (fields.length > 0) {
+    fields.push("updated_at = datetime('now')")
+    values.push(id)
+    await execute(c.env, `UPDATE bookings SET ${fields.join(', ')} WHERE id = ?`, values)
+  }
+  if (updatesContractUnlock) await setContractUnlockState(c.env, id, body.contract_info_unlocked)
   return c.json({ success: true })
 })
 
@@ -1247,7 +1278,6 @@ bookingsRoutes.patch('/:id/contract', async (c) => {
     await patchCloudBooking(c.env, id, body)
     return c.json({ success: true, storage: 'r2' })
   }
-  try { await execute(c.env, `ALTER TABLE bookings ADD COLUMN contract_info_unlocked INTEGER NOT NULL DEFAULT 0`) } catch { /* already exists */ }
   const fields: string[] = []
   const values: unknown[] = []
   if (body.totaalprijs !== undefined) { fields.push('totaalprijs = ?'); values.push(body.totaalprijs) }
@@ -1258,11 +1288,14 @@ bookingsRoutes.patch('/:id/contract', async (c) => {
   if (body.billit_factuur_pdf !== undefined) { fields.push('billit_factuur_pdf = ?'); values.push(body.billit_factuur_pdf) }
   if (body.billit_factuur_naam !== undefined) { fields.push('billit_factuur_naam = ?'); values.push(body.billit_factuur_naam) }
   if (body.contract_pdf !== undefined) { fields.push('contract_pdf = ?'); values.push(body.contract_pdf) }
-  if (body.contract_info_unlocked !== undefined) { fields.push('contract_info_unlocked = ?'); values.push(body.contract_info_unlocked ? 1 : 0) }
-  if (fields.length === 0) return c.json({ error: 'No fields to update' }, 400)
-  fields.push("updated_at = datetime('now')")
-  values.push(id)
-  await execute(c.env, `UPDATE bookings SET ${fields.join(', ')} WHERE id = ?`, values)
+  const updatesContractUnlock = body.contract_info_unlocked !== undefined
+  if (fields.length === 0 && !updatesContractUnlock) return c.json({ error: 'No fields to update' }, 400)
+  if (fields.length > 0) {
+    fields.push("updated_at = datetime('now')")
+    values.push(id)
+    await execute(c.env, `UPDATE bookings SET ${fields.join(', ')} WHERE id = ?`, values)
+  }
+  if (updatesContractUnlock) await setContractUnlockState(c.env, id, body.contract_info_unlocked)
   return c.json({ success: true })
 })
 
@@ -1301,6 +1334,7 @@ bookingsRoutes.delete('/:id', async (c) => {
   // Ruim gekoppelde records eerst op, zodat oude D1 databases met FK constraints niet falen.
   try { await execute(c.env, 'DELETE FROM booking_files WHERE booking_id = ?', [id]) } catch { /* table may not exist */ }
   try { await execute(c.env, 'DELETE FROM booking_contract_info WHERE booking_id = ?', [id]) } catch { /* table may not exist */ }
+  try { await execute(c.env, 'DELETE FROM booking_contract_unlocks WHERE booking_id = ?', [id]) } catch { /* table may not exist */ }
   await execute(c.env, 'DELETE FROM bookings WHERE id = ?', [id])
   return c.json({ success: true })
 })
