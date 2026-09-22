@@ -1,10 +1,10 @@
-import jsPDF from 'jspdf'
+import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { Booking } from '../types/booking'
 import { format, parseISO } from 'date-fns'
 import { nl } from 'date-fns/locale'
 import logoUrl from '../assets/logo-dj-kwinten.jpg'
-import { getWeddingFormulaFromExtraPrices, isWeddingBooking, WeddingFormula } from '../config/weddingFormulas'
+import { DISCOUNT_NOTE_EXTRA_KEY, getExpandedWeddingFormulaIncludes, getWeddingFormulaFromExtraPrices, isWeddingBooking, parseExtraPrices, WeddingFormula } from '../config/weddingFormulas'
 
 const DJ_INFO = {
   naam: 'Den Tandt Kwinten (DJ Kwinten)',
@@ -42,18 +42,19 @@ function euroFmt(val?: number | null) {
 }
 
 /** Bereken totaal vanuit basisprijs + extra_prijzen JSON — zelfde logica als BookingDetail */
-function berekenTotaal(b: Booking): { basisprijs: number; extras: { label: string; prijs: number }[]; korting: number; totaal: number; kmInfo?: string; formule?: WeddingFormula | null } {
+function berekenTotaal(b: Booking): { basisprijs: number; extras: { label: string; prijs: number }[]; korting: number; kortingUitleg?: string; totaal: number; kmInfo?: string; formule?: WeddingFormula | null } {
   const basisprijs = Number(b.basisprijs) || 0
-  let extraPrijzen: Record<string, number> = {}
-  try { extraPrijzen = JSON.parse(b.extra_prijzen || '{}') } catch {}
+  const extraPrijzen = parseExtraPrices(b.extra_prijzen)
 
   const korting = Number(extraPrijzen['_korting']) || 0
+  const kortingUitleg = String(extraPrijzen[DISCOUNT_NOTE_EXTRA_KEY] || '').trim() || undefined
   const formule = isWeddingBooking(b) ? getWeddingFormulaFromExtraPrices(b.extra_prijzen) : null
   const extras: { label: string; prijs: number }[] = []
 
   for (const [key, label] of Object.entries(EXTRA_LABELS)) {
     const isGeselecteerd = !!(b as unknown as Record<string, unknown>)[key]
-    if (isGeselecteerd) {
+    const isHistorischeCeremonie = key === 'ceremonie_set' && !!formule
+    if (isGeselecteerd && !isHistorischeCeremonie) {
       const prijs = Number(extraPrijzen[key] ?? 0)
       extras.push({ label, prijs })
     }
@@ -67,12 +68,12 @@ function berekenTotaal(b: Booking): { basisprijs: number; extras: { label: strin
   let kmInfo: string | undefined
   if (kmVergoeding > 0) {
     extras.push({ label: 'Kilometervergoeding', prijs: kmVergoeding })
-    kmInfo = `${Math.max(0, kmAfstand - kmGratis).toFixed(1).replace('.', ',')} betalende km × ${kmRitten} ritten × € ${kmPrijs.toFixed(2).replace('.', ',')}/km (eerste ${kmGratis} km gratis)`
+    kmInfo = `${Math.max(0, kmAfstand - kmGratis).toFixed(1).replace('.', ',')} betalende km x ${kmRitten} ritten x € ${kmPrijs.toFixed(2).replace('.', ',')}/km (eerste ${kmGratis} km gratis)`
   }
 
   const extrasTotal = extras.reduce((s, e) => s + e.prijs, 0)
   const totaal = Math.max(0, Number(basisprijs) + extrasTotal - korting)
-  return { basisprijs, extras, korting, totaal, kmInfo, formule }
+  return { basisprijs, extras, korting, kortingUitleg, totaal, kmInfo, formule }
 }
 
 /** Gebruik de unwrapped jsPDF output functie — omzeilt de SAFE wrapper die errors slikt */
@@ -127,12 +128,9 @@ function _buildContractPDF(booking: Booking): jsPDF {
     : '—'
   const gegeneerdOp = format(new Date(), 'd MMMM yyyy', { locale: nl })
 
-  const { basisprijs, extras, korting, totaal, kmInfo, formule } = berekenTotaal(booking)
+  const { basisprijs, extras, korting, kortingUitleg, totaal, kmInfo, formule } = berekenTotaal(booking)
   const restbedrag = Math.max(0, totaal - VOORSCHOT)
   const voorzieningen = Object.entries(VOORZIENING_LABELS)
-    .filter(([key]) => !!(booking as unknown as Record<string, unknown>)[key])
-    .map(([, label]) => label)
-  const geselecteerdeExtras = Object.entries(EXTRA_LABELS)
     .filter(([key]) => !!(booking as unknown as Record<string, unknown>)[key])
     .map(([, label]) => label)
 
@@ -241,32 +239,72 @@ function _buildContractPDF(booking: Booking): jsPDF {
   // Tijdschema bewust niet opnemen in het contract.
   // Het contract bevat enkel de basis eventgegevens, financiële afspraken en voorwaarden.
 
-  // Voorzieningen en extra's
+  // Formule en voorzieningen compact samenvatten.
+  const formuleInbegrepen = formule ? getExpandedWeddingFormulaIncludes(formule) : []
   const voorzieningenRows = [
     ...(formule ? [
-      ['Trouwformule', `${formule.emoji} ${formule.label}`],
-      ['Inbegrepen', formule.includes.join('\n')],
+      ['Trouwformule', formule.label],
+      ['Aanwezigheid DJ', formule.arrivalMoment],
     ] : []),
     ['Voorzieningen', voorzieningen.length ? voorzieningen.join(', ') : '—'],
-    ["Extra's", geselecteerdeExtras.length ? geselecteerdeExtras.join(', ') : "Geen extra's geselecteerd"],
-    ["Opmerking", formule
-      ? "De gekozen formule vormt de basis van deze offerte. Extra's en wijzigingen kunnen later in onderling overleg worden aangepast."
-      : "Deze voorzieningen en extra's zijn gebaseerd op de huidige informatie en kunnen later in onderling overleg nog aangepast worden."],
   ]
 
   autoTable(doc, {
     startY: y,
     margin: { left: margin, right: margin },
     theme: 'plain',
-    styles: { fontSize: 8, cellPadding: { top: 2.2, bottom: 2.2, left: 4, right: 4 }, overflow: 'linebreak' },
+    styles: { fontSize: 7.6, cellPadding: { top: 1.5, bottom: 1.5, left: 3, right: 3 }, overflow: 'linebreak' },
     columnStyles: {
-      0: { fontStyle: 'bold', textColor: [80, 80, 80], cellWidth: 45 },
+      0: { fontStyle: 'bold', textColor: [80, 80, 80], cellWidth: 40 },
       1: { textColor: [20, 20, 20] },
     },
     body: voorzieningenRows,
     alternateRowStyles: { fillColor: [248, 250, 255] },
   })
-  y = (doc as any).lastAutoTable.finalY + 5
+  y = (doc as any).lastAutoTable.finalY + 2
+
+  if (formuleInbegrepen.length) {
+    const aantalKolommen = 3
+    const inbegrepenRows = []
+    for (let index = 0; index < formuleInbegrepen.length; index += aantalKolommen) {
+      inbegrepenRows.push(Array.from({ length: aantalKolommen }, (_, offset) => {
+        const item = formuleInbegrepen[index + offset]
+        return item ? `• ${item}` : ''
+      }))
+    }
+
+    autoTable(doc, {
+      startY: y,
+      margin: { left: margin, right: margin },
+      theme: 'grid',
+      head: [[{ content: 'INBEGREPEN IN DE TROUWFORMULE', colSpan: aantalKolommen }]],
+      body: inbegrepenRows,
+      styles: {
+        fontSize: 7,
+        cellPadding: { top: 1.1, bottom: 1.1, left: 2.5, right: 2.5 },
+        overflow: 'linebreak',
+        lineColor: [225, 232, 242],
+        lineWidth: 0.15,
+        valign: 'middle',
+      },
+      headStyles: {
+        fillColor: [235, 245, 255],
+        textColor: [0, 80, 180],
+        fontStyle: 'bold',
+        fontSize: 7.3,
+        cellPadding: { top: 1.5, bottom: 1.5, left: 3, right: 3 },
+      },
+      columnStyles: {
+        0: { cellWidth: contentW / aantalKolommen },
+        1: { cellWidth: contentW / aantalKolommen },
+        2: { cellWidth: contentW / aantalKolommen },
+      },
+      alternateRowStyles: { fillColor: [249, 251, 255] },
+    })
+    y = (doc as any).lastAutoTable.finalY + 5
+  } else {
+    y += 3
+  }
 
   // ── SECTIE 3: FINANCIËLE AFSPRAKEN ───────────────────────────────────────
   doc.setTextColor(0, 122, 255)
@@ -283,7 +321,7 @@ function _buildContractPDF(booking: Booking): jsPDF {
 
   if (basisprijs > 0) {
     prijsRows.push([
-      formule ? `Trouwformule — ${formule.label}` : 'Basisprijs DJ Kwinten',
+      formule ? `Trouwformule: ${formule.label}` : 'Basisprijs DJ Kwinten',
       { content: euroFmt(basisprijs), styles: { halign: 'right', textColor: [20, 20, 20] } }
     ])
   }
@@ -304,7 +342,7 @@ function _buildContractPDF(booking: Booking): jsPDF {
 
   if (korting > 0) {
     prijsRows.push([
-      { content: 'Korting', styles: { textColor: [34, 139, 34] } },
+      { content: kortingUitleg ? `Korting\n${kortingUitleg}` : 'Korting', styles: { textColor: [34, 139, 34] } },
       { content: `- ${euroFmt(korting)}`, styles: { halign: 'right', textColor: [34, 139, 34] } }
     ])
   }
@@ -328,7 +366,7 @@ function _buildContractPDF(booking: Booking): jsPDF {
     startY: y,
     margin: { left: margin, right: margin },
     theme: 'plain',
-    styles: { fontSize: 9, cellPadding: { top: 3, bottom: 3, left: 4, right: 4 } },
+    styles: { fontSize: 8, cellPadding: { top: 1.6, bottom: 1.6, left: 3, right: 3 } },
     columnStyles: {
       0: { cellWidth: 130 },
       1: { cellWidth: 'auto' },
@@ -337,17 +375,7 @@ function _buildContractPDF(booking: Booking): jsPDF {
     alternateRowStyles: { fillColor: [248, 250, 255] },
   })
 
-  y = (doc as any).lastAutoTable.finalY + 3
-
-  // Prijsvoorbehoud noot
-  doc.setFont('helvetica', 'italic')
-  doc.setFontSize(7)
-  doc.setTextColor(120, 120, 120)
-  doc.text(
-    'Bovenstaande prijs betreft de basisprijs. Naargelang bijkomende opties of wijzigingen kan de prijs worden aangepast in onderling overleg.',
-    margin, y
-  )
-  y += 6
+  y = (doc as any).lastAutoTable.finalY + 4
 
   // Betalingsinstructies box
   const instrText = 'Voor de bevestiging van uw boeking vragen wij een vast voorschot van € 100,00. U krijgt hiervan binnenkort een Billit factuur via mail.'
@@ -355,16 +383,16 @@ function _buildContractPDF(booking: Booking): jsPDF {
   doc.setFillColor(235, 245, 255)
   doc.setDrawColor(0, 122, 255)
   doc.setLineWidth(0.3)
-  doc.roundedRect(margin, y, contentW, 14, 2, 2, 'FD')
+  doc.roundedRect(margin, y, contentW, 11, 2, 2, 'FD')
   doc.setTextColor(0, 80, 180)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(7.5)
-  doc.text('Betaalinstructies:', margin + 3, y + 5)
+  doc.setFontSize(7)
+  doc.text('Betaalinstructies:', margin + 3, y + 4)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(30, 30, 80)
   const instrLines = doc.splitTextToSize(instrText, contentW - 6)
-  doc.text(instrLines[0] || instrText, margin + 3, y + 10)
-  y += 19
+  doc.text(instrLines[0] || instrText, margin + 3, y + 8)
+  y += 14
 
   // ── SECTIE 4: ALGEMENE VOORWAARDEN — altijd op nieuwe pagina ─────────────
   doc.addPage()
@@ -388,68 +416,41 @@ function _buildContractPDF(booking: Booking): jsPDF {
     ['4. Aansprakelijkheid',
       'De DJ is niet aansprakelijk voor schade, verlies of diefstal van persoonlijke bezittingen van gasten, noch voor schade aan het evenemententerrein veroorzaakt door derden.'],
     ['5. Verzekeringen, Schade & Veiligheid',
-      'De organisator beschikt over een polis burgerlijke aansprakelijkheid. De DJ is verzekerd voor schade die hij zelf aan derden veroorzaakt.\n\nSchade of diefstal van apparatuur door derden (gasten, bezoekers, dieren…) valt niet onder de DJ-verzekering en kan integraal worden verhaald op de organisator of diens verzekering.\n\nOpzettelijke of nalatige schade: De organisator is volledig financieel verantwoordelijk voor schade aan DJ-apparatuur die opzettelijk of door grove nalatigheid wordt veroorzaakt (bijv. mic drops, beschadiging uplights, morsen van drank). Kosten voor herstel/vervanging worden bepaald door een erkend reparateur.'],
+      'De organisator beschikt over een polis burgerlijke aansprakelijkheid. De DJ is verzekerd voor schade die hij zelf aan derden veroorzaakt.\nSchade of diefstal van apparatuur door derden (gasten, bezoekers, dieren…) valt niet onder de DJ-verzekering en kan integraal worden verhaald op de organisator of diens verzekering.\nOpzettelijke of nalatige schade: De organisator is volledig financieel verantwoordelijk voor schade aan DJ-apparatuur die opzettelijk of door grove nalatigheid wordt veroorzaakt (bijv. mic drops, beschadiging uplights, morsen van drank). Kosten voor herstel/vervanging worden bepaald door een erkend reparateur.'],
     ['6. Voorzieningen',
       'De klant/organisator draagt er zorg voor dat er voldoende tafels of voorzieningen aanwezig zijn waar drank en andere consumpties veilig kunnen worden geplaatst. Het is niet toegestaan om apparatuur van de DJ (waaronder luidsprekers, booth, mengpanelen en flightcases) als tafel of afzetruimte te gebruiken.'],
     ['7. Varia',
-      'Consumpties voor de DJ dienen voorzien te worden op kosten van de organisator, alsook een warme maaltijd indien het aanvangsuur van de DJ voor 20u ligt.\n\nDe DJ-prestaties zijn ingevolge artikel 44§2,8° van het wetboek vrijgesteld van BTW.'],
+      'Consumpties voor de DJ dienen voorzien te worden op kosten van de organisator, alsook een warme maaltijd indien het aanvangsuur van de DJ voor 20u ligt.\nDe DJ-prestaties zijn ingevolge artikel 44§2,8° van het wetboek vrijgesteld van BTW.'],
     ['8. Beeldmateriaal',
-      'De DJ heeft het recht om tijdens het evenement foto- en video-opnames te maken voor veiligheids- en bewijsdoeleinden. Deze worden niet openbaar gemaakt en enkel gebruikt indien noodzakelijk. De organisator erkent dat deze opnames kunnen dienen als bewijsmateriaal (bijv. bij schade door gasten).\n\nGebruik voor promotionele doeleinden (website, sociale media) gebeurt enkel met voorafgaande toestemming.'],
+      'De DJ heeft het recht om tijdens het evenement foto- en video-opnames te maken voor veiligheids- en bewijsdoeleinden. Deze worden niet openbaar gemaakt en enkel gebruikt indien noodzakelijk. De organisator erkent dat deze opnames kunnen dienen als bewijsmateriaal (bijv. bij schade door gasten).\nGebruik voor promotionele doeleinden (website, sociale media) gebeurt enkel met voorafgaande toestemming.'],
+    ['Akkoord & bevestiging',
+      'Door betaling van het voorschot van € 100,00 bevestigt de opdrachtgever kennis te hebben genomen van en akkoord te gaan met alle bovenstaande voorwaarden.'],
+    ...(booking.billit_factuur_naam ? [[
+      'Bijlage',
+      `Billit voorschotfactuur — ${booking.billit_factuur_naam} (zie factuur voor QR-code betaling voorschot)`,
+    ]] : []),
   ]
 
   autoTable(doc, {
     startY: y,
-    margin: { left: margin, right: margin },
-    theme: 'plain',
-    styles: { fontSize: 8, cellPadding: { top: 3, bottom: 3, left: 4, right: 4 }, overflow: 'linebreak' },
-    columnStyles: {
-      0: { fontStyle: 'bold', textColor: [60, 60, 60], cellWidth: 48 },
-      1: { textColor: [40, 40, 40] },
+    margin: { left: margin, right: margin, bottom: 14 },
+    theme: 'grid',
+    styles: {
+      fontSize: 8.25,
+      cellPadding: { top: 2.4, bottom: 2.4, left: 3.5, right: 3.5 },
+      overflow: 'linebreak',
+      valign: 'top',
+      lineColor: [226, 229, 236],
+      lineWidth: 0.15,
     },
+    columnStyles: {
+      0: { fontStyle: 'bold', textColor: [45, 55, 70], cellWidth: 47, fillColor: [244, 248, 255] },
+      1: { textColor: [35, 35, 40] },
+    },
+    rowPageBreak: 'avoid',
     body: voorwaarden,
-    alternateRowStyles: { fillColor: [248, 248, 252] },
+    alternateRowStyles: { fillColor: [250, 250, 252] },
   })
-
-  y = (doc as any).lastAutoTable.finalY + 10
-
-  // ── ONDERTEKENINGSBLOK ────────────────────────────────────────────────────
-  if (y > 245) {
-    doc.addPage()
-    y = 20
-  }
-
-  doc.setTextColor(0, 122, 255)
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
-  doc.text('AKKOORD & BEVESTIGING', margin, y)
-  doc.setDrawColor(0, 122, 255)
-  doc.line(margin, y + 1.5, pageW - margin, y + 1.5)
-  y += 8
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  doc.setTextColor(60, 60, 60)
-  const akkoordTekst = 'Door betaling van het voorschot van € 100,00 bevestigt de opdrachtgever kennis te hebben genomen van en akkoord te gaan met alle bovenstaande voorwaarden. De opdrachtgever begrijpt dat de vermelde prijs een basisprijs is en dat de uiteindelijke prijs kan worden aangepast naargelang bijkomende opties of wijzigingen.'
-  doc.text(doc.splitTextToSize(akkoordTekst, contentW), margin, y)
-  y += 12
-
-  y += 4
-
-  if (booking.billit_factuur_naam) {
-    doc.setFillColor(235, 245, 255)
-    doc.roundedRect(margin, y, contentW, 10, 2, 2, 'F')
-    doc.setFont('helvetica', 'bold')
-    doc.setFontSize(7.5)
-    doc.setTextColor(0, 80, 180)
-    doc.text('Bijlage:', margin + 3, y + 4.5)
-    doc.setFont('helvetica', 'normal')
-    doc.setTextColor(40, 40, 120)
-    doc.text(`Billit Voorschotfactuur — ${booking.billit_factuur_naam}`, margin + 18, y + 4.5)
-    doc.setFontSize(6.5)
-    doc.setTextColor(100, 100, 150)
-    doc.text('(Zie factuur voor QR-code betaling voorschot)', margin + 3, y + 8.5)
-    y += 14
-  }
 
   // ── FOOTER op elke pagina ─────────────────────────────────────────────────
   const totalPages = doc.getNumberOfPages()

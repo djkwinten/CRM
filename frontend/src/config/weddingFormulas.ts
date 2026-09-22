@@ -8,10 +8,16 @@ export type WeddingFormula = {
   shortLabel: string
   price: number
   emoji: string
+  arrivalMoment: string
   includes: string[]
 }
 
 export const WEDDING_FORMULA_EXTRA_KEY = '_trouw_formule'
+export const DISCOUNT_NOTE_EXTRA_KEY = '_korting_uitleg'
+
+export const WEDDING_TIMING_NOTICE = 'De gekozen trouwformule bepaalt vanaf welk moment DJ Kwinten aanwezig is. Avondfeest: vanaf het hoofdgerecht. Receptie + avondfeest: vanaf de receptie (+ € 100 ten opzichte van Avondfeest). Ceremonie + receptie + avondfeest: vanaf de ceremonie (+ € 350 ten opzichte van Avondfeest). Een zaalintrede is alleen mogelijk vanaf de formule Receptie + avondfeest. Muzikale of technische begeleiding van de ceremonie behoort uitsluitend tot de formule Ceremonie + receptie + avondfeest. Elke wijziging wordt vooraf in onderling overleg bevestigd.'
+
+export const WEDDING_FORMULA_FOOTNOTE = '(*) De professionele installatie is inbegrepen wanneer DJ Kwinten ze voorziet. Verplaatsing is inbegrepen binnen een straal van 20 km rond Deinze; daarbuiten kan een kilometervergoeding gelden.'
 
 export const WEDDING_FORMULAS: WeddingFormula[] = [
   {
@@ -20,12 +26,13 @@ export const WEDDING_FORMULAS: WeddingFormula[] = [
     shortLabel: 'Avondfeest',
     price: 850,
     emoji: '🎉',
+    arrivalMoment: 'Aanwezig vanaf het hoofdgerecht',
     includes: [
-      'Professionele geluids- en lichtinstallatie',
+      'Professionele geluids- en lichtinstallatie (*)',
       'Sfeerverlichting (uplights)',
       'Opbouw en afbraak',
       'DJ zonder vaste eindtijd',
-      'Verplaatsing inbegrepen binnen 20 km van Deinze',
+      'Verplaatsing inbegrepen binnen een straal van 20 km rond Deinze (*)',
     ],
   },
   {
@@ -34,8 +41,9 @@ export const WEDDING_FORMULAS: WeddingFormula[] = [
     shortLabel: 'Receptie + avondfeest',
     price: 950,
     emoji: '🥂',
+    arrivalMoment: 'Aanwezig vanaf de receptie',
     includes: [
-      'Alles uit Avondfeest',
+      'Alles van het avondfeest',
       'Achtergrondmuziek tijdens de receptie',
       'Muzikale begeleiding van de inkom',
       'Draadloze microfoon voor speeches en aankondigingen',
@@ -48,8 +56,9 @@ export const WEDDING_FORMULAS: WeddingFormula[] = [
     shortLabel: 'Ceremonie + receptie + avondfeest',
     price: 1200,
     emoji: '💒',
+    arrivalMoment: 'Aanwezig vanaf de ceremonie',
     includes: [
-      'Alles uit Receptie + avondfeest',
+      'Inclusief alles uit het pakket “Receptie + avondfeest”',
       'Extra geluidsinstallatie',
       'Draadloze microfoons voor de ceremonie',
       'Muzikale begeleiding van de ceremonie',
@@ -57,6 +66,22 @@ export const WEDDING_FORMULAS: WeddingFormula[] = [
     ],
   },
 ]
+
+export function getExpandedWeddingFormulaIncludes(formula: WeddingFormula): string[] {
+  const ownItems = formula.includes.filter(item =>
+    !item.toLowerCase().startsWith('alles van') &&
+    !item.toLowerCase().startsWith('inclusief alles uit'),
+  )
+  const inheritedKey = formula.key === 'receptie_avondfeest'
+    ? 'avondfeest'
+    : formula.key === 'ceremonie_receptie_avondfeest'
+      ? 'receptie_avondfeest'
+      : null
+  const inheritedFormula = inheritedKey ? WEDDING_FORMULAS.find(item => item.key === inheritedKey) : null
+  const items = inheritedFormula ? [...getExpandedWeddingFormulaIncludes(inheritedFormula), ...ownItems] : ownItems
+
+  return [...new Set(items.map(item => item.replace(/\s*\(\*\)\s*$/, '')))]
+}
 
 export function formatEuro(amount: number) {
   return `€ ${amount.toFixed(2).replace('.', ',')}`
@@ -93,6 +118,36 @@ export function getWeddingFormulaFromExtraPrices(raw?: string | null) {
 
 export function getDefaultWeddingFormula() {
   return WEDDING_FORMULAS[0]
+}
+
+const WEDDING_FORMULA_ORDER: WeddingFormulaKey[] = [
+  'avondfeest',
+  'receptie_avondfeest',
+  'ceremonie_receptie_avondfeest',
+]
+
+export function selectWeddingFormula(raw: string | null | undefined, key: WeddingFormulaKey) {
+  const formula = getWeddingFormula(key)
+  if (!formula) throw new Error(`Onbekende trouwformule: ${key}`)
+  const prices = parseExtraPrices(raw)
+  prices[WEDDING_FORMULA_EXTRA_KEY] = formula.key
+  // Ceremoniebegeleiding is voortaan onderdeel van de volledige formule en
+  // mag niet daarnaast nog als historische losse toeslag worden aangerekend.
+  delete prices.ceremonie_set
+  return {
+    formula,
+    basisprijs: formula.price,
+    extra_prijzen: stringifyExtraPrices(prices),
+    ceremonie_set: 0 as const,
+  }
+}
+
+export function selectMinimumWeddingFormula(raw: string | null | undefined, minimum: WeddingFormulaKey) {
+  const current = getWeddingFormulaFromExtraPrices(raw)
+  const currentIndex = current ? WEDDING_FORMULA_ORDER.indexOf(current.key) : -1
+  const minimumIndex = WEDDING_FORMULA_ORDER.indexOf(minimum)
+  const selectedKey = currentIndex >= minimumIndex ? current!.key : minimum
+  return selectWeddingFormula(raw, selectedKey)
 }
 
 export function isWeddingBooking(booking?: Pick<Booking, 'type_feest'> | null) {
