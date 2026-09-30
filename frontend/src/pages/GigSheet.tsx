@@ -7,6 +7,7 @@ import { Booking } from '../types/booking'
 import { format, parseISO } from 'date-fns'
 import { nl } from 'date-fns/locale'
 import QRCode from 'qrcode'
+import { PhotoConsentAlert } from '../components/PhotoConsentAlert'
 
 // Parst het MULTI-formaat van tweede_dans_nummer naar leesbare regels
 function parseTweedeDans(raw?: string | null): string {
@@ -103,6 +104,8 @@ export function generateDjSheet(booking: Booking, dateStr: string, isTrouw: bool
             <p className="text-sm text-gray-500 mt-0.5 capitalize">{booking.type_feest} · {dateStr}</p>
           </div>
         </div>
+
+        <PhotoConsentAlert booking={booking} />
 
         {/* Essential Info */}
         <div className="grid grid-cols-2 gap-4 mb-5 p-4 bg-gray-50 rounded-lg border border-gray-200">

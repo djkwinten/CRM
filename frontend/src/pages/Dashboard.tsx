@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Plus, Calendar, CheckCircle2, XCircle,
   Clock, Users,
-  PartyPopper, Trash2, Copy, RefreshCw, Bell, AlertTriangle, CalendarDays, X, Shield, Download, FileDown, Building2, FileText
+  PartyPopper, Trash2, Copy, RefreshCw, Bell, AlertTriangle, CalendarDays, X, Shield, Download, FileDown, Building2, FileText, Camera, CameraOff
 } from 'lucide-react'
 import { getBookings, createBooking, updateStatus, updateWeddingMeeting, deleteBooking, initDb, getReminderStatuses, confirmBooking, rejectBooking, restoreBooking, suggestVenues, previewTemplate, sendTemplate, TemplateKey } from '../lib/api'
 import { VenueSuggestion } from '../types/venue'
@@ -13,6 +13,7 @@ import { nl } from 'date-fns/locale'
 import { BottomTabBar } from '../components/BottomTabBar'
 import { importLocalBookings } from '../lib/localStore'
 import { WEDDING_FORMULAS, WEDDING_FORMULA_EXTRA_KEY, stringifyExtraPrices, getDefaultWeddingFormula, getWeddingFormulaFromExtraPrices } from '../config/weddingFormulas'
+import { getPhotoConsentPolicy } from '../lib/photoConsent'
 
 function displayNaam(b: Booking): string {
   if (b.type_feest === 'Trouw' && (b.naam_partner1 || b.naam_partner2)) {
@@ -21,6 +22,27 @@ function displayNaam(b: Booking): string {
     return [v1, v2].filter(Boolean).join(' & ')
   }
   return b.naam_organisator || '—'
+}
+
+function PhotoConsentBadge({ booking }: { booking: Booking }) {
+  const policy = getPhotoConsentPolicy(booking.toestemming_foto)
+  if (policy.state === 'unknown') return null
+  const allowed = policy.state === 'allowed'
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold px-1.5 py-0.5 rounded-full border whitespace-nowrap ${
+        allowed
+          ? 'bg-green-50 text-green-700 border-green-200'
+          : 'bg-red-50 text-red-700 border-red-200'
+      }`}
+      title={allowed ? "Foto's en video's toegestaan" : "Geen foto's of video's toegestaan"}
+      aria-label={allowed ? "Foto's en video's toegestaan" : "Geen foto's of video's toegestaan"}
+    >
+      {allowed ? <Camera size={12} aria-hidden="true" /> : <CameraOff size={12} aria-hidden="true" />}
+      {policy.dashboardLabel}
+    </span>
+  )
 }
 
 function StatusBadge({ value, label, updated }: { value: number; label: string; updated?: boolean }) {
@@ -1410,6 +1432,7 @@ export function Dashboard() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-semibold text-gray-900 text-sm leading-tight">{displayNaam(b)}</h3>
+                          <PhotoConsentBadge booking={b} />
                           <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200 whitespace-nowrap">
                             <Clock size={10} /> Aanvraag
                           </span>
@@ -1526,6 +1549,7 @@ export function Dashboard() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="font-semibold text-gray-900 text-sm leading-tight">{displayNaam(b)}</h3>
+                          <PhotoConsentBadge booking={b} />
                           <span className="text-xs text-gray-400">{b.type_feest}</span>
                           <WeddingFormulaBadge booking={b} />
                         </div>
@@ -1702,6 +1726,7 @@ export function Dashboard() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="font-semibold text-gray-500 text-sm leading-tight line-through">{displayNaam(b)}</h3>
+                            <PhotoConsentBadge booking={b} />
                             <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-red-50 text-red-400 border border-red-200 whitespace-nowrap">
                               <XCircle size={10} /> Afgewezen
                             </span>
