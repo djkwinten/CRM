@@ -19,10 +19,14 @@
     "SMTP_HOST": "smtp.gmail.com",
     "SMTP_PORT": "587",
     "SMTP_USER": "djkwinten@gmail.com",
-    "APP_URL": "https://crm.dentandtkwinten.workers.dev"
+    "APP_URL": "https://crm.dentandtkwinten.workers.dev",
+    "GMAIL_ACCOUNT": "djkwinten@gmail.com",
+    "GMAIL_LABEL_NAME": "DJ CRM Website-aanvragen",
+    "GMAIL_EXPECTED_FROM": "info@djkwinten.be",
+    "GMAIL_EXPECTED_SUBJECT": "Bericht via contactformulier website"
   },
   "triggers": {
-    "crons": ["15 8 * * *"]
+    "crons": ["*/5 * * * *", "15 8 * * *"]
   },
   "d1_databases": [
     {

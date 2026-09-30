@@ -150,3 +150,32 @@ CREATE TABLE IF NOT EXISTS internal_todos (
   updated_at TEXT DEFAULT (datetime('now')),
   UNIQUE(booking_id, kind)
 );
+
+-- Alleen-lezen bronregistratie voor aanvragen uit Gmail. Het unieke Gmail-ID
+-- voorkomt dat retries of gelijktijdige scheduler-runs dubbele aanvragen maken.
+CREATE TABLE IF NOT EXISTS gmail_intakes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  booking_id INTEGER UNIQUE,
+  gmail_message_id TEXT NOT NULL UNIQUE,
+  gmail_rfc_message_id TEXT,
+  source_account TEXT NOT NULL,
+  source_sender TEXT,
+  source_subject TEXT,
+  received_at TEXT NOT NULL,
+  original_message TEXT,
+  intake_status TEXT NOT NULL DEFAULT 'nieuw',
+  issues TEXT,
+  decision TEXT NOT NULL DEFAULT 'imported',
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (booking_id) REFERENCES bookings(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_gmail_intakes_booking
+  ON gmail_intakes(booking_id);
+
+CREATE TABLE IF NOT EXISTS gmail_sync_state (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT DEFAULT (datetime('now'))
+);

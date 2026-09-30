@@ -47,72 +47,69 @@ class MockD1Database {
 
   prepare(sql: string) {
     const stmt = this.db.prepare(sql)
-    return {
-      bind: (...params: any[]) => ({
-        all: () => {
-          const startTime = Date.now()
-          try {
-            const results = stmt.all(...params)
-            return {
-              success: true,
-              results,
-              meta: {
-                served_by: 'dev-server',
-                duration: Date.now() - startTime,
-                changes: 0,
-                last_row_id: 0,
-                changed_db: false,
-                size_after: 0,
-                rows_read: results.length,
-                rows_written: 0
-              }
+    const statement = (params: any[] = []): any => ({
+      bind: (...nextParams: any[]) => statement(nextParams),
+      all: () => {
+        const startTime = Date.now()
+        try {
+          const results = stmt.all(...params)
+          return {
+            success: true,
+            results,
+            meta: {
+              served_by: 'dev-server',
+              duration: Date.now() - startTime,
+              changes: 0,
+              last_row_id: 0,
+              changed_db: false,
+              size_after: 0,
+              rows_read: results.length,
+              rows_written: 0
             }
-          } catch (error: any) {
-            console.error('D1 query error:', error.message)
-            throw error
           }
-        },
-        first: () => {
-          try {
-            return stmt.get(...params) || null
-          } catch (error: any) {
-            console.error('D1 query error:', error.message)
-            return null
-          }
-        },
-        run: () => {
-          const startTime = Date.now()
-          try {
-            const info = stmt.run(...params)
-            return {
-              success: true,
-              results: [],
-              meta: {
-                served_by: 'dev-server',
-                duration: Date.now() - startTime,
-                changes: info.changes,
-                last_row_id: info.lastInsertRowid,
-                changed_db: info.changes > 0,
-                size_after: 0,
-                rows_read: 0,
-                rows_written: info.changes
-              }
-            }
-          } catch (error: any) {
-            console.error('D1 query error:', error.message)
-            throw error
-          }
+        } catch (error: any) {
+          console.error('D1 query error:', error.message)
+          throw error
         }
-      })
-    }
+      },
+      first: () => {
+        try {
+          return stmt.get(...params) || null
+        } catch (error: any) {
+          console.error('D1 query error:', error.message)
+          return null
+        }
+      },
+      run: () => {
+        const startTime = Date.now()
+        try {
+          const info = stmt.run(...params)
+          return {
+            success: true,
+            results: [],
+            meta: {
+              served_by: 'dev-server',
+              duration: Date.now() - startTime,
+              changes: info.changes,
+              last_row_id: info.lastInsertRowid,
+              changed_db: info.changes > 0,
+              size_after: 0,
+              rows_read: 0,
+              rows_written: info.changes
+            }
+          }
+        } catch (error: any) {
+          console.error('D1 query error:', error.message)
+          throw error
+        }
+      },
+      batchResult: () => stmt.reader ? statement(params).all() : statement(params).run(),
+    })
+    return statement()
   }
 
   async batch(statements: any[]) {
-    const results = []
-    for (const stmt of statements) {
-      results.push(await stmt.all())
-    }
-    return results
+    return this.db.transaction(() => statements.map(statement => statement.batchResult()))()
   }
 
   async exec(sql: string) {

@@ -1,12 +1,25 @@
 import { Hono } from 'hono'
-import { query, execute } from '../lib/db'
+import { query, queryOne, execute } from '../lib/db'
 import { importCloudBookings, readCloudBookings } from '../lib/cloudBookings'
 import { extractTemplatesFromBackupBody, importCloudTemplates, readCloudTemplates } from '../lib/cloudTemplates'
 import { extractVenuesFromBackupBody, importCloudVenues, readCloudVenues } from '../lib/cloudVenues'
+import { ensureGmailIntakeTables } from '../lib/gmailIntake'
 
 type Bindings = {
   DB?: D1Database
   STORAGE?: R2Bucket
+}
+
+function extractGmailIntakesFromImportBody(body: unknown): unknown[] {
+  if (!body || typeof body !== 'object') return []
+  const value = (body as Record<string, unknown>).gmail_intakes
+  return Array.isArray(value) ? value : []
+}
+
+function extractGmailSyncStateFromImportBody(body: unknown): unknown[] {
+  if (!body || typeof body !== 'object') return []
+  const value = (body as Record<string, unknown>).gmail_sync_state
+  return Array.isArray(value) ? value : []
 }
 
 function extractBookingsFromImportBody(body: unknown): unknown[] | null {
@@ -81,18 +94,29 @@ exportRoutes.get('/bookings.json', async (c) => {
       updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )
   `)
+  await ensureGmailIntakeTables(c.env)
   const bookings = await query(c.env, `SELECT * FROM bookings ORDER BY feest_datum ASC`)
   const venues = await query(c.env, `SELECT * FROM venues ORDER BY naam ASC`)
   const emailTemplates = await query(c.env, `SELECT * FROM email_templates ORDER BY id ASC`)
+  const gmailIntakes = await query(c.env, `
+    SELECT gi.*, b.access_token AS booking_access_token
+    FROM gmail_intakes gi
+    LEFT JOIN bookings b ON b.id = gi.booking_id
+    ORDER BY gi.received_at ASC
+  `)
+  const gmailSyncState = await query(c.env, `SELECT * FROM gmail_sync_state ORDER BY key ASC`)
   const exportData = {
     exported_at: new Date().toISOString(),
-    version: 3,
+    version: 4,
     count: bookings.length,
     venue_count: venues.length,
     template_count: emailTemplates.length,
+    gmail_intake_count: gmailIntakes.length,
     bookings,
     venues,
     email_templates: emailTemplates,
+    gmail_intakes: gmailIntakes,
+    gmail_sync_state: gmailSyncState,
   }
   return new Response(JSON.stringify(exportData, null, 2), {
     headers: {
@@ -165,8 +189,10 @@ exportRoutes.post('/import', async (c) => {
   const bookingsToImport = extractBookingsFromImportBody(body) || []
   const venuesToImport = extractVenuesFromBackupBody(body) || []
   const templatesToImport = extractTemplatesFromBackupBody(body) || []
+  const gmailIntakesToImport = extractGmailIntakesFromImportBody(body)
+  const gmailSyncStateToImport = extractGmailSyncStateFromImportBody(body)
 
-  if (bookingsToImport.length === 0 && venuesToImport.length === 0 && templatesToImport.length === 0) {
+  if (bookingsToImport.length === 0 && venuesToImport.length === 0 && templatesToImport.length === 0 && gmailIntakesToImport.length === 0) {
     return c.json({
       success: false,
       error: 'Geen boekingen, zalen of e-mailtemplates gevonden in het bestand. Ondersteunde velden: "bookings", "venues" en "email_templates".',
@@ -236,7 +262,8 @@ exportRoutes.post('/import', async (c) => {
   for (const raw of bookingsToImport) {
     const booking = raw as Record<string, unknown>
 
-    if (!booking.feest_datum) {
+    // Een Gmail-aanvraag kan bewust nog geen betrouwbare datum hebben.
+    if (!booking.feest_datum && !booking.is_aanvraag) {
       skipped++
       continue
     }
@@ -365,6 +392,66 @@ exportRoutes.post('/import', async (c) => {
     }
   }
 
+  let gmailIntakeImported = 0
+  let gmailIntakeSkipped = 0
+  if (gmailIntakesToImport.length > 0 || gmailSyncStateToImport.length > 0) {
+    await ensureGmailIntakeTables(c.env)
+  }
+  for (const raw of gmailIntakesToImport) {
+    if (!raw || typeof raw !== 'object') { gmailIntakeSkipped++; continue }
+    const intake = raw as Record<string, unknown>
+    if (!intake.gmail_message_id || !intake.source_account || !intake.received_at) {
+      gmailIntakeSkipped++
+      continue
+    }
+    try {
+      let bookingId: number | null = null
+      if (intake.booking_access_token) {
+        const booking = await queryOne<{ id: number }>(c.env, 'SELECT id FROM bookings WHERE access_token = ? LIMIT 1', [intake.booking_access_token])
+        bookingId = booking?.id ?? null
+      }
+      await execute(c.env, `
+        INSERT INTO gmail_intakes (
+          booking_id, gmail_message_id, gmail_rfc_message_id, source_account, source_sender,
+          source_subject, received_at, original_message, intake_status, issues, decision,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(gmail_message_id) DO UPDATE SET
+          booking_id = excluded.booking_id,
+          gmail_rfc_message_id = excluded.gmail_rfc_message_id,
+          source_account = excluded.source_account,
+          source_sender = excluded.source_sender,
+          source_subject = excluded.source_subject,
+          received_at = excluded.received_at,
+          original_message = excluded.original_message,
+          intake_status = excluded.intake_status,
+          issues = excluded.issues,
+          decision = excluded.decision,
+          updated_at = excluded.updated_at
+      `, [
+        bookingId, intake.gmail_message_id, intake.gmail_rfc_message_id ?? null,
+        intake.source_account, intake.source_sender ?? null, intake.source_subject ?? null,
+        intake.received_at, intake.original_message ?? null, intake.intake_status || 'nieuw',
+        intake.issues ?? null, intake.decision || 'imported', intake.created_at ?? null,
+        intake.updated_at ?? null,
+      ])
+      gmailIntakeImported++
+    } catch (e: unknown) {
+      gmailIntakeSkipped++
+      errors.push(`Gmail-bron ${intake.gmail_message_id}: ${String(e)}`)
+    }
+  }
+
+  for (const raw of gmailSyncStateToImport) {
+    if (!raw || typeof raw !== 'object') continue
+    const state = raw as Record<string, unknown>
+    if (typeof state.key !== 'string' || typeof state.value !== 'string') continue
+    await execute(c.env, `
+      INSERT INTO gmail_sync_state (key, value, updated_at) VALUES (?, ?, ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+    `, [state.key, state.value, state.updated_at ?? null])
+  }
+
   return c.json({
     success: true,
     imported,
@@ -377,5 +464,8 @@ exportRoutes.post('/import', async (c) => {
     template_imported: templateImported,
     template_skipped: templateSkipped,
     template_total: templatesToImport.length,
+    gmail_intake_imported: gmailIntakeImported,
+    gmail_intake_skipped: gmailIntakeSkipped,
+    gmail_intake_total: gmailIntakesToImport.length,
   })
 })

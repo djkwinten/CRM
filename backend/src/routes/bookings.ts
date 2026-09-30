@@ -3,6 +3,7 @@ import { query, queryOne, execute } from '../lib/db'
 import { createCloudBooking, deleteCloudBooking, findCloudBooking, patchCloudBooking, readCloudBookings } from '../lib/cloudBookings'
 import { sendContractInfoNotification, sendUpdateNotification, SmtpConfig } from '../lib/mailer'
 import { randomBytes } from 'crypto'
+import { ensureGmailIntakeTables } from '../lib/gmailIntake'
 
 // ── Slug helpers ──────────────────────────────────────────────────────────────
 
@@ -81,6 +82,9 @@ const bookingListColumns: Record<string, string> = {
   wedding_meeting_at: '(SELECT meeting_at FROM wedding_meetings wm WHERE wm.booking_id = bookings.id)',
   wedding_meeting_note: '(SELECT note FROM wedding_meetings wm WHERE wm.booking_id = bookings.id)',
   vragenlijst_diff: 'NULL',
+  intake_status: "(SELECT intake_status FROM gmail_intakes gi WHERE gi.booking_id = bookings.id)",
+  intake_issues: "(SELECT issues FROM gmail_intakes gi WHERE gi.booking_id = bookings.id)",
+  source_received_at: "(SELECT received_at FROM gmail_intakes gi WHERE gi.booking_id = bookings.id)",
 }
 
 async function bookingColumnSet(env: Bindings) {
@@ -120,6 +124,7 @@ async function setContractUnlockState(env: Bindings, bookingId: string, unlocked
 async function bookingListSelectSql(env: Bindings) {
   await ensureWeddingMeetingsTable(env)
   await ensureContractUnlocksTable(env)
+  await ensureGmailIntakeTables(env)
   const existing = await bookingColumnSet(env)
   const fields = Object.entries(bookingListColumns).map(([name, fallback]) =>
     bookingSelectField(name, fallback, existing)
@@ -210,11 +215,16 @@ const bookingDetailColumns: Record<string, string> = {
   feedback_vragenlijst: 'NULL',
   feedback_herkomst: 'NULL',
   updated_at: 'NULL',
+  source_account: "(SELECT source_account FROM gmail_intakes gi WHERE gi.booking_id = bookings.id)",
+  source_sender: "(SELECT source_sender FROM gmail_intakes gi WHERE gi.booking_id = bookings.id)",
+  source_subject: "(SELECT source_subject FROM gmail_intakes gi WHERE gi.booking_id = bookings.id)",
+  source_original_message: "(SELECT original_message FROM gmail_intakes gi WHERE gi.booking_id = bookings.id)",
 }
 
 async function bookingDetailSelectFields(env: Bindings) {
   await ensureWeddingMeetingsTable(env)
   await ensureContractUnlocksTable(env)
+  await ensureGmailIntakeTables(env)
   const existing = await bookingColumnSet(env)
   const fields = Object.entries(bookingDetailColumns).map(([name, fallback]) =>
     bookingSelectField(name, fallback, existing)
@@ -352,6 +362,7 @@ bookingsRoutes.post('/init', async (c) => {
   `
   try {
     await execute(c.env, sql)
+    await ensureGmailIntakeTables(c.env)
     // Migrations: add new columns to existing databases (safe to re-run)
     const migrations = [
       `ALTER TABLE bookings ADD COLUMN parkeren_info TEXT`,
@@ -1029,6 +1040,22 @@ bookingsRoutes.patch('/:id/status', async (c) => {
   return c.json({ success: true })
 })
 
+// Rond de manuele controle van een geïmporteerde websiteaanvraag af.
+bookingsRoutes.patch('/:id/intake-status', async (c) => {
+  if (!c.env.DB) return c.json({ success: false, error: 'Gmail-import is alleen beschikbaar met D1.' }, 501)
+  const id = c.req.param('id')
+  const body = await c.req.json() as { status?: string }
+  if (body.status !== 'nieuw') return c.json({ success: false, error: 'Ongeldige importstatus.' }, 400)
+  await ensureGmailIntakeTables(c.env)
+  const result = await execute(c.env, `
+    UPDATE gmail_intakes
+    SET intake_status = 'nieuw', issues = '[]', updated_at = datetime('now')
+    WHERE booking_id = ? AND decision = 'imported'
+  `, [id])
+  if (!result.changes) return c.json({ success: false, error: 'Geen Gmail-aanvraag gevonden.' }, 404)
+  return c.json({ success: true })
+})
+
 // Public: Submit customer questionnaire (accepts numeric id, slug, or access_token)
 bookingsRoutes.put('/:ref/questionnaire', async (c) => {
   const ref = c.req.param('ref')
@@ -1043,7 +1070,7 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
     return c.json({ success: false, error: 'Invalid JSON: ' + String(e) }, 400)
   }
   if (!c.env.DB && c.env.STORAGE) {
-    const patch = { ...body, status_vragenlijst: 1, vragenlijst_updated_at: new Date().toISOString() }
+    const patch: Record<string, unknown> = { ...body, status_vragenlijst: 1, vragenlijst_updated_at: new Date().toISOString() }
     const existing = await findCloudBooking(c.env, ref)
     if (existing && !existing.vragenlijst_first_submitted_at) patch.vragenlijst_first_submitted_at = new Date().toISOString()
     const updated = await patchCloudBooking(c.env, ref, patch)
@@ -1334,6 +1361,7 @@ bookingsRoutes.delete('/:id', async (c) => {
   // Ruim gekoppelde records eerst op, zodat oude D1 databases met FK constraints niet falen.
   try { await execute(c.env, 'DELETE FROM booking_files WHERE booking_id = ?', [id]) } catch { /* table may not exist */ }
   try { await execute(c.env, 'DELETE FROM booking_contract_info WHERE booking_id = ?', [id]) } catch { /* table may not exist */ }
+  try { await execute(c.env, 'DELETE FROM gmail_intakes WHERE booking_id = ?', [id]) } catch { /* table may not exist */ }
   try { await execute(c.env, 'DELETE FROM booking_contract_unlocks WHERE booking_id = ?', [id]) } catch { /* table may not exist */ }
   await execute(c.env, 'DELETE FROM bookings WHERE id = ?', [id])
   return c.json({ success: true })
