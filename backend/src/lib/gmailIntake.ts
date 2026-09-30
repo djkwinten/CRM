@@ -507,9 +507,20 @@ export async function runGmailImportIfDue(env: GmailBindings, intervalMs = 5 * 6
   }
 
   await setStateValue(env, 'gmail_import_last_attempt_at', new Date().toISOString())
+  const missingBindings = [
+    !cleanText(env.GMAIL_CLIENT_ID) ? 'client_id' : '',
+    !cleanText(env.GMAIL_CLIENT_SECRET) ? 'client_secret' : '',
+    !cleanText(env.GMAIL_REFRESH_TOKEN) ? 'refresh_token' : '',
+  ].filter(Boolean)
+  if (missingBindings.length) {
+    const result: GmailImportResult = { status: 'not_configured', ...empty }
+    await setStateValue(env, 'gmail_import_last_error_code', `missing_${missingBindings.join('_and_')}`)
+    return result
+  }
+
   try {
     const result = await runGmailImport(env)
-    await setStateValue(env, 'gmail_import_last_error_code', result.status === 'not_configured' ? 'not_configured' : '')
+    await setStateValue(env, 'gmail_import_last_error_code', '')
     return result
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

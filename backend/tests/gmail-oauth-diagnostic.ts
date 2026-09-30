@@ -30,6 +30,14 @@ globalThis.fetch = (async () => Response.json(
 )) as typeof fetch
 
 try {
+  const missingResult = await runGmailImportIfDue({
+    DB: new MockD1Database(sqlite) as unknown as D1Database,
+    GMAIL_CLIENT_SECRET: 'test-secret',
+  }, 0)
+  const missingRow = sqlite.prepare("SELECT value FROM gmail_sync_state WHERE key = 'gmail_import_last_error_code'").get() as { value?: string } | undefined
+  assert(missingResult.status === 'not_configured', 'Ontbrekende bindingen werden niet veilig gestopt')
+  assert(missingRow?.value === 'missing_client_id_and_refresh_token', 'Exacte ontbrekende bindingscode klopt niet')
+
   let rejected = false
   try {
     await runGmailImportIfDue({
@@ -45,7 +53,7 @@ try {
   assert(rejected, 'OAuth-fout werd niet verder afgehandeld')
   assert(row?.value === 'oauth_invalid_client', 'Veilige OAuth-foutcategorie ontbreekt')
   assert(!row.value.includes('sensitive'), 'Providerdetail werd ten onrechte opgeslagen')
-  console.log(JSON.stringify({ safeCategoryStored: true, originalFailurePreserved: true }))
+  console.log(JSON.stringify({ exactMissingBindingsStored: true, safeCategoryStored: true, originalFailurePreserved: true }))
 } finally {
   globalThis.fetch = originalFetch
   sqlite.close()
