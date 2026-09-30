@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, rmSync, copyFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, rmSync, copyFileSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -15,13 +15,35 @@ function copyIfExists(from, to) {
   if (existsSync(from)) copyFileSync(from, to)
 }
 
+function filesBelow(directory) {
+  return readdirSync(directory).flatMap(name => {
+    const path = resolve(directory, name)
+    return statSync(path).isDirectory() ? filesBelow(path) : [path]
+  })
+}
+
 // Vite needs the source index with /src/main.tsx as entry.
 copyFileSync(resolve(frontend, 'index.source.html'), resolve(frontend, 'index.html'))
 rmSync(resolve(frontend, 'dist'), { recursive: true, force: true })
 rmSync(resolve(frontend, 'public/assets'), { recursive: true, force: true })
 
 run('npx', ['tsc', '-b'])
-run('npx', ['vite', 'build'])
+
+// Production frontend and API share one Worker. Ignore a stale Cloudflare build
+// variable so browser requests always use the current same-origin /api routes.
+const previousApiUrl = process.env.VITE_API_URL
+process.env.VITE_API_URL = ''
+try {
+  run('npx', ['vite', 'build'])
+} finally {
+  if (previousApiUrl !== undefined) process.env.VITE_API_URL = previousApiUrl
+}
+
+// Fail the build instead of silently publishing a bundle that points back to an
+// obsolete backend/database.
+if (previousApiUrl && filesBelow(resolve(frontend, 'dist')).some(file => readFileSync(file).includes(previousApiUrl))) {
+  throw new Error('De productiebuild bevat nog een extern API-adres')
+}
 
 // The user's current Cloudflare GitHub setup serves frontend/ directly without building.
 // Keep frontend/ itself deployable by replacing index.html/assets with the production build output.
