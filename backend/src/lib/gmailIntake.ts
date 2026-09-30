@@ -507,7 +507,28 @@ export async function runGmailImportIfDue(env: GmailBindings, intervalMs = 5 * 6
   }
 
   await setStateValue(env, 'gmail_import_last_attempt_at', new Date().toISOString())
-  return runGmailImport(env)
+  try {
+    const result = await runGmailImport(env)
+    await setStateValue(env, 'gmail_import_last_error_code', result.status === 'not_configured' ? 'not_configured' : '')
+    return result
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    const code = message.includes('invalid_client')
+      ? 'oauth_invalid_client'
+      : message.includes('invalid_grant')
+        ? 'oauth_invalid_grant'
+        : message.includes('Gmail API antwoordde met 401')
+          ? 'gmail_unauthorized'
+          : message.includes('Gmail API antwoordde met 403')
+            ? 'gmail_forbidden'
+            : message.startsWith('Google OAuth-token')
+              ? 'oauth_failed'
+              : message.startsWith('Gmail API antwoordde')
+                ? 'gmail_api_failed'
+                : 'unexpected_failure'
+    await setStateValue(env, 'gmail_import_last_error_code', code)
+    throw error
+  }
 }
 
 export async function runGmailImport(env: GmailBindings): Promise<GmailImportResult> {
