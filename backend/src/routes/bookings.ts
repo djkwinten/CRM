@@ -3,7 +3,7 @@ import { query, queryOne, execute } from '../lib/db'
 import { createCloudBooking, deleteCloudBooking, findCloudBooking, patchCloudBooking, readCloudBookings } from '../lib/cloudBookings'
 import { sendContractInfoNotification, sendUpdateNotification, SmtpConfig } from '../lib/mailer'
 import { randomBytes } from 'crypto'
-import { ensureGmailIntakeTables } from '../lib/gmailIntake'
+import { ensureGmailIntakeTables, runGmailImportIfDue } from '../lib/gmailIntake'
 
 // ── Slug helpers ──────────────────────────────────────────────────────────────
 
@@ -508,6 +508,13 @@ bookingsRoutes.get('/', async (c) => {
     if (!c.env.DB && c.env.STORAGE) {
       const bookings = await readCloudBookings(c.env)
       return c.json({ bookings, storage: 'r2' })
+    }
+    if (c.env.DB) {
+      try {
+        await runGmailImportIfDue(c.env)
+      } catch (error) {
+        console.error('Gmail-controle bij dashboardload mislukt', error instanceof Error ? error.message : String(error))
+      }
     }
     const sql = await bookingListSelectSql(c.env)
     const bookings = await query(c.env, sql)

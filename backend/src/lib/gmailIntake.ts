@@ -50,7 +50,7 @@ type GmailMessage = {
 type GmailLabel = { id: string; name: string }
 
 export type GmailImportResult = {
-  status: 'not_configured' | 'label_missing' | 'initialized' | 'completed' | 'no_database'
+  status: 'not_configured' | 'label_missing' | 'initialized' | 'completed' | 'no_database' | 'throttled'
   checked: number
   imported: number
   duplicates: number
@@ -492,6 +492,22 @@ async function importMessage(
     throw new Error('D1-transactie voor Gmail-aanvraag is niet volledig uitgevoerd')
   }
   return 'imported'
+}
+
+export async function runGmailImportIfDue(env: GmailBindings, intervalMs = 5 * 60 * 1000): Promise<GmailImportResult> {
+  const empty = { checked: 0, imported: 0, duplicates: 0, ignored: 0, errors: 0 }
+  if (!env.DB) return { status: 'no_database', ...empty }
+
+  await ensureGmailIntakeTables(env)
+  const lastAttempt = await stateValue(env, 'gmail_import_last_attempt_at')
+  const lastSuccess = await stateValue(env, 'gmail_import_last_success_at')
+  const latestMs = Math.max(new Date(lastAttempt).getTime() || 0, new Date(lastSuccess).getTime() || 0)
+  if (latestMs && Date.now() - latestMs < intervalMs) {
+    return { status: 'throttled', ...empty }
+  }
+
+  await setStateValue(env, 'gmail_import_last_attempt_at', new Date().toISOString())
+  return runGmailImport(env)
 }
 
 export async function runGmailImport(env: GmailBindings): Promise<GmailImportResult> {

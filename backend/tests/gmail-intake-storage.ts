@@ -169,8 +169,10 @@ try {
   assert(stored.intake_status === 'controle_vereist', 'Tegenstrijdige aanvraag mist de controlebadge')
   assert(stored.original_message.includes('Vanessa Van Parys'), 'Oorspronkelijk bericht werd niet bewaard')
 
+  const listCallsBeforeDashboard = listCalls
   const listResponse = await app.fetch(new Request('https://crm.test/api/bookings'), runtimeEnv)
   assert(listResponse.ok, 'CRM-lijst kon niet worden geladen')
+  assert(listCalls === listCallsBeforeDashboard, 'Recente Gmail-run werd niet begrensd bij dashboardload')
   const listBody = await listResponse.json() as { bookings: Array<Record<string, unknown>> }
   assert(listBody.bookings[0]?.intake_status === 'controle_vereist', 'CRM-lijst toont de controlebadge niet')
   assert(listBody.bookings[0]?.source_received_at === new Date(activationFloor).toISOString(), 'CRM-lijst toont niet de Gmail-ontvangstdatum')
