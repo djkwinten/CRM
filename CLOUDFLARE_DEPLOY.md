@@ -1,168 +1,110 @@
-# Deploy to your own Cloudflare account
+# Production deployment and rollback
 
-This project is configured to deploy as a **new app**, not as the older `djkwinten-app` deployment.
+## Canonical production identity
 
-## New Worker names
+This repository has one deployable application:
 
-- Backend/API Worker: `djkwinten-bookingmanager-api`
-- Frontend Worker: `djkwinten-bookingmanager`
+- Worker: `crm`
+- Public app: `https://crm.dentandtkwinten.workers.dev`
+- D1 database: `dj-booking-db`
+- D1 database ID: `25eee93e-26c4-4789-8cbc-3fd5f3a8c93d`
+- R2 bucket: `dj-booking-fotos`
 
-## Important
+The React application, API, scheduled jobs, D1 binding, and R2 binding are all defined by the root `wrangler.toml`. Browser API calls are same-origin (`/api/...`), so there is no frontend API URL setting and no separate frontend/backend release order.
 
-Do not store Cloudflare tokens, GitHub tokens, or Brevo/API keys in repository files.
-Use Cloudflare/Nxcode secret management for secrets.
+Do not create a replacement D1 database or R2 bucket during a normal release. Keeping the existing resource IDs is what preserves bookings, questionnaire answers, contracts, meetings, files, templates, reminders, Gmail intake state, and internal tasks.
 
-## Required Cloudflare resources
+## Secrets
 
-For full production functionality, create these resources in your own Cloudflare account:
+Credentials are not stored in the repository or in Worker variables. The supported runtime secrets are:
 
-1. D1 database, for bookings and app data
-2. R2 bucket, for uploads/files
-3. Secret for the Brevo/API mail key (`BREVO_API_KEY`)
+- `BREVO_API_KEY` (or the legacy `SMTP_PASS` name)
+- `GMAIL_CLIENT_ID`
+- `GMAIL_CLIENT_SECRET`
+- `GMAIL_REFRESH_TOKEN`
 
-Suggested names:
-
-```text
-D1 database: dj-booking-db
-R2 bucket:   dj-booking-fotos
-```
-
-After creating D1 and R2, add their bindings to `backend/wrangler.toml`:
-
-```toml
-[[d1_databases]]
-binding = "DB"
-database_name = "dj-booking-db"
-database_id = "YOUR_D1_DATABASE_ID"
-
-[[r2_buckets]]
-binding = "STORAGE"
-bucket_name = "dj-booking-fotos"
-```
-
-Then run the database schema:
+Inspect the currently provisioned secret names before release:
 
 ```bash
-nxcode d1 execute YOUR_D1_DATABASE_ID --file backend/schema.sql
+nxcode secret list crm
 ```
 
-## GitHub → Cloudflare fix for white screen
+If a required secret is absent, provision it with the platform's secure secret flow. Never put a credential in `.env.example`, `wrangler.toml`, source code, a URL, a commit, or deployment output.
 
-If Cloudflare shows a white screen and the HTML contains:
+## Pre-release checks and recovery point
 
-```html
-<script type="module" src="/src/main.tsx"></script>
-```
-
-then Cloudflare is serving the Vite source files instead of the production build. Fix the Cloudflare project settings like this.
-
-### Option A: Cloudflare project root is repository root
-
-Use these settings:
-
-```text
-Root directory:       /
-Build command:        npm run build
-Build output/assets:  dist
-```
-
-The repository root contains `package.json` and `wrangler.toml` for this setup. The root build script builds `frontend/` and copies `frontend/dist` to root `dist/`.
-
-### Option B: Cloudflare project root is `frontend`
-
-Use these settings:
-
-```text
-Root directory:       frontend
-Build command:        npm install && npm run build
-Build output/assets:  dist
-```
-
-The `frontend/wrangler.toml` file is configured to serve `dist/` with SPA fallback.
-
-### Required frontend environment variable
-
-Set this in Cloudflare before building if you want the deployed frontend to call the deployed backend:
-
-```text
-VITE_API_URL=https://YOUR-BACKEND-WORKER.workers.dev
-```
-
-For the Nxcode deployment made during development, that backend was:
-
-```text
-VITE_API_URL=https://thr-849231d5-djkwinten-bookingmanager-api.nxcode-io.workers.dev
-```
-
-After redeploying, the live HTML must reference `/assets/index-....js`, not `/src/main.tsx`.
-
-## Deployment order
-
-Deploy backend first, because the frontend needs the backend URL at build time.
-
-From `/workspace`:
+From the repository root:
 
 ```bash
-nxcode deploy --type hono --dir dj-booking-app/backend
+npm install
+npm --prefix backend install
+npm --prefix frontend install
+npm run check
+npm test
+npm run build
 ```
 
-Copy the returned backend URL, for example:
-
-```text
-https://djkwinten-bookingmanager-api.YOUR_WORKERS_SUBDOMAIN.workers.dev
-```
-
-Then build the frontend with that API URL:
+Create a data recovery point before applying schema or code changes:
 
 ```bash
-cd /workspace/dj-booking-app/frontend
-VITE_API_URL="https://djkwinten-bookingmanager-api.YOUR_WORKERS_SUBDOMAIN.workers.dev" npm run build
+curl --fail --silent --show-error \
+  https://crm.dentandtkwinten.workers.dev/api/export/bookings.json \
+  --output "crm-backup-$(date +%Y%m%d-%H%M%S).json"
 ```
 
-Deploy the frontend:
+Keep that file outside the repository. It contains customer data and must not be committed.
+
+Record the current release commit as the code rollback point:
 
 ```bash
-cd /workspace
-nxcode deploy --type static --dir dj-booking-app/frontend/dist
+git rev-parse HEAD
 ```
 
-After the frontend URL is known, update `APP_URL` in `backend/wrangler.toml` and redeploy the backend so emails contain the correct app link.
+## Additive schema migration
 
-## One-command helper
-
-`deploy.sh` deploys backend first, parses the backend URL, builds the frontend with that URL, and deploys the frontend:
+The canonical schema uses `CREATE TABLE IF NOT EXISTS` and additive indexes. Apply it to the existing production database; do not point the manifest at a new database:
 
 ```bash
-cd /workspace/dj-booking-app
+nxcode d1 execute 25eee93e-26c4-4789-8cbc-3fd5f3a8c93d --file backend/schema.sql
+```
+
+The runtime still contains compatibility checks for columns introduced after the original bookings table. This lets the application upgrade an older database without deleting or replacing records.
+
+## Deploy
+
+The helper runs checks, builds the frontend, and deploys the root Worker through Nxcode:
+
+```bash
 ./deploy.sh
 ```
 
-If you already know the backend URL:
+Do not run a separate static deployment and do not use Wrangler directly.
+
+## Post-release acceptance
+
+Verify the public shell, API, and a real production data read:
 
 ```bash
-cd /workspace/dj-booking-app
-VITE_API_URL="https://your-backend-url" ./deploy.sh
+curl --fail --silent --show-error https://crm.dentandtkwinten.workers.dev/ >/dev/null
+curl --fail --silent --show-error https://crm.dentandtkwinten.workers.dev/health
+curl --fail --silent --show-error https://crm.dentandtkwinten.workers.dev/api/bookings >/dev/null
 ```
 
-## Current local preview
+Then check in the browser that the dashboard loads, one existing booking opens, its questionnaire/contract state is intact, and a customer portal link opens. Sending mail and Gmail intake remain unverified unless their live provider credentials are present and a production-like probe succeeds.
 
-For local development, the frontend uses relative `/api` requests and the Vite proxy sends them to the backend dev server on port `3001`.
+## Rollback
 
-## Brevo e-mail secret
+### Code/configuration rollback
 
-The backend uses the Brevo HTTP API for e-mail. Set the API key as a Worker secret; do **not** commit it to `wrangler.toml`.
+1. Check out the recorded pre-release commit.
+2. Run the checks and build.
+3. Redeploy the same root Worker with `./deploy.sh`.
+4. Keep the same D1 and R2 bindings; changing resource IDs during rollback would hide production data.
 
-Preferred secret name:
+### Data rollback
 
-```bash
-nxcode secret set djkwinten-bookingmanager-api BREVO_API_KEY 'xkeysib-...'
-```
+The schema migration is additive, so a code rollback normally does not require deleting tables or columns. If production data itself was changed incorrectly, use the pre-release JSON backup and the app's import endpoint only after reviewing the affected records; do not drop or recreate the D1 database. R2 files are not embedded in the JSON export, so preserve the existing bucket and restore individual objects only from an independently retained R2 copy when necessary.
 
-The old name `SMTP_PASS` is still supported for compatibility:
+## Retiring old deployments
 
-```bash
-nxcode secret set djkwinten-bookingmanager-api SMTP_PASS 'xkeysib-...'
-```
-
-For local development, create `backend/.env` from `backend/.env.example` and fill in `BREVO_API_KEY`.
-Restart the backend dev server after changing `.env`.
+The old split API Worker or dead aliases may be removed only after the canonical URL passes all acceptance checks and current secrets are confirmed on `crm`. Deleting old Workers does not migrate data; verify that none of them owns a unique D1/R2 binding before removal.

@@ -1128,7 +1128,6 @@ function parseZaalFotos(raw?: string): ZaalFoto[] {
   return parseUploadBestanden(raw)
 }
 
-const API_ROOT = import.meta.env.VITE_API_URL || ''
 
 async function uploadBestand(file: File): Promise<UploadResponse> {
   const maxBytes = 10 * 1024 * 1024
@@ -1141,7 +1140,7 @@ async function uploadBestand(file: File): Promise<UploadResponse> {
   const controller = new AbortController()
   const timeout = window.setTimeout(() => controller.abort(), 30000)
   try {
-    const res = await fetch(`${API_ROOT}/api/uploads`, { method: 'POST', body: fd, signal: controller.signal })
+    const res = await fetch(`/api/uploads`, { method: 'POST', body: fd, signal: controller.signal })
     let data: UploadResponse = {}
     try { data = await res.json() as UploadResponse } catch { /* non-json response */ }
     if (!res.ok || !data.key || !data.naam || !data.type) {

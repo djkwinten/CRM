@@ -3,7 +3,6 @@ import { Download, FileText, FolderOpen, RefreshCw, Trash2, Upload } from 'lucid
 import { Booking } from '../../../types/booking'
 import { bookingFileDownloadUrl, BookingFile, deleteBookingFile, getBookingFiles, uploadBookingFile } from '../../../lib/api'
 
-const API_ROOT = import.meta.env.VITE_API_URL || ''
 
 type QuestionnaireUpload = { naam: string; type: string; key: string; category?: 'uitnodiging' | 'zaal_foto' | 'grondplan' }
 function parseQuestionnaireUploads(raw?: string): QuestionnaireUpload[] {
@@ -122,7 +121,7 @@ export function FilesTab({ booking }: { booking: Booking }) {
                 <p className="text-sm font-semibold text-gray-900 truncate"><span className="text-indigo-700">{categoryLabel(file.category)} · </span>{file.naam}</p>
                 <p className="text-xs text-indigo-500">Upload van klantvragenlijst</p>
               </div>
-              <button type="button" onClick={() => openRemoteFile(`${API_ROOT}/api/uploads/${file.key}`, file.naam)} className="p-2 rounded-xl hover:bg-indigo-100 text-indigo-600" aria-label="Bestand openen">
+              <button type="button" onClick={() => openRemoteFile(`/api/uploads/${file.key}`, file.naam)} className="p-2 rounded-xl hover:bg-indigo-100 text-indigo-600" aria-label="Bestand openen">
                 <Download size={15} />
               </button>
             </div>

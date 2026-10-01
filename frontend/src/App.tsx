@@ -1,5 +1,4 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { Providers } from './components/Providers'
 import { Dashboard } from './pages/Dashboard'
 import { BookingDetail } from './pages/BookingDetail'
 import { GigSheet } from './pages/GigSheet'
@@ -34,11 +33,9 @@ function AppRoutes() {
 
 function App() {
   return (
-    <Providers>
-      <BrowserRouter>
-        <AppRoutes />
-      </BrowserRouter>
-    </Providers>
+    <BrowserRouter>
+      <AppRoutes />
+    </BrowserRouter>
   )
 }
 

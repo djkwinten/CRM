@@ -4,6 +4,7 @@ import { createCloudBooking, deleteCloudBooking, findCloudBooking, patchCloudBoo
 import { sendContractInfoNotification, sendUpdateNotification, SmtpConfig } from '../lib/mailer'
 import { randomBytes } from 'crypto'
 import { ensureGmailIntakeTables, runGmailImportIfDue } from '../lib/gmailIntake'
+import { publicAppUrl } from '../lib/appUrl'
 
 // ── Slug helpers ──────────────────────────────────────────────────────────────
 
@@ -786,7 +787,7 @@ bookingsRoutes.put('/:id/contract-info', async (c) => {
         from: c.env.SMTP_FROM || c.env.SMTP_USER,
         brevoApiKey,
       }
-      const appUrl = (c.env.APP_URL || 'https://crm.dentandtkwinten.workers.dev').replace(/\/$/, '')
+      const appUrl = publicAppUrl(c.env, c.req.url)
       await sendContractInfoNotification(cfg, {
         naam: String(body.naam || 'Klant'),
         email: String(body.email || ''),
@@ -1287,7 +1288,7 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
         pass: brevoApiKey,
         from: c.env.SMTP_FROM || c.env.SMTP_USER
       }
-      const appUrl = c.env.APP_URL || 'https://thr-b114faeb-djkwinten-app.nxcode-io.workers.dev'
+      const appUrl = publicAppUrl(c.env, c.req.url)
       const row = await queryOne<{ naam_organisator: string; naam_partner1: string; feest_datum: string }>(
         c.env,
         `SELECT naam_organisator, naam_partner1, feest_datum FROM bookings WHERE ${where}`,

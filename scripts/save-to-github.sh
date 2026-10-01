@@ -33,7 +33,6 @@ git add -A \
   package.json \
   package-lock.json \
   wrangler.toml \
-  wrangler.jsonc \
   backend \
   frontend \
   scripts \

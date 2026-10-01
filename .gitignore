@@ -1,8 +1,10 @@
 # Dependencies
 node_modules/
 
-# Build output
+# Build output and compiler caches
+dist/
 frontend/dist/
+*.tsbuildinfo
 backend/.wrangler/
 .wrangler/
 

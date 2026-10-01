@@ -15,7 +15,6 @@ import { format, parseISO } from 'date-fns'
 import { nl } from 'date-fns/locale'
 import { BottomTabBar } from '../components/BottomTabBar'
 
-const API_ROOT = import.meta.env.VITE_API_URL || ''
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -70,7 +69,7 @@ function VenueCard({ venue, onClick }: { venue: Venue; onClick: () => void }) {
         <div className="flex-shrink-0">
           {fotos.length > 0 ? (
             <img
-              src={`${API_ROOT}/api/uploads/${fotos[0]}`}
+              src={`/api/uploads/${fotos[0]}`}
               alt={venue.naam}
               className="w-14 h-14 rounded-xl object-cover bg-gray-100"
             />
@@ -222,7 +221,7 @@ function VenueFormModal({
     try {
       const fd = new FormData()
       fd.append('file', file)
-      const res = await fetch(`${API_ROOT}/api/uploads`, { method: 'POST', body: fd })
+      const res = await fetch(`/api/uploads`, { method: 'POST', body: fd })
       const data = await res.json() as { key: string }
       if (data.key) setForm(p => ({ ...p, fotos: [...p.fotos, data.key] }))
     } catch { /* ignore */ }
@@ -440,7 +439,7 @@ function VenueFormModal({
               <div className="flex flex-wrap gap-2">
                 {form.fotos.map((key, idx) => (
                   <div key={key} className="relative">
-                    <img src={`${API_ROOT}/api/uploads/${key}`} alt=""
+                    <img src={`/api/uploads/${key}`} alt=""
                       className="w-16 h-16 rounded-xl object-cover bg-gray-100" />
                     <button type="button" onClick={() => removePhoto(idx)}
                       className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center hover:bg-red-600">
@@ -554,7 +553,7 @@ function VenueDetailModal({
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
               {fotos.length > 0 ? (
-                <img src={`${API_ROOT}/api/uploads/${fotos[0]}`} alt=""
+                <img src={`/api/uploads/${fotos[0]}`} alt=""
                   className="w-12 h-12 rounded-xl object-cover border-2 border-white/30" />
               ) : (
                 <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
@@ -700,7 +699,7 @@ function VenueDetailModal({
                   <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Foto's</p>
                   <div className="grid grid-cols-3 gap-2">
                     {fotos.map((key, i) => (
-                      <img key={i} src={`${API_ROOT}/api/uploads/${key}`} alt=""
+                      <img key={i} src={`/api/uploads/${key}`} alt=""
                         className="w-full aspect-square rounded-xl object-cover bg-gray-100" />
                     ))}
                   </div>

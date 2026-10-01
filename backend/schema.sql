@@ -125,10 +125,112 @@ CREATE TABLE IF NOT EXISTS bookings (
   wedding_meeting_at TEXT,
   wedding_meeting_note TEXT,
 
-  -- Meta
+  -- Workflow & klantportaal
   reminder_sent_at TEXT,
+  aanvraag_reminder_sent_at TEXT,
+  review_sent_at TEXT,
+  feest_herinnering_sent_at TEXT,
+  vragenlijst_updated_at TEXT,
+  vragenlijst_first_submitted_at TEXT,
+  vragenlijst_diff TEXT,
+  venue_id INTEGER,
+  feedback_vragenlijst TEXT,
+  feedback_herkomst TEXT,
+  is_afgewezen INTEGER NOT NULL DEFAULT 0,
+  afgewezen_reden TEXT,
+  portal_title TEXT,
+
+  -- Meta
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
+);
+
+-- Deze tabellen vormen samen met bookings de volledige persistente D1-opslag.
+-- CREATE IF NOT EXISTS maakt toepassing op een bestaande productie-database
+-- additief; bestaande records worden niet verwijderd of overschreven.
+CREATE TABLE IF NOT EXISTS venues (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  naam TEXT NOT NULL,
+  adres TEXT,
+  capaciteit INTEGER,
+  contact_naam TEXT,
+  contact_telefoon TEXT,
+  contact_email TEXT,
+  website TEXT,
+  geluidsbeperking INTEGER DEFAULT 0,
+  geluidsbeperking_db INTEGER,
+  speakers_aanwezig INTEGER DEFAULT 0,
+  licht_aanwezig INTEGER DEFAULT 0,
+  micro_aanwezig INTEGER DEFAULT 0,
+  dj_booth_aanwezig INTEGER DEFAULT 0,
+  uplights_aanwezig INTEGER DEFAULT 0,
+  speakers_buiten INTEGER DEFAULT 0,
+  parkeren_info TEXT,
+  gelijkvloers INTEGER DEFAULT 1,
+  wifi_code TEXT,
+  fotos TEXT,
+  notities TEXT,
+  afstand_km REAL,
+  rijtijd_min INTEGER,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS booking_contract_info (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  booking_id INTEGER NOT NULL UNIQUE,
+  naam TEXT,
+  email TEXT,
+  gsm TEXT,
+  klant_adres TEXT,
+  event_type TEXT,
+  event_datum TEXT,
+  locatie_naam TEXT,
+  locatie_adres TEXT,
+  aantal_gasten INTEGER,
+  uur_dansfeest TEXT,
+  geluid_voorzien INTEGER DEFAULT 0,
+  licht_voorzien INTEGER DEFAULT 0,
+  dj_booth_nodig INTEGER DEFAULT 0,
+  afgesproken_prijs REAL,
+  voorschot_bedrag REAL,
+  contract_ready INTEGER DEFAULT 0,
+  contract_info_notified_at TEXT,
+  notes TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (booking_id) REFERENCES bookings(id)
+);
+
+CREATE TABLE IF NOT EXISTS wedding_meetings (
+  booking_id INTEGER PRIMARY KEY,
+  meeting_at TEXT,
+  note TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (booking_id) REFERENCES bookings(id)
+);
+
+CREATE TABLE IF NOT EXISTS booking_files (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  booking_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  type TEXT,
+  size INTEGER,
+  data_base64 TEXT NOT NULL,
+  visible_to_customer INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (booking_id) REFERENCES bookings(id)
+);
+
+CREATE TABLE IF NOT EXISTS email_templates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  key TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  subject TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Aparte compatibele opslag voor het tijdelijk heropenen van Contract Info.

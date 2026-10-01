@@ -1209,8 +1209,7 @@ export function BookingDetail() {
 
         {/* Zaalfoto's */}
         {(() => {
-          const API_ROOT = import.meta.env.VITE_API_URL || ''
-          type ZaalFoto = { naam: string; type: string; key: string; category?: string }
+                    type ZaalFoto = { naam: string; type: string; key: string; category?: string }
           let fotos: ZaalFoto[] = []
           try {
             const parsed = booking.zaal_fotos ? JSON.parse(booking.zaal_fotos) : []
@@ -1225,7 +1224,7 @@ export function BookingDetail() {
                 {fotos.map((f, i) => (
                   <a
                     key={i}
-                    href={`${API_ROOT}/api/uploads/${f.key}`}
+                    href={`/api/uploads/${f.key}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex flex-col items-center gap-2 bg-gray-50 border border-gray-200 hover:border-[#007AFF] rounded-xl p-3 transition-colors group"

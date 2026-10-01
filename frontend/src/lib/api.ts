@@ -3,8 +3,7 @@ import { Venue, VenueSuggestion, VenueBooking } from '../types/venue'
 import { BookingContractInfo } from '../features/event-workspace/types'
 import { createLocalBooking, deleteLocalBooking, deriveContractInfo, findLocalBooking, localBookings, localContractInfo, localVenues, mergeBookings, saveLocalContractInfo, updateLocalBooking, createLocalVenue, updateLocalVenue, deleteLocalVenue, venueBookings, venueSuggestions } from './localStore'
 
-const API_ROOT = import.meta.env.VITE_API_URL || ''
-const BASE = `${API_ROOT}/api/bookings`
+const BASE = `/api/bookings`
 
 export async function initDb() {
   const res = await fetch(`${BASE}/init`, { method: 'POST' })
@@ -242,7 +241,7 @@ export interface ReminderStatus {
 
 export async function getReminderStatuses(): Promise<ReminderStatus[]> {
   try {
-    const res = await fetch(`${API_ROOT}/api/reminders/status`)
+    const res = await fetch(`/api/reminders/status`)
     const data = await res.json() as { statuses: ReminderStatus[] }
     if (data.statuses?.length) return data.statuses
   } catch {}
@@ -258,12 +257,12 @@ export async function getReminderStatuses(): Promise<ReminderStatus[]> {
 }
 
 export async function runReminderCheck(): Promise<{ sent: number; created?: number; checked: number; results: { id: number; naam: string; sent: boolean; reason?: string }[] }> {
-  const res = await fetch(`${API_ROOT}/api/reminders/check`, { method: 'POST' })
+  const res = await fetch(`/api/reminders/check`, { method: 'POST' })
   return res.json()
 }
 
 export async function sendReminder(id: number): Promise<{ success: boolean; error?: string; sent_to?: string }> {
-  const res = await fetch(`${API_ROOT}/api/reminders/send/${id}`, { method: 'POST' })
+  const res = await fetch(`/api/reminders/send/${id}`, { method: 'POST' })
   return res.json()
 }
 
@@ -280,7 +279,7 @@ export interface InternalTodo {
 
 export async function getInternalTodos(): Promise<InternalTodo[]> {
   try {
-    const res = await fetch(`${API_ROOT}/api/reminders/todos`)
+    const res = await fetch(`/api/reminders/todos`)
     const data = await res.json() as { todos: InternalTodo[] }
     return data.todos || []
   } catch {
@@ -290,7 +289,7 @@ export async function getInternalTodos(): Promise<InternalTodo[]> {
 
 export async function createInternalTodo(text: string): Promise<{ success: boolean; id?: number; error?: string }> {
   try {
-    const res = await fetch(`${API_ROOT}/api/reminders/todos`, {
+    const res = await fetch(`/api/reminders/todos`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text })
@@ -303,7 +302,7 @@ export async function createInternalTodo(text: string): Promise<{ success: boole
 
 export async function updateInternalTodo(id: number, done: boolean): Promise<{ success: boolean }> {
   try {
-    const res = await fetch(`${API_ROOT}/api/reminders/todos/${id}`, {
+    const res = await fetch(`/api/reminders/todos/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ done })
@@ -316,7 +315,7 @@ export async function updateInternalTodo(id: number, done: boolean): Promise<{ s
 
 export async function deleteInternalTodo(id: number): Promise<{ success: boolean }> {
   try {
-    const res = await fetch(`${API_ROOT}/api/reminders/todos/${id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/reminders/todos/${id}`, { method: 'DELETE' })
     return res.json()
   } catch {
     return { success: false }
@@ -324,22 +323,22 @@ export async function deleteInternalTodo(id: number): Promise<{ success: boolean
 }
 
 export async function testSmtp(): Promise<{ connected: boolean; message: string }> {
-  const res = await fetch(`${API_ROOT}/api/reminders/smtp-test`, { method: 'POST' })
+  const res = await fetch(`/api/reminders/smtp-test`, { method: 'POST' })
   return res.json()
 }
 
 export async function sendAanvraagReminder(id: number): Promise<{ success: boolean; error?: string; sent_to?: string }> {
-  const res = await fetch(`${API_ROOT}/api/reminders/aanvraag-send/${id}`, { method: 'POST' })
+  const res = await fetch(`/api/reminders/aanvraag-send/${id}`, { method: 'POST' })
   return res.json()
 }
 
 export async function sendReviewRequest(id: number): Promise<{ success: boolean; error?: string; sent_to?: string }> {
-  const res = await fetch(`${API_ROOT}/api/reminders/review-send/${id}`, { method: 'POST' })
+  const res = await fetch(`/api/reminders/review-send/${id}`, { method: 'POST' })
   return res.json()
 }
 
 export async function sendFeestHerinnering(id: number): Promise<{ success: boolean; error?: string; sent_to?: string }> {
-  const res = await fetch(`${API_ROOT}/api/reminders/feest-herinnering-send/${id}`, { method: 'POST' })
+  const res = await fetch(`/api/reminders/feest-herinnering-send/${id}`, { method: 'POST' })
   return res.json()
 }
 
@@ -357,13 +356,13 @@ export interface EmailTemplate {
 }
 
 export async function getEmailTemplates(): Promise<EmailTemplate[]> {
-  const res = await fetch(`${API_ROOT}/api/templates`)
+  const res = await fetch(`/api/templates`)
   const data = await res.json() as { templates: EmailTemplate[] }
   return data.templates || []
 }
 
 export async function updateEmailTemplate(key: TemplateKey, payload: { name?: string; subject: string; body: string }) {
-  const res = await fetch(`${API_ROOT}/api/templates/${key}`, {
+  const res = await fetch(`/api/templates/${key}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -372,7 +371,7 @@ export async function updateEmailTemplate(key: TemplateKey, payload: { name?: st
 }
 
 export async function previewTemplate(key: TemplateKey, bookingId: number, payload?: { subject?: string; body?: string }): Promise<{ to: string; subject: string; body: string; html: string; error?: string }> {
-  const res = await fetch(`${API_ROOT}/api/templates/${key}/preview/${bookingId}`, {
+  const res = await fetch(`/api/templates/${key}/preview/${bookingId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload || {})
@@ -381,7 +380,7 @@ export async function previewTemplate(key: TemplateKey, bookingId: number, paylo
 }
 
 export async function sendTemplate(key: TemplateKey, bookingId: number, payload: { subject: string; body: string }): Promise<{ success: boolean; error?: string; sent_to?: string }> {
-  const res = await fetch(`${API_ROOT}/api/templates/${key}/send/${bookingId}`, {
+  const res = await fetch(`/api/templates/${key}/send/${bookingId}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -391,7 +390,7 @@ export async function sendTemplate(key: TemplateKey, bookingId: number, payload:
 
 // ── Venues ──────────────────────────────────────────────────────────────────
 
-const VENUES_BASE = `${API_ROOT}/api/venues`
+const VENUES_BASE = `/api/venues`
 
 export async function getVenues(): Promise<Venue[]> {
   try {
@@ -493,7 +492,7 @@ export interface BookingFile {
 
 export async function getBookingFiles(bookingId: number): Promise<BookingFile[]> {
   try {
-    const res = await fetch(`${API_ROOT}/api/files/${bookingId}`)
+    const res = await fetch(`/api/files/${bookingId}`)
     const data = await res.json() as { files: BookingFile[] }
     return data.files || []
   } catch {
@@ -505,7 +504,7 @@ export async function uploadBookingFile(bookingId: number, file: File): Promise<
   const form = new FormData()
   form.append('file', file)
   try {
-    const res = await fetch(`${API_ROOT}/api/files/${bookingId}`, { method: 'POST', body: form })
+    const res = await fetch(`/api/files/${bookingId}`, { method: 'POST', body: form })
     return res.json()
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'Upload mislukt' }
@@ -514,7 +513,7 @@ export async function uploadBookingFile(bookingId: number, file: File): Promise<
 
 export async function deleteBookingFile(fileId: number): Promise<{ success: boolean; error?: string }> {
   try {
-    const res = await fetch(`${API_ROOT}/api/files/${fileId}`, { method: 'DELETE' })
+    const res = await fetch(`/api/files/${fileId}`, { method: 'DELETE' })
     return res.json()
   } catch {
     return { success: false, error: 'Verwijderen mislukt' }
@@ -522,5 +521,5 @@ export async function deleteBookingFile(fileId: number): Promise<{ success: bool
 }
 
 export function bookingFileDownloadUrl(fileId: number): string {
-  return `${API_ROOT}/api/files/download/${fileId}`
+  return `/api/files/download/${fileId}`
 }

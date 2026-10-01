@@ -74,7 +74,7 @@ tail -30 /tmp/crm-frontend.log || true
 
 if command -v nxcode >/dev/null 2>&1; then
   echo "\n🔗 Registering Nxcode preview..."
-  nxcode report-preview --port 5173 --framework vite || true
+  nxcode report-preview --port 5173 --framework vite --cmd 'npm --prefix frontend run dev -- --host 0.0.0.0' || true
 else
   echo "\nℹ️ nxcode CLI not found; open http://localhost:5173 manually."
 fi

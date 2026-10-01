@@ -5,6 +5,7 @@ import { findCloudBooking } from '../lib/cloudBookings'
 import { sendTemplateEmail, verifySmtpConnection, SmtpConfig } from '../lib/mailer'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
+import { publicAppUrl } from '../lib/appUrl'
 
 type Bindings = {
   DB?: D1Database
@@ -101,7 +102,7 @@ function bodyToHtml(body: string): string {
     .join('')
 }
 
-async function buildPreview(env: Bindings, key: string, bookingId: string, overrides?: { subject?: string; body?: string }) {
+async function buildPreview(env: Bindings, requestUrl: string, key: string, bookingId: string, overrides?: { subject?: string; body?: string }) {
   await ensureTemplates(env)
   const template = !env.DB && env.STORAGE
     ? (await readCloudTemplates(env)).find(t => t.key === key)
@@ -117,7 +118,7 @@ async function buildPreview(env: Bindings, key: string, bookingId: string, overr
     `, [bookingId])
   if (!booking) throw new Error('Boeking niet gevonden')
 
-  const base = env.APP_URL || 'http://localhost:5173'
+  const base = publicAppUrl(env, requestUrl)
   const vragenlijstLink = booking.slug ? `${base}/vragenlijst/${booking.slug}` : `${base}/formulier/${booking.id}`
   const vars: Record<string, string> = {
     naam: displayName(booking),
@@ -164,7 +165,7 @@ templatesRoutes.put('/:key', async (c) => {
 
 templatesRoutes.post('/:key/preview/:bookingId', async (c) => {
   try {
-    const data = await buildPreview(c.env, c.req.param('key'), c.req.param('bookingId'), await c.req.json().catch(() => ({})))
+    const data = await buildPreview(c.env, c.req.url, c.req.param('key'), c.req.param('bookingId'), await c.req.json().catch(() => ({})))
     return c.json({ to: data.to, subject: data.subject, body: data.body, html: data.html, template: data.template })
   } catch (e: any) {
     return c.json({ error: e.message }, 400)
@@ -175,7 +176,7 @@ templatesRoutes.post('/:key/send/:bookingId', async (c) => {
   try {
     const key = c.req.param('key') as TemplateKey
     const payload = await c.req.json<{ subject?: string; body?: string }>().catch(() => ({}))
-    const data = await buildPreview(c.env, key, c.req.param('bookingId'), payload)
+    const data = await buildPreview(c.env, c.req.url, key, c.req.param('bookingId'), payload)
     if (!data.to) return c.json({ error: 'Geen e-mailadres voor deze boeking' }, 400)
 
     const cfg = getSmtpConfig(c.env)

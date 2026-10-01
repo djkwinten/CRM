@@ -676,8 +676,7 @@ function NewBookingModal({ onClose, onCreated }: { onClose: () => void; onCreate
 
 function CalendarSubscribeModal({ onClose }: { onClose: () => void }) {
   const [copied, setCopied] = useState(false)
-  const API_ROOT = import.meta.env.VITE_API_URL || ''
-  const icsUrl = `${API_ROOT}/api/calendar/bookings.ics`
+    const icsUrl = `/api/calendar/bookings.ics`
   const webcalUrl = icsUrl.replace(/^https?:/, 'webcal:')
 
   const handleCopy = () => {
@@ -876,8 +875,7 @@ async function postImportChunk(endpoint: string, bookings: unknown[], extra: { v
 }
 
 function BackupModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
-  const API_ROOT = import.meta.env.VITE_API_URL || ''
-  const [importing, setImporting] = useState(false)
+    const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -896,7 +894,7 @@ function BackupModal({ onClose, onImported }: { onClose: () => void; onImported:
 
   const handleLocalJsonExport = async () => {
     try {
-      const res = await fetch(`${API_ROOT}/api/export/bookings.json`)
+      const res = await fetch(`/api/export/bookings.json`)
       if (res.ok) {
         const content = await res.text()
         downloadTextFile(`dj-kwinten-crm-backup-${new Date().toISOString().slice(0, 10)}.json`, content, 'application/json')
@@ -935,7 +933,7 @@ function BackupModal({ onClose, onImported }: { onClose: () => void; onImported:
         return
       }
 
-      const endpoint = `${API_ROOT}/api/export/import`
+      const endpoint = `/api/export/import`
 
       const bookingsToImport = extractBookingsFromBackupBody(json) || []
       const venuesToImport = extractArrayFromBackupBody(json, ['venues', 'zalen'])

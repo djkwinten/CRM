@@ -3,6 +3,7 @@ import { query, queryOne, execute } from '../lib/db'
 import { sendReminderEmail, sendAanvraagReminderEmail, sendReviewEmail, sendFeestHerinneringEmail, checkBrevoConnection, verifySmtpConnection, SmtpConfig } from '../lib/mailer'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
+import { publicAppUrl } from '../lib/appUrl'
 
 type Bindings = {
   DB?: D1Database
@@ -39,8 +40,8 @@ function daysUntil(dateStr: string): number {
   return Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
 }
 
-function getFormLink(env: Bindings, bookingId: number, slug?: string | null): string {
-  const base = env.APP_URL || 'http://localhost:5173'
+function getFormLink(env: Bindings, requestUrl: string, bookingId: number, slug?: string | null): string {
+  const base = publicAppUrl(env, requestUrl)
   return slug ? `${base}/vragenlijst/${slug}` : `${base}/formulier/${bookingId}`
 }
 
@@ -210,7 +211,7 @@ remindersRoutes.post('/send/:id', async (c) => {
     await sendReminderEmail(cfg, {
       to: b.email,
       naam: b.naam_organisator || 'klant',
-      formLink: getFormLink(c.env, b.id, b.slug),
+      formLink: getFormLink(c.env, c.req.url, b.id, b.slug),
       feestDatum: formatDate(b.feest_datum),
       daysLeft: Math.max(days, 0)
     })
@@ -357,7 +358,7 @@ remindersRoutes.post('/feest-herinnering-send/:id', async (c) => {
     ? `${b.naam_partner1.split(' ')[0]} & ${b.naam_partner2.split(' ')[0]}`
     : b.naam_organisator || 'klant'
 
-  const base = c.env.APP_URL || 'http://localhost:5173'
+  const base = publicAppUrl(c.env, c.req.url)
   const formLink = b.slug ? `${base}/vragenlijst/${b.slug}` : `${base}/formulier/${b.id}`
 
   const cfg = getSmtpConfig(c.env)

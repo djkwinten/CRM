@@ -1,6 +1,35 @@
 name = "crm"
-compatibility_date = "2024-12-01"
+main = "backend/src/index.ts"
+compatibility_date = "2026-05-14"
+compatibility_flags = ["nodejs_compat"]
+
+[observability]
+enabled = true
 
 [assets]
-directory = "dist"
+directory = "./dist"
+binding = "ASSETS"
 not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/health"]
+
+[vars]
+ENVIRONMENT = "production"
+SMTP_HOST = "smtp.gmail.com"
+SMTP_PORT = "587"
+SMTP_USER = "djkwinten@gmail.com"
+GMAIL_ACCOUNT = "djkwinten@gmail.com"
+GMAIL_LABEL_NAME = "DJ CRM Website-aanvragen"
+GMAIL_EXPECTED_FROM = "info@djkwinten.be"
+GMAIL_EXPECTED_SUBJECT = "Bericht via contactformulier website"
+
+[triggers]
+crons = ["*/5 * * * *", "15 8 * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "dj-booking-db"
+database_id = "25eee93e-26c4-4789-8cbc-3fd5f3a8c93d"
+
+[[r2_buckets]]
+binding = "STORAGE"
+bucket_name = "dj-booking-fotos"
