@@ -687,11 +687,10 @@ function extractArrayFromBackupBody(body: unknown, keys: string[]): unknown[] {
 }
 
 const LARGE_IMPORT_FIELDS = new Set([
-  // Generated documents / binary-ish base64 fields. These can be regenerated and often make old backups too large to upload.
+  // Binaire documenten blijven apart van de boekingsvelden om uploadlimieten van de bestaande importer te respecteren.
   'contract_pdf',
   'billit_factuur_pdf',
   'handtekening_klant',
-  'vragenlijst_diff',
 ])
 
 function sanitizeBookingForImport(booking: unknown): unknown {
@@ -700,10 +699,6 @@ function sanitizeBookingForImport(booking: unknown): unknown {
   const cleaned: Record<string, unknown> = {}
   for (const [key, value] of Object.entries(booking as Record<string, unknown>)) {
     if (LARGE_IMPORT_FIELDS.has(key)) continue
-
-    // Unknown old versions sometimes stored large data URLs/base64 blobs in extra fields.
-    // The backend ignores unknown columns anyway, so dropping very large strings is safer than hitting 413.
-    if (typeof value === 'string' && value.length > 75_000) continue
 
     cleaned[key] = value
   }
@@ -758,6 +753,7 @@ function BackupModal({ onClose, onImported }: { onClose: () => void; onImported:
     const [importing, setImporting] = useState(false)
   const [importResult, setImportResult] = useState<{ imported: number; skipped: number; errors: string[] } | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
+  const [exportError, setExportError] = useState<string | null>(null)
   const [smtp, setSmtp] = useState<{ connected: boolean; message: string } | null>(null)
   const [testingSmtp, setTestingSmtp] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -775,17 +771,19 @@ function BackupModal({ onClose, onImported }: { onClose: () => void; onImported:
   }
 
   const handleLocalJsonExport = async () => {
+    setExportError(null)
     try {
       const res = await fetch(`/api/export/bookings.json`)
-      if (res.ok) {
-        const content = await res.text()
-        downloadTextFile(`dj-kwinten-crm-backup-${new Date().toISOString().slice(0, 10)}.json`, content, 'application/json')
-        return
+      if (!res.ok) throw new Error('De volledige database-export is momenteel niet beschikbaar.')
+      const content = await res.text()
+      const parsed = JSON.parse(content) as { backup_kind?: string; booking_fields?: unknown[] }
+      if (parsed.backup_kind !== 'database-export' || !Array.isArray(parsed.booking_fields)) {
+        throw new Error('De server leverde geen controleerbare volledige backup.')
       }
-    } catch { /* fallback hieronder */ }
-
-    const data = await getBookings()
-    downloadTextFile(`dj-kwinten-crm-backup-${new Date().toISOString().slice(0, 10)}.json`, JSON.stringify({ exported_at: new Date().toISOString(), version: 1, bookings: data }, null, 2), 'application/json')
+      downloadTextFile(`dj-kwinten-crm-backup-${new Date().toISOString().slice(0, 10)}.json`, content, 'application/json')
+    } catch (error) {
+      setExportError(`${error instanceof Error ? error.message : 'Backup downloaden mislukt'} Er is geen onvolledig backupbestand aangemaakt.`)
+    }
   }
 
   const handleLocalCsvExport = async () => {
@@ -906,23 +904,26 @@ function BackupModal({ onClose, onImported }: { onClose: () => void; onImported:
           {/* Database export */}
           <div className="border border-gray-200 rounded-xl p-3">
             <p className="text-sm font-semibold text-gray-800 mb-1">📦 Backup downloaden</p>
-            <p className="text-xs text-gray-500 mb-3">Download alle boekingen als bestand. Bewaar regelmatig een kopie.</p>
+            <p className="text-xs text-gray-500 mb-3">De volledige JSON bevat alle boekings- en vragenlijstvelden en is bedoeld voor herstel. CSV is alleen een leesbaar overzicht.</p>
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={handleLocalJsonExport}
                 className="flex-1 flex items-center justify-center gap-1.5 bg-gray-900 hover:bg-gray-700 text-white px-3 py-2 rounded-lg text-xs font-semibold transition-colors"
               >
-                <Download size={13} /> JSON
+                <Download size={13} /> Volledige JSON
               </button>
               <button
                 type="button"
                 onClick={handleLocalCsvExport}
                 className="flex-1 flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-lg text-xs font-semibold transition-colors"
               >
-                <FileDown size={13} /> Excel / CSV
+                <FileDown size={13} /> Overzicht CSV
               </button>
             </div>
+            {exportError && (
+              <p className="mt-2 rounded-lg border border-red-200 bg-red-50 px-2.5 py-2 text-xs text-red-700">{exportError}</p>
+            )}
           </div>
 
           {/* Import / Herstel */}

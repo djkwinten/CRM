@@ -54,6 +54,11 @@ function extractBookingsFromImportBody(body: unknown): unknown[] | null {
 
 export const exportRoutes = new Hono<{ Bindings: Bindings }>()
 
+async function bookingColumnNames(env: Bindings): Promise<string[]> {
+  const rows = await query<{ name: string }>(env, 'PRAGMA table_info(bookings)')
+  return rows.map(row => row.name).filter(Boolean)
+}
+
 // GET /api/export/bookings.json — volledige backup van alle boekingen
 exportRoutes.get('/bookings.json', async (c) => {
   if (!c.env.DB) {
@@ -61,9 +66,13 @@ exportRoutes.get('/bookings.json', async (c) => {
       const bookings = await readCloudBookings(c.env)
       const venues = await readCloudVenues(c.env)
       const emailTemplates = await readCloudTemplates(c.env)
+      const bookingFields = [...new Set(bookings.flatMap(booking => Object.keys(booking)))].sort()
       const exportData = {
         exported_at: new Date().toISOString(),
         version: 3,
+        backup_kind: 'database-export',
+        booking_field_count: bookingFields.length,
+        booking_fields: bookingFields,
         storage: 'r2',
         count: bookings.length,
         venue_count: venues.length,
@@ -95,6 +104,7 @@ exportRoutes.get('/bookings.json', async (c) => {
     )
   `)
   await ensureGmailIntakeTables(c.env)
+  const bookingFields = await bookingColumnNames(c.env)
   const bookings = await query(c.env, `SELECT * FROM bookings ORDER BY feest_datum ASC`)
   const venues = await query(c.env, `SELECT * FROM venues ORDER BY naam ASC`)
   const emailTemplates = await query(c.env, `SELECT * FROM email_templates ORDER BY id ASC`)
@@ -108,6 +118,9 @@ exportRoutes.get('/bookings.json', async (c) => {
   const exportData = {
     exported_at: new Date().toISOString(),
     version: 4,
+    backup_kind: 'database-export',
+    booking_field_count: bookingFields.length,
+    booking_fields: bookingFields,
     count: bookings.length,
     venue_count: venues.length,
     template_count: emailTemplates.length,
@@ -225,36 +238,12 @@ exportRoutes.post('/import', async (c) => {
     }, 500)
   }
 
-  // Alle geldige kolomnamen (whitelist — voorkomt SQL-injectie via kolomnamen)
-  const ALLOWED_COLUMNS = new Set([
-    'id', 'access_token', 'slug', 'feest_datum', 'type_feest', 'is_aanvraag',
-    'is_afgewezen', 'afgewezen_reden',
-    'status_contract', 'status_voorschot', 'status_vragenlijst',
-    'naam_organisator', 'naam_partner1', 'naam_partner2', 'bedrijfsnaam', 'btw_nr',
-    'email', 'telefoon', 'adres_organisator', 'locatie_naam', 'locatie_adres',
-    'aantal_gasten', 'thema', 'publiek_leeftijd',
-    'parkeren_info', 'gelijkvloers', 'backup_contact_naam', 'backup_contact_telefoon',
-    'verzoeknummers',
-    'uur_ceremonie', 'uur_receptie', 'uur_receptie_einde', 'uur_receptie2', 'uur_receptie2_einde',
-    'uur_diner', 'uur_dessert', 'uur_dansfeest', 'uur_midnightsnack', 'einduur',
-    'planning_extra',
-    'top_genres', 'top_genres_extra', 'flop_genres', 'flop_genres_extra',
-    'must_play', 'do_not_play', 'spotify_link',
-    'muziek_receptie', 'muziek_receptie_extra', 'muziek_diner', 'muziek_diner_extra',
-    'einde_feest',
-    'intrede_zaal_nummer', 'intrede_eretafel_nummer', 'intrede_bridesmaids_nummer',
-    'intrede_groomsmen_nummer', 'intrede_koppel_nummer', 'intrede_anders_nummer',
-    'intrede_taart_nummer', 'openingsdans_nummer', 'tweede_dans_nummer',
-    'boeket_werpen_nummer', 'verjaardag_naam_leeftijd',
-    'zaal_contact', 'geluidsbeperking_info', 'wifi_code',
-    'speakers_aanwezig', 'licht_aanwezig', 'micro_aanwezig', 'dj_booth_aanwezig',
-    'uplights_aanwezig', 'speakers_buiten',
-    'ceremonie_set', 'digital_booth', 'retro_booth', 'draadloze_speaker', 'karaoke',
-    'toestemming_foto', 'opmerkingen', 'zaal_fotos', 'handtekening_klant',
-    'totaalprijs', 'basisprijs', 'extra_prijzen',
-    'voorschot_instructies', 'billit_factuur_pdf', 'billit_factuur_naam', 'contract_pdf',
-    'created_at', 'updated_at',
-  ])
+  // Gebruik uitsluitend kolommen die werkelijk in D1 bestaan. Daardoor worden
+  // nieuwe vragenlijstvelden automatisch meegenomen zonder vrije SQL-kolomnamen toe te laten.
+  const allowedBookingColumns = new Set(await bookingColumnNames(c.env))
+  if (allowedBookingColumns.size === 0) {
+    return c.json({ success: false, error: 'De boekingstabel ontbreekt of heeft geen geldige kolommen.' }, 500)
+  }
 
   let imported = 0
   let skipped = 0
@@ -270,7 +259,7 @@ exportRoutes.post('/import', async (c) => {
     }
 
     // Filter enkel toegestane kolommen
-    const cols = Object.keys(booking).filter(k => ALLOWED_COLUMNS.has(k) && k !== 'id')
+    const cols = Object.keys(booking).filter(k => allowedBookingColumns.has(k) && k !== 'id')
     if (cols.length === 0) { skipped++; continue }
 
     const vals = cols.map(k => booking[k] ?? null)
