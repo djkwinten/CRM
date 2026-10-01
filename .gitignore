@@ -8,11 +8,19 @@ frontend/dist/
 backend/.wrangler/
 .wrangler/
 
-# Local development
-backend/dev.db
+# Local development and data (never publish)
+.env*
+!.env.example
+.dev.vars*
+!.dev.vars.example
+.nxcode-secrets/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
 backend/uploads/
-.env
-.env.local
+uploads/
 
 # IDE
 .idea/
@@ -26,10 +34,6 @@ Thumbs.db
 
 # Logs
 *.log
-
-.dev.vars*
-!.dev.vars.example
-!.env.example
 
 # Nxcode local session files
 .nxcode/
