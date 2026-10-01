@@ -144,8 +144,7 @@ export function deleteLocalBooking(id: number): boolean {
 }
 
 export function importLocalBookings(items: unknown[]): { imported: number; skipped: number; errors: string[] } {
-  const current = localBookings()
-  const byKey = new Set(current.flatMap(b => [String(b.id), b.slug || '', b.access_token || '']).filter(Boolean))
+  let current = localBookings()
   const imported: Booking[] = []
   const errors: string[] = []
 
@@ -155,13 +154,23 @@ export function importLocalBookings(items: unknown[]): { imported: number; skipp
       continue
     }
     const obj = raw as Partial<Booking>
-    const duplicate = [String(obj.id || ''), obj.slug || '', obj.access_token || ''].some(k => k && byKey.has(k))
-    if (duplicate) continue
+    const existing = current.find(b =>
+      (obj.access_token && b.access_token === obj.access_token) ||
+      (obj.slug && b.slug === obj.slug) ||
+      (obj.id && b.id === obj.id)
+    )
+    if (existing) {
+      updateLocalBooking(existing.id, { ...obj, id: existing.id })
+      const updated = { ...existing, ...obj, id: existing.id }
+      current = current.map(b => b.id === existing.id ? updated : b)
+      imported.push(updated)
+      continue
+    }
     const result = createLocalBooking(obj)
     const created = findLocalBooking(result.id)
     if (created) {
+      current = [...current, created]
       imported.push(created)
-      byKey.add(String(created.id)); if (created.slug) byKey.add(created.slug); if (created.access_token) byKey.add(created.access_token)
     }
   }
   return { imported: imported.length, skipped: items.length - imported.length - errors.length, errors }

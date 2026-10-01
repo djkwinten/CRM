@@ -2,11 +2,11 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, RefreshCw, Bell,
-  Send, Wifi, WifiOff, Play,
+  Send, Play,
   Plus, Trash2, Square, CheckSquare
 } from 'lucide-react'
 import {
-  getReminderStatuses, runReminderCheck, testSmtp,
+  getReminderStatuses, runReminderCheck,
   getInternalTodos, createInternalTodo, updateInternalTodo, deleteInternalTodo,
   ReminderStatus
 } from '../lib/api'
@@ -41,8 +41,6 @@ export function Reminders() {
   const [statuses, setStatuses] = useState<ReminderStatus[]>([])
   const [running, setRunning] = useState(false)
   const [lastResult, setLastResult] = useState<{ sent: number; checked: number } | null>(null)
-  const [smtp, setSmtp] = useState<{ connected: boolean; message: string } | null>(null)
-  const [testingSmtp, setTestingSmtp] = useState(false)
 
   // To-do state
   const [todos, setTodos] = useState<Todo[]>(loadTodos)
@@ -114,13 +112,6 @@ export function Reminders() {
       alert('Fout bij uitvoeren van de todo-check.')
     }
     setRunning(false)
-  }
-
-  const handleSmtpTest = async () => {
-    setTestingSmtp(true)
-    const result = await testSmtp()
-    setSmtp(result)
-    setTestingSmtp(false)
   }
 
   const boekingen = statuses.filter(s => !s.is_aanvraag)
@@ -234,24 +225,7 @@ export function Reminders() {
                 ? <><RefreshCw size={13} className="animate-spin" /> Bezig...</>
                 : <><Send size={13} /> Todo-check</>}
             </button>
-            <button onClick={handleSmtpTest} disabled={testingSmtp}
-              className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 px-3 py-1.5 rounded-lg font-medium text-xs transition-colors">
-              {testingSmtp
-                ? <><RefreshCw size={13} className="animate-spin" /> Testen...</>
-                : <><Wifi size={13} /> SMTP testen</>}
-            </button>
           </div>
-
-          {smtp && (
-            <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs border ${
-              smtp.connected
-                ? 'bg-green-50 border-green-200 text-green-700'
-                : 'bg-red-50 border-red-200 text-red-500'
-            }`}>
-              {smtp.connected ? <Wifi size={13} /> : <WifiOff size={13} />}
-              {smtp.message}
-            </div>
-          )}
 
           {lastResult && (
             <div className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-600">

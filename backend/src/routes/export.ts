@@ -228,6 +228,7 @@ exportRoutes.post('/import', async (c) => {
   // Alle geldige kolomnamen (whitelist — voorkomt SQL-injectie via kolomnamen)
   const ALLOWED_COLUMNS = new Set([
     'id', 'access_token', 'slug', 'feest_datum', 'type_feest', 'is_aanvraag',
+    'is_afgewezen', 'afgewezen_reden',
     'status_contract', 'status_voorschot', 'status_vragenlijst',
     'naam_organisator', 'naam_partner1', 'naam_partner2', 'bedrijfsnaam', 'btw_nr',
     'email', 'telefoon', 'adres_organisator', 'locatie_naam', 'locatie_adres',
@@ -277,11 +278,23 @@ exportRoutes.post('/import', async (c) => {
     const colList = cols.join(', ')
 
     try {
-      // INSERT OR REPLACE: bij bestaande slug/token wordt de rij vervangen
-      await execute(c.env,
-        `INSERT OR REPLACE INTO bookings (${colList}) VALUES (${placeholders})`,
-        vals
-      )
+      const accessToken = typeof booking.access_token === 'string' ? booking.access_token.trim() : ''
+      const slug = typeof booking.slug === 'string' ? booking.slug.trim() : ''
+      const existing = accessToken
+        ? await queryOne<{ id: number }>(c.env, 'SELECT id FROM bookings WHERE access_token = ? ORDER BY id ASC LIMIT 1', [accessToken])
+        : slug
+          ? await queryOne<{ id: number }>(c.env, 'SELECT id FROM bookings WHERE slug = ? ORDER BY id ASC LIMIT 1', [slug])
+          : null
+
+      if (existing) {
+        const assignments = cols.map(k => `${k} = ?`).join(', ')
+        await execute(c.env, `UPDATE bookings SET ${assignments} WHERE id = ?`, [...vals, existing.id])
+      } else {
+        await execute(c.env,
+          `INSERT INTO bookings (${colList}) VALUES (${placeholders})`,
+          vals
+        )
+      }
       imported++
     } catch (e: unknown) {
       errors.push(`Boeking ${booking.feest_datum} (${booking.naam_organisator ?? '?'}): ${String(e)}`)

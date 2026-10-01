@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "typecheck": "tsc --noEmit",
-    "test": "tsx tests/photo-consent.tsx && tsx tests/server-status-wins.ts && tsx tests/wedding-contract-terms.ts",
+    "test": "tsx tests/photo-consent.tsx && tsx tests/server-status-wins.ts && tsx tests/wedding-contract-terms.ts && tsx tests/rejected-booking-local-restore.ts",
     "build": "node ../scripts/build-frontend.mjs",
     "preview": "vite preview"
   },
