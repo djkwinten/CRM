@@ -94,7 +94,6 @@ export interface ReminderMailOptions {
 }
 
 export async function sendReminderEmail(cfg: SmtpConfig, opts: ReminderMailOptions): Promise<void> {
-  const from = cfg.from || cfg.user
   const subject = `⏰ Herinnering: Vragenlijst voor jullie feest op ${opts.feestDatum}`
 
   const html = `
@@ -192,7 +191,6 @@ DJ Manager
 }
 
 export async function sendUpdateNotification(cfg: SmtpConfig, opts: { naam: string; datum: string; appUrl: string; isUpdate?: boolean }): Promise<void> {
-  const from = cfg.from || cfg.user
   const subject = opts.isUpdate
     ? `✏️ Vragenlijst aangepast — ${opts.naam}`
     : `✅ Vragenlijst ingediend — ${opts.naam}`
@@ -305,7 +303,6 @@ export interface AanvraagReminderOptions {
 }
 
 export async function sendAanvraagReminderEmail(cfg: SmtpConfig, opts: AanvraagReminderOptions): Promise<void> {
-  const from = cfg.from || cfg.user
   const subject = `🎵 Even opvolgen — Jouw aanvraag bij DJ Kwinten`
 
   const html = `
@@ -430,7 +427,6 @@ export interface ReviewMailOptions {
 }
 
 export async function sendReviewEmail(cfg: SmtpConfig, opts: ReviewMailOptions): Promise<void> {
-  const from = cfg.from || cfg.user
   const subject = `🎉 Bedankt voor jullie vertrouwen, ${opts.naam}!`
 
   const html = `
@@ -536,7 +532,6 @@ export interface FeestHerinneringOptions {
 }
 
 export async function sendFeestHerinneringEmail(cfg: SmtpConfig, opts: FeestHerinneringOptions): Promise<void> {
-  const from = cfg.from || cfg.user
   const isTrouw = opts.type_feest === 'Trouw'
   const subject = `🎉 Jullie feest op ${opts.feestDatum} komt eraan!`
 

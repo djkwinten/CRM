@@ -192,7 +192,6 @@ class LocalR2Bucket {
 // Mock Cloudflare Workers environment
 const mockEnv = {
   DB: db ? (new MockD1Database(db) as any) : undefined,
-  CACHE: undefined,
   STORAGE: new LocalR2Bucket() as any,
   ENVIRONMENT: 'development',
   SMTP_HOST: process.env.SMTP_HOST,

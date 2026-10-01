@@ -17,8 +17,6 @@ export const DISCOUNT_NOTE_EXTRA_KEY = '_korting_uitleg'
 
 export const WEDDING_TIMING_NOTICE = 'De gekozen trouwformule bepaalt vanaf welk moment DJ Kwinten aanwezig is. Avondfeest: vanaf het hoofdgerecht. Receptie + avondfeest: vanaf de receptie (+ € 100 ten opzichte van Avondfeest). Ceremonie + receptie + avondfeest: vanaf de ceremonie (+ € 350 ten opzichte van Avondfeest). Een zaalintrede is alleen mogelijk vanaf de formule Receptie + avondfeest. Muzikale of technische begeleiding van de ceremonie behoort uitsluitend tot de formule Ceremonie + receptie + avondfeest. Elke wijziging wordt vooraf in onderling overleg bevestigd.'
 
-export const WEDDING_FORMULA_FOOTNOTE = '(*) De professionele installatie is inbegrepen wanneer DJ Kwinten ze voorziet. Verplaatsing is inbegrepen binnen een straal van 20 km rond Deinze; daarbuiten kan een kilometervergoeding gelden.'
-
 export const WEDDING_FORMULAS: WeddingFormula[] = [
   {
     key: 'avondfeest',
@@ -152,13 +150,4 @@ export function selectMinimumWeddingFormula(raw: string | null | undefined, mini
 
 export function isWeddingBooking(booking?: Pick<Booking, 'type_feest'> | null) {
   return booking?.type_feest === 'Trouw'
-}
-
-export function ensureWeddingFormulaForNewBooking(typeFeest: 'Trouw' | 'Algemeen', currentBasisprijs?: string) {
-  if (typeFeest !== 'Trouw') return { basisprijs: currentBasisprijs || '', extra_prijzen: '{}' }
-  const formula = getDefaultWeddingFormula()
-  return {
-    basisprijs: currentBasisprijs || String(formula.price),
-    extra_prijzen: stringifyExtraPrices({ [WEDDING_FORMULA_EXTRA_KEY]: formula.key }),
-  }
 }

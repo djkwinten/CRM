@@ -1,15 +1,5 @@
 export type WorkspaceTab = 'overzicht' | 'contract' | 'vragenlijst' | 'bestanden' | 'communicatie'
 
-export interface BookingFile {
-  id: number
-  booking_id: number
-  name: string
-  type?: string | null
-  size?: number | null
-  visible_to_customer?: number
-  created_at?: string
-}
-
 export interface BookingContractInfo {
   id?: number
   booking_id: number

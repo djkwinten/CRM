@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { query, queryOne, execute } from '../lib/db'
-import { sendReminderEmail, sendAanvraagReminderEmail, sendReviewEmail, sendFeestHerinneringEmail, checkBrevoConnection, verifySmtpConnection, SmtpConfig } from '../lib/mailer'
+import { sendReminderEmail, sendAanvraagReminderEmail, sendReviewEmail, sendFeestHerinneringEmail, checkBrevoConnection, SmtpConfig } from '../lib/mailer'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
 import { publicAppUrl } from '../lib/appUrl'

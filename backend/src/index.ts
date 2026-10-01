@@ -14,7 +14,6 @@ import { runGmailImport } from './lib/gmailIntake'
 
 type Bindings = {
   DB?: D1Database
-  CACHE?: KVNamespace
   STORAGE?: R2Bucket
   ASSETS?: Fetcher
   ENVIRONMENT: string

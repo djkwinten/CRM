@@ -36,8 +36,7 @@ git add -A \
   wrangler.toml \
   backend \
   frontend \
-  scripts \
-  shared 2>/dev/null || true
+  scripts 2>/dev/null || true
 
 if git diff --cached --quiet; then
   echo "✓ No project changes to save."
