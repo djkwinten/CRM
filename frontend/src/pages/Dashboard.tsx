@@ -1031,7 +1031,7 @@ function BackupModal({ onClose, onImported }: { onClose: () => void; onImported:
   )
 }
 
-const CACHE_KEY = 'dj-dashboard-bookings'
+const CACHE_KEY = 'dj-dashboard-bookings-v2'
 const CACHE_TTL = 5 * 60 * 1000 // 5 minuten
 
 function readCache(): Booking[] | null {

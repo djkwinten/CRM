@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Calendar, Music2, Bell, Building2, FileText } from 'lucide-react'
+import { Calendar, Music2, Building2, FileText } from 'lucide-react'
 
 export function BottomTabBar() {
   const navigate = useNavigate()
@@ -9,7 +9,6 @@ export function BottomTabBar() {
     { label: 'Agenda', icon: <Calendar size={21} strokeWidth={1.8} />, path: '/agenda' },
     { label: 'Boekingen', icon: <Music2 size={21} strokeWidth={1.8} />, path: '/' },
     { label: 'Zalen', icon: <Building2 size={21} strokeWidth={1.8} />, path: '/zalen' },
-    { label: 'Herinneringen', icon: <Bell size={21} strokeWidth={1.8} />, path: '/herinneringen' },
     { label: 'Templates', icon: <FileText size={21} strokeWidth={1.8} />, path: '/templates' },
   ]
 

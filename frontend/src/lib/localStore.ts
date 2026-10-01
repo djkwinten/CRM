@@ -66,7 +66,7 @@ export function localBookings(): Booking[] {
 export function saveLocalBookings(bookings: Booking[]) {
   writeJson(BOOKINGS_KEY, bookings)
   // Keep the dashboard's older cache in sync too, otherwise it can show stale data for a few minutes.
-  writeJson('dj-dashboard-bookings', { data: bookings, ts: Date.now() })
+  writeJson('dj-dashboard-bookings-v2', { data: bookings, ts: Date.now() })
 }
 
 export function mergeBookings(remote: Booking[] = []): Booking[] {

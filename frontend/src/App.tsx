@@ -4,7 +4,6 @@ import { BookingDetail } from './pages/BookingDetail'
 import { GigSheet } from './pages/GigSheet'
 import { PricingOverview } from './pages/PricingOverview'
 import { CustomerForm } from './pages/CustomerForm'
-import { Reminders } from './pages/Reminders'
 import { Agenda } from './pages/Agenda'
 import { BlankForm } from './pages/BlankForm'
 import { Venues } from './pages/Venues'
@@ -22,7 +21,6 @@ function AppRoutes() {
       <Route path="/boeking/:id" element={<BookingDetail />} />
       <Route path="/gigsheet/:id" element={<GigSheet />} />
       <Route path="/prijs/:id" element={<PricingOverview />} />
-      <Route path="/herinneringen" element={<Reminders />} />
       <Route path="/leeg-formulier" element={<BlankForm />} />
       <Route path="/zalen" element={<Venues />} />
       <Route path="/templates" element={<Templates />} />
