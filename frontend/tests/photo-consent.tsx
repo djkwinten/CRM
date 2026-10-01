@@ -20,11 +20,12 @@ assert(denied.gigTitle === "GEEN FOTO'S OF VIDEO'S" && denied.gigText.includes('
 assert(unknown.state === 'unknown' && unknown.gigText.includes('Vraag eerst uitdrukkelijk toestemming'), 'Onbekende keuze is niet veilig')
 
 const dashboardSource = readFileSync(new URL('../src/pages/Dashboard.tsx', import.meta.url), 'utf8')
-assert(dashboardSource.includes('<Camera size={13}'), 'Camera ontbreekt op dashboard')
-assert(dashboardSource.includes('bg-green-100 text-green-700'), 'Groene cameracirkel ontbreekt op dashboard')
-assert(dashboardSource.includes('bg-red-100 text-red-700'), 'Rode cameracirkel ontbreekt op dashboard')
-assert(dashboardSource.includes('Geen toestemming ingevuld — niet fotograferen'), 'Niet-ingevulde toestemming wordt niet veilig als rood behandeld')
-assert((dashboardSource.match(/<PhotoConsentBadge booking=\{b\} \/>/g) || []).length === 3, 'Niet elke boekingslijst toont de beeldstatus')
+const cameraBadgeSource = dashboardSource.slice(dashboardSource.indexOf('function PhotoConsentBadge'), dashboardSource.indexOf('function StatusBadge'))
+assert(cameraBadgeSource.includes("if (policy.state !== 'denied') return null"), 'Dashboard verbergt toestemming of niet-ingevulde status niet')
+assert(cameraBadgeSource.includes('<Camera size={13}'), 'Rode camera ontbreekt op dashboard')
+assert(cameraBadgeSource.includes('bg-red-100 text-red-700'), 'Rode cameracirkel ontbreekt op dashboard')
+assert(!cameraBadgeSource.includes('bg-green-100 text-green-700'), 'Groene cameracirkel wordt nog getoond')
+assert((dashboardSource.match(/<PhotoConsentBadge booking=\{b\} \/>/g) || []).length === 3, 'Niet elke boekingslijst kan een weigering tonen')
 
 const fixture: Booking = {
   id: 99,
@@ -43,10 +44,11 @@ const allowedHtml = renderToStaticMarkup(<PhotoConsentAlert booking={{ ...fixtur
 const unknownHtml = renderToStaticMarkup(<PhotoConsentAlert booking={{ ...fixture, toestemming_foto: undefined }} />)
 assert(deniedHtml.includes("GEEN FOTO&#x27;S OF VIDEO&#x27;S"), 'Het beeldverbod wordt niet werkelijk gerenderd')
 assert(deniedHtml.includes('border-red-200') && deniedHtml.includes('role="alert"'), 'Het beeldverbod is niet rood en toegankelijk gemarkeerd')
-assert(allowedHtml.includes("FOTO&#x27;S &amp; VIDEO&#x27;S TOEGESTAAN") && allowedHtml.includes('border-green-200'), 'Toestemming wordt niet groen gerenderd')
-assert(unknownHtml.includes('FOTO- &amp; VIDEOTOESTEMMING NIET INGEVULD') && unknownHtml.includes('border-amber-200'), 'Onbekende toestemming wordt niet veilig gerenderd')
+assert(allowedHtml === '', 'Toestemming mag geen melding op de gig sheet tonen')
+assert(unknownHtml === '', 'Niet-ingevuld mag geen melding op de gig sheet tonen')
 const consentSource = readFileSync(new URL('../src/components/PhotoConsentAlert.tsx', import.meta.url), 'utf8')
-assert(consentSource.includes('text-[10px]') && consentSource.includes('<Icon size={16}'), 'Gig-sheetmelding is niet compact genoeg')
+assert(consentSource.includes("if (policy.state !== 'denied') return null"), 'Gig sheet verbergt niet-geweigerde statussen niet')
+assert(consentSource.includes('text-[10px]') && consentSource.includes('<CameraOff size={16}'), 'Gig-sheetmelding is niet compact genoeg')
 
 const gigSheetSource = readFileSync(new URL('../src/pages/GigSheet.tsx', import.meta.url), 'utf8')
 const notesPosition = gigSheetSource.indexOf('{/* Notes area */}')

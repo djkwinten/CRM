@@ -26,20 +26,12 @@ function displayNaam(b: Booking): string {
 
 function PhotoConsentBadge({ booking }: { booking: Booking }) {
   const policy = getPhotoConsentPolicy(booking.toestemming_foto)
-  const allowed = policy.state === 'allowed'
-  const label = allowed
-    ? "Foto's en video's toegestaan"
-    : policy.state === 'denied'
-      ? "Geen foto's of video's toegestaan"
-      : "Geen toestemming ingevuld — niet fotograferen"
+  if (policy.state !== 'denied') return null
+  const label = "Geen foto's of video's toegestaan"
 
   return (
     <span
-      className={`inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border ${
-        allowed
-          ? 'border-green-200 bg-green-100 text-green-700'
-          : 'border-red-200 bg-red-100 text-red-700'
-      }`}
+      className="inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border border-red-200 bg-red-100 text-red-700"
       title={label}
       aria-label={label}
     >
