@@ -20,8 +20,10 @@ assert(denied.gigTitle === "GEEN FOTO'S OF VIDEO'S" && denied.gigText.includes('
 assert(unknown.state === 'unknown' && unknown.gigText.includes('Vraag eerst uitdrukkelijk toestemming'), 'Onbekende keuze is niet veilig')
 
 const dashboardSource = readFileSync(new URL('../src/pages/Dashboard.tsx', import.meta.url), 'utf8')
-assert(dashboardSource.includes('<Camera size={12}'), 'Groene camera ontbreekt op dashboard')
-assert(dashboardSource.includes('<CameraOff size={12}'), 'Rode doorgestreepte camera ontbreekt op dashboard')
+assert(dashboardSource.includes('<Camera size={13}'), 'Camera ontbreekt op dashboard')
+assert(dashboardSource.includes('bg-green-100 text-green-700'), 'Groene cameracirkel ontbreekt op dashboard')
+assert(dashboardSource.includes('bg-red-100 text-red-700'), 'Rode cameracirkel ontbreekt op dashboard')
+assert(dashboardSource.includes('Geen toestemming ingevuld — niet fotograferen'), 'Niet-ingevulde toestemming wordt niet veilig als rood behandeld')
 assert((dashboardSource.match(/<PhotoConsentBadge booking=\{b\} \/>/g) || []).length === 3, 'Niet elke boekingslijst toont de beeldstatus')
 
 const fixture: Booking = {
@@ -40,9 +42,17 @@ const deniedHtml = renderToStaticMarkup(<PhotoConsentAlert booking={{ ...fixture
 const allowedHtml = renderToStaticMarkup(<PhotoConsentAlert booking={{ ...fixture, toestemming_foto: 1 }} />)
 const unknownHtml = renderToStaticMarkup(<PhotoConsentAlert booking={{ ...fixture, toestemming_foto: undefined }} />)
 assert(deniedHtml.includes("GEEN FOTO&#x27;S OF VIDEO&#x27;S"), 'Het beeldverbod wordt niet werkelijk gerenderd')
-assert(deniedHtml.includes('border-red-600') && deniedHtml.includes('role="alert"'), 'Het beeldverbod is niet rood en toegankelijk gemarkeerd')
-assert(allowedHtml.includes("FOTO&#x27;S &amp; VIDEO&#x27;S TOEGESTAAN") && allowedHtml.includes('border-green-600'), 'Toestemming wordt niet groen gerenderd')
-assert(unknownHtml.includes('FOTO- &amp; VIDEOTOESTEMMING NIET INGEVULD') && unknownHtml.includes('border-amber-500'), 'Onbekende toestemming wordt niet veilig gerenderd')
+assert(deniedHtml.includes('border-red-200') && deniedHtml.includes('role="alert"'), 'Het beeldverbod is niet rood en toegankelijk gemarkeerd')
+assert(allowedHtml.includes("FOTO&#x27;S &amp; VIDEO&#x27;S TOEGESTAAN") && allowedHtml.includes('border-green-200'), 'Toestemming wordt niet groen gerenderd')
+assert(unknownHtml.includes('FOTO- &amp; VIDEOTOESTEMMING NIET INGEVULD') && unknownHtml.includes('border-amber-200'), 'Onbekende toestemming wordt niet veilig gerenderd')
+const consentSource = readFileSync(new URL('../src/components/PhotoConsentAlert.tsx', import.meta.url), 'utf8')
+assert(consentSource.includes('text-[10px]') && consentSource.includes('<Icon size={16}'), 'Gig-sheetmelding is niet compact genoeg')
+
+const gigSheetSource = readFileSync(new URL('../src/pages/GigSheet.tsx', import.meta.url), 'utf8')
+const notesPosition = gigSheetSource.indexOf('{/* Notes area */}')
+const consentPosition = gigSheetSource.indexOf('<PhotoConsentAlert booking={booking} />')
+const footerPosition = gigSheetSource.indexOf('{/* Footer */}')
+assert(notesPosition >= 0 && consentPosition > notesPosition && consentPosition < footerPosition, 'Fotomelding staat niet onderaan tussen notities en voettekst')
 
 const contractSource = readFileSync(new URL('../src/lib/contractPDF.ts', import.meta.url), 'utf8')
 const originalClause = 'Gebruik voor promotionele doeleinden (website, sociale media) gebeurt enkel met voorafgaande toestemming.'

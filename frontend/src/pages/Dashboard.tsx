@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Plus, Calendar, CheckCircle2, XCircle,
   Clock, Users,
-  PartyPopper, Trash2, Copy, RefreshCw, AlertTriangle, CalendarDays, X, Shield, Download, FileDown, Building2, FileText, Camera, CameraOff, Wifi, WifiOff
+  PartyPopper, Trash2, Copy, RefreshCw, AlertTriangle, CalendarDays, X, Shield, Download, FileDown, Building2, FileText, Camera, Wifi, WifiOff
 } from 'lucide-react'
 import { getBookings, createBooking, updateStatus, deleteBooking, initDb, confirmBooking, rejectBooking, restoreBooking, suggestVenues, previewTemplate, sendTemplate, testSmtp, TemplateKey } from '../lib/api'
 import { VenueSuggestion } from '../types/venue'
@@ -26,21 +26,24 @@ function displayNaam(b: Booking): string {
 
 function PhotoConsentBadge({ booking }: { booking: Booking }) {
   const policy = getPhotoConsentPolicy(booking.toestemming_foto)
-  if (policy.state === 'unknown') return null
   const allowed = policy.state === 'allowed'
+  const label = allowed
+    ? "Foto's en video's toegestaan"
+    : policy.state === 'denied'
+      ? "Geen foto's of video's toegestaan"
+      : "Geen toestemming ingevuld — niet fotograferen"
 
   return (
     <span
-      className={`inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold px-1.5 py-0.5 rounded-full border whitespace-nowrap ${
+      className={`inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border ${
         allowed
-          ? 'bg-green-50 text-green-700 border-green-200'
-          : 'bg-red-50 text-red-700 border-red-200'
+          ? 'border-green-200 bg-green-100 text-green-700'
+          : 'border-red-200 bg-red-100 text-red-700'
       }`}
-      title={allowed ? "Foto's en video's toegestaan" : "Geen foto's of video's toegestaan"}
-      aria-label={allowed ? "Foto's en video's toegestaan" : "Geen foto's of video's toegestaan"}
+      title={label}
+      aria-label={label}
     >
-      {allowed ? <Camera size={12} aria-hidden="true" /> : <CameraOff size={12} aria-hidden="true" />}
-      {policy.dashboardLabel}
+      <Camera size={13} strokeWidth={2.25} aria-hidden="true" />
     </span>
   )
 }

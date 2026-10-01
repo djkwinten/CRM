@@ -105,8 +105,6 @@ export function generateDjSheet(booking: Booking, dateStr: string, isTrouw: bool
           </div>
         </div>
 
-        <PhotoConsentAlert booking={booking} />
-
         {/* Essential Info */}
         <div className="grid grid-cols-2 gap-4 mb-5 p-4 bg-gray-50 rounded-lg border border-gray-200">
           <div>
@@ -311,8 +309,11 @@ export function generateDjSheet(booking: Booking, dateStr: string, isTrouw: bool
           </div>
         )}
 
+        {/* Foto- en videotoestemming — bewust compact onderaan */}
+        <PhotoConsentAlert booking={booking} />
+
         {/* Footer */}
-        <div className="mt-4 flex items-center justify-between text-xs text-gray-400">
+        <div className="mt-3 flex items-center justify-between text-xs text-gray-400">
           <span>DJ Manager · {dateStr}</span>
           <span>ID #{booking.id}</span>
         </div>

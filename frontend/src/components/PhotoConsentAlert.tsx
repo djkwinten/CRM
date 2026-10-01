@@ -8,21 +8,21 @@ export function PhotoConsentAlert({ booking }: { booking: Booking }) {
   const denied = policy.state === 'denied'
   const Icon = allowed ? Camera : denied ? CameraOff : CircleAlert
   const colors = allowed
-    ? 'border-green-600 bg-green-50 text-green-900'
+    ? 'border-green-200 bg-green-50/60 text-green-800'
     : denied
-      ? 'border-red-600 bg-red-50 text-red-900'
-      : 'border-amber-500 bg-amber-50 text-amber-900'
+      ? 'border-red-200 bg-red-50/60 text-red-800'
+      : 'border-amber-200 bg-amber-50/60 text-amber-800'
 
   return (
     <div
-      className={`mb-5 flex items-center gap-3 rounded-lg border-2 px-4 py-3 ${colors}`}
+      className={`mt-4 flex items-center gap-2 rounded-md border px-2.5 py-2 break-inside-avoid ${colors}`}
       role={denied || policy.state === 'unknown' ? 'alert' : 'status'}
       aria-label={policy.gigTitle}
     >
-      <Icon size={32} strokeWidth={2.5} className="flex-shrink-0" aria-hidden="true" />
-      <div>
-        <p className="text-sm font-black uppercase tracking-wide">{policy.gigTitle}</p>
-        <p className="text-xs font-semibold mt-0.5">{policy.gigText}</p>
+      <Icon size={16} strokeWidth={2} className="flex-shrink-0" aria-hidden="true" />
+      <div className="leading-tight">
+        <p className="text-[10px] font-bold uppercase tracking-wide">{policy.gigTitle}</p>
+        <p className="text-[10px] font-medium mt-0.5 opacity-80">{policy.gigText}</p>
       </div>
     </div>
   )
