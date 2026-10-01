@@ -212,5 +212,6 @@ console.log('💡 Use "npm run dev:wrangler" for full Workers emulation (require
 
 serve({
   fetch: (req) => app.fetch(req, mockEnv),
+  hostname: '0.0.0.0',
   port,
 })

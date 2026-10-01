@@ -62,13 +62,11 @@ git rev-parse HEAD
 
 ## Additive schema migration
 
-The canonical schema uses `CREATE TABLE IF NOT EXISTS` and additive indexes. Apply it to the existing production database; do not point the manifest at a new database:
+Do not use `backend/schema.sql` by itself as a migration for an existing database: SQLite's `CREATE TABLE IF NOT EXISTS` does not add columns to an existing table.
 
-```bash
-nxcode d1 execute 25eee93e-26c4-4789-8cbc-3fd5f3a8c93d --file backend/schema.sql
-```
+The prepared idempotent runner and exact old-to-new plan are documented in `CONSOLIDATION.md`. The runner checks `PRAGMA table_info` before every `ALTER TABLE`, creates only missing tables, and contains no destructive statements. It is deliberately not connected to the Worker or deployment script yet, so production cannot be migrated until an explicit execution path is reviewed and approved.
 
-The runtime still contains compatibility checks for columns introduced after the original bookings table. This lets the application upgrade an older database without deleting or replacing records.
+For a completely empty database, `backend/schema.sql` remains the canonical clean-install schema. For the existing production database, first secure a complete D1/R2 recovery point and then use the approved migration runner; never create a replacement database for a normal release.
 
 ## Deploy
 

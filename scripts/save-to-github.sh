@@ -29,6 +29,7 @@ git add -A \
   .env.example \
   .gitignore \
   CLOUDFLARE_DEPLOY.md \
+  CONSOLIDATION.md \
   deploy.sh \
   package.json \
   package-lock.json \
