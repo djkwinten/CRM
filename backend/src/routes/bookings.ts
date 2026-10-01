@@ -1121,7 +1121,7 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
     : null
 
   try {
-  await execute(c.env, `
+  const questionnaireUpdate = await execute(c.env, `
     UPDATE bookings SET
       naam_organisator = COALESCE(?, naam_organisator), naam_partner1 = COALESCE(?, naam_partner1), naam_partner2 = COALESCE(?, naam_partner2), bedrijfsnaam = COALESCE(?, bedrijfsnaam), btw_nr = COALESCE(?, btw_nr), email = COALESCE(?, email), telefoon = COALESCE(?, telefoon),
       adres_organisator = COALESCE(?, adres_organisator),
@@ -1195,6 +1195,9 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
     (body as Record<string, unknown>).feedback_herkomst as string ?? null,
     ...whereParams
   ])
+  if (!questionnaireUpdate.changes) {
+    return c.json({ success: false, error: 'Boeking niet gevonden; je invoer is niet verwijderd.' }, 404)
+  }
 
   const extraQuestionnaireFields = [
     'werk_partner1', 'werk_partner2', 'hobbys_interesses',

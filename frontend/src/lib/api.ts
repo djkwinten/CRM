@@ -62,17 +62,21 @@ export async function updateStatus(id: number, status: Partial<Pick<Booking, 'st
   }
 }
 
-export async function submitQuestionnaire(id: string, payload: Partial<Booking>) {
-  updateLocalBooking(id, { ...payload, status_vragenlijst: 1, vragenlijst_first_submitted_at: new Date().toISOString() })
+export async function submitQuestionnaire(id: string, payload: Partial<Booking>): Promise<{ success: boolean; error?: string }> {
   try {
     const res = await fetch(`${BASE}/${id}/questionnaire`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     })
-    return res.json()
+    const data = await res.json().catch(() => ({})) as { success?: boolean; error?: string }
+    if (!res.ok || data.success !== true) {
+      return { success: false, error: data.error || 'De vragenlijst kon niet op de server worden opgeslagen.' }
+    }
+    updateLocalBooking(id, { ...payload, status_vragenlijst: 1, vragenlijst_first_submitted_at: new Date().toISOString() })
+    return { success: true }
   } catch {
-    return { success: true, local: true }
+    return { success: false, error: 'Geen verbinding met de server. Je invoer blijft op dit toestel bewaard; probeer opnieuw.' }
   }
 }
 
