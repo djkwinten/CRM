@@ -7,7 +7,7 @@
     "dev": "npm --prefix frontend run dev -- --host 0.0.0.0",
     "check": "node scripts/verify-source-of-truth.mjs && npm --prefix backend run typecheck && npm --prefix frontend run typecheck",
     "test": "npm --prefix backend test && npm --prefix frontend test",
-    "build": "npm --prefix frontend run build && rm -rf dist && cp -R frontend/dist dist",
+    "build": "npm install --prefix frontend && npm --prefix frontend run build && rm -rf dist && cp -R frontend/dist dist"
     "preview": "npm --prefix frontend run preview -- --host 0.0.0.0"
   },
   "dependencies": {
