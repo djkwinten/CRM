@@ -95,6 +95,21 @@ assert(Number(booking.totaalprijs) !== submitted.totaalprijs, 'Een klant kon zel
 assert(Number(booking.status_vragenlijst) === 1, 'Vragenlijststatus werd niet als ingediend bewaard')
 assert(Boolean(booking.vragenlijst_first_submitted_at), 'Eerste indieningstijdstip ontbreekt')
 
+const contractResponse = await app.fetch(new Request('https://crm.test/api/bookings/1/contract', {
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    basisprijs: 900,
+    extra_prijzen: JSON.stringify({ digital_booth: 225, _km_vergoeding: 20, _korting: 25 }),
+    totaalprijs: 999999,
+  }),
+}), env)
+assert(contractResponse.ok, 'CRM-prijsopslag mislukte')
+const storedPrice = sqlite.prepare('SELECT basisprijs, extra_prijzen, totaalprijs FROM bookings WHERE id = 1').get() as Record<string, unknown>
+assert(Number(storedPrice.basisprijs) === 900, 'De nieuwe CRM-basisprijs werd niet opgeslagen')
+assert(Number(storedPrice.totaalprijs) === 1120, 'De CRM-opslag gebruikte niet de autoritatieve serverberekening')
+assert(Number(storedPrice.totaalprijs) !== 999999, 'Het meegestuurde handmatige totaal werd ten onrechte vertrouwd')
+
 const missingResponse = await app.fetch(new Request('https://crm.test/api/bookings/bestaat-niet/questionnaire', {
   method: 'PUT',
   headers: { 'Content-Type': 'application/json' },
