@@ -15,6 +15,7 @@ import { importLocalBookings } from '../lib/localStore'
 import { WEDDING_FORMULAS, WEDDING_FORMULA_EXTRA_KEY, stringifyExtraPrices, getDefaultWeddingFormula, getWeddingFormulaFromExtraPrices } from '../config/weddingFormulas'
 import { getPhotoConsentPolicy } from '../lib/photoConsent'
 import { canShowFeestNadert, daysUntilEvent } from '../lib/feestReminder'
+import { matchesUpcomingBookingFilter, UpcomingBookingFilter } from '../lib/upcomingBookingFilter'
 
 function displayNaam(b: Booking): string {
   if (b.type_feest === 'Trouw' && (b.naam_partner1 || b.naam_partner2)) {
@@ -1044,6 +1045,7 @@ export function Dashboard() {
   const [showNewModal, setShowNewModal] = useState(false)
   const [search, setSearch] = useState('')
   const [activeFilter, setActiveFilter] = useState<'all' | 'aanvragen' | 'boekingen' | 'afgelopen' | 'afgewezen'>('all')
+  const [upcomingFilter, setUpcomingFilter] = useState<UpcomingBookingFilter>('alle')
   const [deleteToConfirm, setDeleteToConfirm] = useState<Booking | null>(null)
   const [showCalendarModal, setShowCalendarModal] = useState(false)
   const [showBackupModal, setShowBackupModal] = useState(false)
@@ -1178,7 +1180,9 @@ export function Dashboard() {
     b.feest_datum?.includes(search)
 
   const boekingenBase = activeFilter === 'afgelopen' ? afgelopen : komend
-  const filteredBoekingen = boekingenBase.filter(filterFn)
+  const filteredBoekingen = boekingenBase
+    .filter(filterFn)
+    .filter(b => activeFilter !== 'boekingen' || matchesUpcomingBookingFilter(b, upcomingFilter))
   const filteredAanvragen = aanvragen.filter(filterFn)
   const filteredAfgewezen = afgewezen.filter(filterFn)
 
@@ -1236,7 +1240,10 @@ export function Dashboard() {
             const selected = activeFilter === s.filter
             return (
             <div key={s.label}
-              onClick={() => setActiveFilter(selected ? 'all' : s.filter)}
+              onClick={() => {
+                setActiveFilter(selected ? 'all' : s.filter)
+                if (s.filter === 'boekingen') setUpcomingFilter('alle')
+              }}
               className={`rounded-xl sm:rounded-2xl shadow-sm sm:shadow-[0_4px_20px_rgba(0,0,0,0.12),0_1px_4px_rgba(0,0,0,0.06)] px-3 py-2.5 sm:p-4 transition-all cursor-pointer hover:shadow-[0_6px_24px_rgba(0,0,0,0.14),0_2px_6px_rgba(0,0,0,0.08)] ${
                 selected ? `${s.active} text-white sm:bg-white sm:text-gray-900 sm:ring-2 sm:ring-[#007AFF]/40` : 'bg-white text-gray-900'
               }`}>
@@ -1254,6 +1261,32 @@ export function Dashboard() {
             )
           })}
         </div>
+
+        {activeFilter === 'boekingen' && (
+          <div className="flex justify-center sm:justify-start">
+            <div className="inline-flex items-center rounded-xl border border-gray-200 bg-white p-1 shadow-sm" aria-label="Filter komende boekingen">
+              {([
+                { value: 'alle', label: 'Alle' },
+                { value: 'contract', label: 'Contract' },
+                { value: 'voorschot', label: 'Voorschot' },
+              ] as const).map(option => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setUpcomingFilter(option.value)}
+                  aria-pressed={upcomingFilter === option.value}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition-colors ${
+                    upcomingFilter === option.value
+                      ? 'bg-[#007AFF] text-white'
+                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Controls */}
         <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">

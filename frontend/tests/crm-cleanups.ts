@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { canShowFeestNadert, daysUntilEvent } from '../src/lib/feestReminder'
 import { getManualKilometervergoeding } from '../src/lib/kilometervergoeding'
+import { matchesUpcomingBookingFilter } from '../src/lib/upcomingBookingFilter'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
@@ -20,8 +21,26 @@ assert(getManualKilometervergoeding('') === 0, 'Leeg handmatig bedrag moet nul z
 assert(getManualKilometervergoeding(-5) === 0, 'Negatieve kilometervergoeding mag niet meetellen')
 assert(getManualKilometervergoeding('niet-numeriek') === 0, 'Ongeldig bedrag mag niet meetellen')
 
+const statuses = [
+  { status_contract: 0, status_voorschot: 0 },
+  { status_contract: 1, status_voorschot: 0 },
+  { status_contract: 0, status_voorschot: 1 },
+  { status_contract: 1, status_voorschot: 1 },
+]
+assert(statuses.filter(item => matchesUpcomingBookingFilter(item, 'alle')).length === 4, 'ALLE moet alle komende boekingen behouden')
+assert(statuses.filter(item => matchesUpcomingBookingFilter(item, 'contract')).length === 2, 'CONTRACT moet alleen ontbrekende contracten tonen')
+assert(statuses.filter(item => matchesUpcomingBookingFilter(item, 'voorschot')).length === 2, 'VOORSCHOT moet alleen openstaande voorschotten tonen')
+assert(matchesUpcomingBookingFilter({ status_contract: 0, status_voorschot: 1 }, 'contract'), 'Bestaande rode contractstatus wordt niet gebruikt')
+assert(matchesUpcomingBookingFilter({ status_contract: 1, status_voorschot: 0 }, 'voorschot'), 'Bestaande rode voorschotstatus wordt niet gebruikt')
+
 const dashboard = readFileSync(new URL('../src/pages/Dashboard.tsx', import.meta.url), 'utf8')
 assert((dashboard.match(/canShowFeestNadert\(b\.feest_datum\)/g) || []).length === 2, 'Desktop en mobiel moeten dezelfde 3-wekenregel gebruiken')
+assert(dashboard.includes("activeFilter === 'boekingen' && ("), 'De tweede filterbalk is niet uitsluitend aan KOMEND gekoppeld')
+assert(dashboard.includes("setUpcomingFilter('alle')"), 'KOMEND stelt de tweede filter niet standaard op ALLE in')
+assert(dashboard.includes("matchesUpcomingBookingFilter(b, upcomingFilter)"), 'De komende lijst gebruikt de tweede filter niet')
+for (const label of ["label: 'Alle'", "label: 'Contract'", "label: 'Voorschot'"]) {
+  assert(dashboard.includes(label), `De tweede filter mist ${label}`)
+}
 
 const detail = readFileSync(new URL('../src/pages/BookingDetail.tsx', import.meta.url), 'utf8')
 assert(!detail.includes('<Section title="Contact"'), 'De dubbele Contact-kaart staat nog in het boekingsoverzicht')
@@ -42,4 +61,5 @@ console.log(JSON.stringify({
   reminderBoundaryDays: 21,
   manualKilometervergoeding: true,
   duplicateContactRemoved: true,
+  upcomingStatusFilters: true,
 }))
