@@ -4,8 +4,8 @@ import { Booking } from '../types/booking'
 import { format, parseISO } from 'date-fns'
 import { nl } from 'date-fns/locale'
 import logoUrl from '../assets/logo-dj-kwinten.jpg'
-import { DISCOUNT_NOTE_EXTRA_KEY, getExpandedWeddingFormulaIncludes, getWeddingFormulaFromExtraPrices, isWeddingBooking, parseExtraPrices, WeddingFormula } from '../config/weddingFormulas'
-import { getManualKilometervergoeding } from './kilometervergoeding'
+import { DISCOUNT_NOTE_EXTRA_KEY, getExpandedWeddingFormulaIncludes, parseExtraPrices, WeddingFormula } from '../config/weddingFormulas'
+import { calculateBookingPricing } from './bookingPricing'
 
 const DJ_INFO = {
   naam: 'Den Tandt Kwinten (DJ Kwinten)',
@@ -16,14 +16,6 @@ const DJ_INFO = {
 }
 
 const VOORSCHOT = 100
-
-const EXTRA_LABELS: Record<string, string> = {
-  ceremonie_set: 'Ceremonie Set',
-  digital_booth: 'Digitale Photobooth',
-  retro_booth: 'Luxe Photobooth met prints',
-  draadloze_speaker: 'Extra Luidspreker Receptie',
-  karaoke: 'Karaoke',
-}
 
 const VOORZIENING_LABELS: Record<string, string> = {
   speakers_aanwezig: 'Geluidsinstallatie',
@@ -42,33 +34,27 @@ function euroFmt(val?: number | null) {
   return `€ ${val.toFixed(2).replace('.', ',')}`
 }
 
-/** Bereken totaal vanuit basisprijs + extra_prijzen JSON — zelfde logica als BookingDetail */
-function berekenTotaal(b: Booking): { basisprijs: number; extras: { label: string; prijs: number }[]; korting: number; kortingUitleg?: string; totaal: number; formule?: WeddingFormula | null } {
-  const basisprijs = Number(b.basisprijs) || 0
+/** Gebruik exact dezelfde prijsopbouw als CRM, klantovereenkomst en prijsoverzicht. */
+function berekenTotaal(b: Booking): { basisprijs: number; extras: { label: string; prijs: number; opAanvraag?: boolean }[]; korting: number; kortingUitleg?: string; totaal: number; formule?: WeddingFormula | null } {
+  const pricing = calculateBookingPricing(b)
   const extraPrijzen = parseExtraPrices(b.extra_prijzen)
-
-  const korting = Number(extraPrijzen['_korting']) || 0
   const kortingUitleg = String(extraPrijzen[DISCOUNT_NOTE_EXTRA_KEY] || '').trim() || undefined
-  const formule = isWeddingBooking(b) ? getWeddingFormulaFromExtraPrices(b.extra_prijzen) : null
-  const extras: { label: string; prijs: number }[] = []
-
-  for (const [key, label] of Object.entries(EXTRA_LABELS)) {
-    const isGeselecteerd = !!(b as unknown as Record<string, unknown>)[key]
-    const isHistorischeCeremonie = key === 'ceremonie_set' && !!formule
-    if (isGeselecteerd && !isHistorischeCeremonie) {
-      const prijs = Number(extraPrijzen[key] ?? 0)
-      extras.push({ label, prijs })
-    }
+  const extras = pricing.extras.map(extra => ({
+    label: extra.label,
+    prijs: extra.amount,
+    opAanvraag: extra.onRequest,
+  }))
+  if (pricing.kilometervergoeding > 0) {
+    extras.push({ label: 'Kilometervergoeding', prijs: pricing.kilometervergoeding, opAanvraag: false })
   }
-
-  const kmVergoeding = getManualKilometervergoeding(extraPrijzen['_km_vergoeding'])
-  if (kmVergoeding > 0) {
-    extras.push({ label: 'Kilometervergoeding', prijs: kmVergoeding })
+  return {
+    basisprijs: pricing.basisprijs,
+    extras,
+    korting: pricing.korting,
+    kortingUitleg,
+    totaal: pricing.totaalprijs,
+    formule: pricing.formule,
   }
-
-  const extrasTotal = extras.reduce((s, e) => s + e.prijs, 0)
-  const totaal = Math.max(0, Number(basisprijs) + extrasTotal - korting)
-  return { basisprijs, extras, korting, kortingUitleg, totaal, formule }
 }
 
 /** Gebruik de unwrapped jsPDF output functie — omzeilt de SAFE wrapper die errors slikt */
@@ -324,7 +310,7 @@ function _buildContractPDF(booking: Booking): jsPDF {
   for (const extra of extras) {
     prijsRows.push([
       `+ ${extra.label}`,
-      { content: euroFmt(extra.prijs), styles: { halign: 'right', textColor: [20, 20, 20] } }
+      { content: extra.opAanvraag ? 'Prijs op aanvraag' : euroFmt(extra.prijs), styles: { halign: 'right', textColor: [20, 20, 20] } }
     ])
   }
 

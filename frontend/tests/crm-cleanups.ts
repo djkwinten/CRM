@@ -50,11 +50,15 @@ assert(detail.includes('updateKmVergoeding'), 'Het handmatige kilometerinvoervel
 
 const contractForm = readFileSync(new URL('../src/features/event-workspace/components/ContractInfoForm.tsx', import.meta.url), 'utf8')
 const contractPdf = readFileSync(new URL('../src/lib/contractPDF.ts', import.meta.url), 'utf8')
-const kilometerSources = `${detail}\n${contractForm}\n${contractPdf}`
+const pricing = readFileSync(new URL('../src/lib/bookingPricing.ts', import.meta.url), 'utf8')
+const kilometerSources = `${detail}\n${contractForm}\n${contractPdf}\n${pricing}`
 for (const legacyKey of ['_km_gratis', '_km_afstand', '_km_ritten', '_km_prijs']) {
   assert(!kilometerSources.includes(legacyKey), `Automatische kilometerfactor staat nog in actieve code: ${legacyKey}`)
 }
-assert(contractPdf.includes("getManualKilometervergoeding(extraPrijzen['_km_vergoeding'])"), 'Contract gebruikt het handmatige bedrag niet')
+assert(!contractForm.includes('_km_vergoeding') && !contractForm.includes('Basisprijs'), 'Contract info mag geen financiële prijsbron meer zijn')
+assert(detail.includes('calculateBookingPricing'), 'CRM-overzicht gebruikt de centrale prijsberekening niet')
+assert(contractPdf.includes('calculateBookingPricing'), 'Contract gebruikt de centrale prijsberekening niet')
+assert(pricing.includes("getManualKilometervergoeding(extraPrijzen._km_vergoeding)"), 'De centrale berekening gebruikt het handmatige kilometerbedrag niet')
 
 console.log(JSON.stringify({
   success: true,

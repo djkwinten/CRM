@@ -208,7 +208,7 @@ export function deriveContractInfo(b: Booking): BookingContractInfo {
     geluid_voorzien: b.speakers_aanwezig ? 1 : 0,
     licht_voorzien: b.licht_aanwezig ? 1 : 0,
     dj_booth_nodig: b.dj_booth_aanwezig ? 1 : 0,
-    afgesproken_prijs: b.totaalprijs || b.basisprijs || null,
+    afgesproken_prijs: b.totaalprijs ?? b.basisprijs ?? null,
     voorschot_bedrag: null,
     basisprijs: b.basisprijs || null,
     extra_prijzen: b.extra_prijzen || '{}',

@@ -337,7 +337,6 @@ export async function generateBlankFormPDF(isTrouw: boolean): Promise<Uint8Array
   y = sectieHeader(page, bold, `${sectieNr + 1}. Extra Opties DJ Kwinten`, MARGE, y - 4, A4_W - MARGE * 2)
   y -= 6
   const extras = [
-    ...(isTrouw ? ['🎵 Ceremonie Set (€ 250)'] : []),
     '📸 Digitale Photobooth (€ 175)',
     '🎞️ Photobooth met Prints (op aanvraag)',
     '🔊 Extra Luidspreker Receptie (€ 25)',

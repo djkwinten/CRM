@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "tsx watch src/dev-server.ts",
     "typecheck": "tsc --noEmit",
-    "test": "tsx tests/schema-source-of-truth.ts && tsx tests/consolidation-migration.ts && tsx tests/contract-unlock-legacy-d1.ts && tsx tests/rejected-booking-restore.ts && tsx tests/questionnaire-persistence.ts && tsx tests/booking-field-roundtrip.ts && tsx tests/gmail-intake-parser.ts && tsx tests/gmail-intake-storage.ts && tsx tests/gmail-oauth-diagnostic.ts"
+    "test": "tsx tests/schema-source-of-truth.ts && tsx tests/consolidation-migration.ts && tsx tests/contract-unlock-legacy-d1.ts && tsx tests/rejected-booking-restore.ts && tsx tests/questionnaire-persistence.ts && tsx tests/booking-field-roundtrip.ts && tsx tests/gmail-intake-parser.ts && tsx tests/gmail-intake-storage.ts && tsx tests/gmail-oauth-diagnostic.ts && tsx tests/booking-pricing.ts"
   },
   "dependencies": {
     "date-fns": "^4.1.0",

@@ -2,6 +2,7 @@ import { Booking } from '../types/booking'
 import { Venue, VenueSuggestion, VenueBooking } from '../types/venue'
 import { BookingContractInfo } from '../features/event-workspace/types'
 import { createLocalBooking, deleteLocalBooking, deriveContractInfo, findLocalBooking, localBookings, localContractInfo, localVenues, mergeBookings, saveLocalContractInfo, updateLocalBooking, createLocalVenue, updateLocalVenue, deleteLocalVenue, venueBookings, venueSuggestions } from './localStore'
+import { calculateBookingPricing } from './bookingPricing'
 
 const BASE = `/api/bookings`
 
@@ -63,17 +64,46 @@ export async function updateStatus(id: number, status: Partial<Pick<Booking, 'st
 }
 
 export async function submitQuestionnaire(id: string, payload: Partial<Booking>): Promise<{ success: boolean; error?: string }> {
+  const {
+    id: _bookingId,
+    slug: _slug,
+    access_token: _accessToken,
+    basisprijs: _basisprijs,
+    extra_prijzen: _extraPrijzen,
+    totaalprijs: _totaalprijs,
+    status_contract: _statusContract,
+    status_voorschot: _statusVoorschot,
+    is_aanvraag: _isAanvraag,
+    is_afgewezen: _isAfgewezen,
+    contract_pdf: _contractPdf,
+    billit_factuur_pdf: _factuurPdf,
+    billit_factuur_naam: _factuurNaam,
+    contract_info_unlocked: _contractUnlocked,
+    created_at: _createdAt,
+    updated_at: _updatedAt,
+    ...safePayload
+  } = payload
   try {
     const res = await fetch(`${BASE}/${id}/questionnaire`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(safePayload)
     })
     const data = await res.json().catch(() => ({})) as { success?: boolean; error?: string }
     if (!res.ok || data.success !== true) {
       return { success: false, error: data.error || 'De vragenlijst kon niet op de server worden opgeslagen.' }
     }
-    updateLocalBooking(id, { ...payload, status_vragenlijst: 1, vragenlijst_first_submitted_at: new Date().toISOString() })
+    const existing = findLocalBooking(id)
+    const localUpdate: Partial<Booking> = { ...safePayload, status_vragenlijst: 1, vragenlijst_first_submitted_at: new Date().toISOString() }
+    if (existing) {
+      localUpdate.totaalprijs = calculateBookingPricing({
+        ...existing,
+        ...safePayload,
+        basisprijs: existing.basisprijs,
+        extra_prijzen: existing.extra_prijzen,
+      }).totaalprijs
+    }
+    updateLocalBooking(id, localUpdate)
     return { success: true }
   } catch {
     return { success: false, error: 'Geen verbinding met de server. Je invoer blijft op dit toestel bewaard; probeer opnieuw.' }
@@ -157,40 +187,63 @@ export async function updateBasisInfo(id: number, payload: {
 }
 
 export async function getContractInfo(id: number): Promise<BookingContractInfo | null> {
-  const local = localContractInfo(id)
-  if (local) return local
   try {
     const res = await fetch(`${BASE}/${id}/contract-info`)
     if (res.ok) {
       const data = await res.json() as { contract_info: BookingContractInfo }
-      if (data.contract_info) return data.contract_info
+      if (data.contract_info) {
+        saveLocalContractInfo(id, data.contract_info)
+        return data.contract_info
+      }
     }
   } catch {}
+
   const booking = findLocalBooking(id)
-  return booking ? deriveContractInfo(booking) : null
+  const local = localContractInfo(id)
+  if (local && booking) {
+    const currentPricing = deriveContractInfo(booking)
+    return {
+      ...local,
+      basisprijs: currentPricing.basisprijs,
+      extra_prijzen: currentPricing.extra_prijzen,
+      afgesproken_prijs: currentPricing.afgesproken_prijs,
+      ceremonie_set: currentPricing.ceremonie_set,
+      digital_booth: currentPricing.digital_booth,
+      retro_booth: currentPricing.retro_booth,
+      draadloze_speaker: currentPricing.draadloze_speaker,
+      karaoke: currentPricing.karaoke,
+    }
+  }
+  return local || (booking ? deriveContractInfo(booking) : null)
 }
 
 export async function saveContractInfo(id: number, payload: Partial<BookingContractInfo>): Promise<{ success: boolean; error?: string }> {
-  saveLocalContractInfo(id, payload)
+  const {
+    basisprijs: _basisprijs,
+    extra_prijzen: _extraPrijzen,
+    afgesproken_prijs: _afgesprokenPrijs,
+    voorschot_bedrag: _voorschotBedrag,
+    ceremonie_set: _ceremonieSet,
+    digital_booth: _digitalBooth,
+    retro_booth: _retroBooth,
+    draadloze_speaker: _draadlozeSpeaker,
+    karaoke: _karaoke,
+    ...safePayload
+  } = payload
+
+  saveLocalContractInfo(id, safePayload)
   updateLocalBooking(id, {
-    basisprijs: payload.basisprijs ?? undefined,
-    aantal_gasten: payload.aantal_gasten ?? undefined,
-    uur_dansfeest: payload.uur_dansfeest ?? undefined,
-    extra_prijzen: payload.extra_prijzen ?? undefined,
-    speakers_aanwezig: payload.geluid_voorzien,
-    licht_aanwezig: payload.licht_voorzien,
-    dj_booth_aanwezig: payload.dj_booth_nodig,
-    ceremonie_set: payload.ceremonie_set,
-    digital_booth: payload.digital_booth,
-    retro_booth: payload.retro_booth,
-    draadloze_speaker: payload.draadloze_speaker,
-    karaoke: payload.karaoke,
+    aantal_gasten: safePayload.aantal_gasten ?? undefined,
+    uur_dansfeest: safePayload.uur_dansfeest ?? undefined,
+    speakers_aanwezig: safePayload.geluid_voorzien,
+    licht_aanwezig: safePayload.licht_voorzien,
+    dj_booth_aanwezig: safePayload.dj_booth_nodig,
   })
   try {
     const res = await fetch(`${BASE}/${id}/contract-info`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(safePayload)
     })
     return res.json()
   } catch {

@@ -8,6 +8,7 @@ import { getContractGateState } from '../lib/contractGate'
 import { Booking } from '../types/booking'
 import { format, parseISO } from 'date-fns'
 import { nl } from 'date-fns/locale'
+import { calculateBookingPricing } from '../lib/bookingPricing'
 
 // ─── Reusable form components ─────────────────────────────────────────────────
 
@@ -65,16 +66,6 @@ const TIME_OPTIONS = generateTimeOptions()
 // ─── Extras with images ────────────────────────────────────────────────────────
 
 const EXTRAS = [
-  {
-    key: 'ceremonie_set',
-    label: 'Ceremonie Set',
-    desc: 'Muziek voor de huwelijksceremonie',
-    emoji: '🎵',
-    prijs: 250,
-    color: 'from-pink-500/20 to-rose-500/20 border-pink-500/30',
-    active: 'border-pink-500 bg-pink-500/20',
-    link: 'https://djkwinten.be/formules/ceremonie'
-  },
   {
     key: 'digital_booth',
     label: 'Digitale Photobooth',
@@ -1460,7 +1451,7 @@ function StepZaal({ form, setForm }: { form: FormState; setForm: (u: Partial<For
   )
 }
 
-function StepExtras({ form, setForm, isTrouw }: { form: FormState; setForm: (u: Partial<FormState>) => void; isTrouw: boolean }) {
+function StepExtras({ form, setForm }: { form: FormState; setForm: (u: Partial<FormState>) => void }) {
   const getValue = (key: string) => !!(form as Record<string, unknown>)[key]
   const setValue = (key: string, v: boolean) => setForm({ [key]: v ? 1 : 0 })
 
@@ -1493,7 +1484,7 @@ function StepExtras({ form, setForm, isTrouw }: { form: FormState; setForm: (u: 
         <p className="text-sm font-semibold text-gray-700 mb-1">Extra services</p>
         <p className="text-xs text-gray-400 mb-3">Boek extra's om jouw feest compleet te maken</p>
         <div className="space-y-2">
-          {EXTRAS.filter(extra => isTrouw || extra.key !== 'ceremonie_set').map(extra => {
+          {EXTRAS.map(extra => {
             const active = getValue(extra.key)
             const isOpAanvraag = 'opAanvraag' in extra && extra.opAanvraag
             return (
@@ -1546,14 +1537,6 @@ const VOORWAARDEN = [
   { titel: '7. Varia', tekst: 'Consumpties voor de DJ op kosten van de organisator, alsook een warme maaltijd indien het aanvangsuur voor 20u ligt. De DJ-prestaties zijn vrijgesteld van BTW (art. 44§2,8°).' },
   { titel: '8. Beeldmateriaal', tekst: 'De DJ heeft het recht om tijdens het evenement foto- en video-opnames te maken voor veiligheids- en bewijsdoeleinden (bijv. bij schade of incidenten). Deze worden niet openbaar gemaakt. Gebruik voor promotionele doeleinden enkel met voorafgaande toestemming van de organisator.' },
 ]
-
-const EXTRA_LABELS: Record<string, string> = {
-  ceremonie_set: 'Ceremonie Set',
-  digital_booth: 'Digitale Photobooth',
-  retro_booth: 'Photobooth met Prints',
-  draadloze_speaker: 'Extra Luidspreker',
-  karaoke: 'Karaoke',
-}
 
 function StepBevestiging({ form, setForm, gdprAccepted, setGdprAccepted, questionnaireOnly = false }: {
   form: FormState
@@ -1633,28 +1616,20 @@ function StepBevestiging({ form, setForm, gdprAccepted, setGdprAccepted, questio
     )
   }
 
-  // Bereken richtprijs — Number() overal om string-from-DB te voorkomen
-  const basisprijs = Number(form.basisprijs) || 0
-  let extraPrijzenDJ: Record<string, number> = {}
-  try { extraPrijzenDJ = JSON.parse(form.extra_prijzen || '{}') } catch {}
-  const korting = Number(extraPrijzenDJ['_korting']) || 0
-  // Gebruik vaste prijzen uit EXTRAS als fallback (tenzij DJ een andere prijs heeft ingesteld)
-  const EXTRAS_PRIJZEN: Record<string, number> = Object.fromEntries(
-    EXTRAS.filter(e => e.prijs !== null).map(e => [e.key, e.prijs as number])
-  )
-  const geselecteerdeExtras = Object.entries(EXTRA_LABELS)
-    .filter(([key]) => form[key as keyof FormState])
-    .map(([key, label]) => ({
-      key, label,
-      prijs: Number(extraPrijzenDJ[key] ?? EXTRAS_PRIJZEN[key] ?? 0),
-      opAanvraag: EXTRAS.find(e => e.key === key)?.prijs === null,
-    }))
+  const pricing = calculateBookingPricing(form)
+  const basisprijs = pricing.basisprijs
+  const korting = pricing.korting
+  const geselecteerdeExtras = pricing.extras.map(extra => ({
+    key: extra.key,
+    label: extra.label,
+    prijs: extra.amount,
+    opAanvraag: !!extra.onRequest,
+  }))
   const geselecteerdeVoorzieningen = DJ_VOORZIENINGEN
     .filter(item => form[item.key as keyof FormState])
     .map(item => item.label)
-  const extrasTotal = geselecteerdeExtras.reduce((s, e) => s + (e.opAanvraag ? 0 : e.prijs), 0)
-  const totaalPrijs = Math.max(0, basisprijs + extrasTotal - korting)
-  const heeftRichtprijs = basisprijs > 0 || geselecteerdeExtras.some(e => !e.opAanvraag)
+  const totaalPrijs = pricing.totaalprijs
+  const heeftRichtprijs = basisprijs > 0 || pricing.kilometervergoeding > 0 || geselecteerdeExtras.some(e => !e.opAanvraag)
 
   return (
     <div className="space-y-5">
@@ -1759,6 +1734,12 @@ function StepBevestiging({ form, setForm, gdprAccepted, setGdprAccepted, questio
                     )}
                   </div>
                 ))}
+                {pricing.kilometervergoeding > 0 && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-gray-500">Kilometervergoeding</span>
+                    <span className="text-orange-600 font-medium">+ € {pricing.kilometervergoeding.toFixed(2)}</span>
+                  </div>
+                )}
                 {korting > 0 && (
                   <div className="flex justify-between text-xs text-green-600 font-medium">
                     <span>Korting</span>
@@ -2156,11 +2137,6 @@ export function CustomerForm() {
             speakers_aanwezig: ci.geluid_voorzien,
             licht_aanwezig: ci.licht_voorzien,
             dj_booth_aanwezig: ci.dj_booth_nodig,
-            ceremonie_set: ci.ceremonie_set,
-            digital_booth: ci.digital_booth,
-            retro_booth: ci.retro_booth,
-            draadloze_speaker: ci.draadloze_speaker,
-            karaoke: ci.karaoke,
           }
           if (data.type_feest === 'Trouw' && ci.naam) {
             contractPatch.naam_partner1 = data.naam_partner1 || partner1 || ''
@@ -2460,7 +2436,7 @@ export function CustomerForm() {
           {steps[step] === 'Over jullie als koppel' && <StepTrouwKoppel form={form} setForm={updateForm} />}
           {steps[step] === 'Over jullie feest & gasten' && <StepTrouwFeestGasten form={form} setForm={updateForm} />}
           {steps[step] === 'Zaal' && <StepZaal form={form} setForm={updateForm} />}
-          {steps[step] === 'Voorzieningen' && <StepExtras form={form} setForm={updateForm} isTrouw={isTrouw} />}
+          {steps[step] === 'Voorzieningen' && <StepExtras form={form} setForm={updateForm} />}
           {steps[step] === 'Planning' && <StepPlanning form={form} setForm={updateForm} isTrouw={isTrouw} />}
           {steps[step] === 'Muziek' && <StepMuziek form={form} setForm={updateForm} isTrouw={isTrouw} />}
           {steps[step] === 'Bevestiging' && <StepBevestiging form={form} setForm={updateForm} gdprAccepted={gdprAccepted} setGdprAccepted={setGdprAccepted} questionnaireOnly={directMode} />}

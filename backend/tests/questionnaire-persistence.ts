@@ -44,8 +44,8 @@ sqlite.exec(readFileSync(new URL('../schema.sql', import.meta.url), 'utf8'))
 sqlite.prepare(`
   INSERT INTO bookings (
     access_token, slug, feest_datum, type_feest, naam_organisator,
-    email, telefoon, is_aanvraag, status_vragenlijst
-  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    email, telefoon, is_aanvraag, status_vragenlijst, basisprijs, extra_prijzen
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `).run(
   'synthetic-questionnaire-token',
   'synthetic-questionnaire',
@@ -56,6 +56,8 @@ sqlite.prepare(`
   '0000000000',
   0,
   0,
+  850,
+  JSON.stringify({ digital_booth: 200, _km_vergoeding: 10, _korting: 50 }),
 )
 
 const env = { DB: new MockD1Database(sqlite) as unknown as D1Database, ENVIRONMENT: 'test' }
@@ -69,6 +71,8 @@ const submitted = {
   anderstalige_gasten: 'Ja',
   anderstalige_talen: 'synthetische taal',
   opmerkingen: 'synthetische opmerking',
+  digital_booth: 1,
+  totaalprijs: 999999,
 }
 
 const saveResponse = await app.fetch(new Request('https://crm.test/api/bookings/synthetic-questionnaire-token/questionnaire', {
@@ -83,9 +87,11 @@ assert(saveResult.success === true, 'Server bevestigde de opslag niet')
 const readResponse = await app.fetch(new Request('https://crm.test/api/bookings/synthetic-questionnaire-token'), env)
 if (!readResponse.ok) throw new Error(`Vragenlijst herlezen mislukte: ${await readResponse.text()}`)
 const { booking } = await readResponse.json() as { booking: Record<string, unknown> }
-for (const [field, expected] of Object.entries(submitted)) {
+for (const [field, expected] of Object.entries(submitted).filter(([field]) => field !== 'totaalprijs')) {
   assert(String(booking[field] ?? '') === String(expected), `${field} bleef niet bewaard na herlezen`)
 }
+assert(Number(booking.totaalprijs) === 1010, 'De server herberekende het totaal niet uit de CRM-prijzen')
+assert(Number(booking.totaalprijs) !== submitted.totaalprijs, 'Een klant kon zelf de totaalprijs bepalen')
 assert(Number(booking.status_vragenlijst) === 1, 'Vragenlijststatus werd niet als ingediend bewaard')
 assert(Boolean(booking.vragenlijst_first_submitted_at), 'Eerste indieningstijdstip ontbreekt')
 

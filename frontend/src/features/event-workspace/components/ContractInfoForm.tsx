@@ -3,27 +3,10 @@ import { Save } from 'lucide-react'
 import { BookingContractInfo } from '../types'
 import { saveContractInfo, suggestVenues } from '../../../lib/api'
 import { AutosaveIndicator } from './AutosaveIndicator'
-import { getManualKilometervergoeding } from '../../../lib/kilometervergoeding'
-
-
-const EXTRA_OPTIONS = [
-  { key: 'ceremonie_set', label: 'Ceremonie set', link: 'https://djkwinten.be/formules/ceremonie', description: 'Ceremonie met aparte set-up voor muziek en microfoon.' },
-  { key: 'digital_booth', label: 'Digitale Photobooth', link: 'https://djkwinten.be/formules/photobooth', description: 'Digitale photobooth zonder prints, ideaal om foto’s digitaal te delen.' },
-  { key: 'retro_booth', label: 'Luxe Photobooth met prints', link: 'https://djkwinten.be/formules/photobooth', description: 'Luxe photobooth inclusief prints voor gasten.' },
-  { key: 'draadloze_speaker', label: 'Draadloze speaker', link: '', description: 'Extra draadloze speaker voor receptie, ceremonie of aparte ruimte.' },
-  { key: 'karaoke', label: 'Karaoke', link: 'https://djkwinten.be/formules/karaoke', description: 'Karaokeformule als extra animatie tijdens het feest.' },
-] as const
-
-type ExtraKey = typeof EXTRA_OPTIONS[number]['key']
-
-function parseExtraPrices(value?: string | null): Record<string, number> {
-  try { return JSON.parse(value || '{}') as Record<string, number> } catch { return {} }
-}
 
 export function ContractInfoForm({
   bookingId,
   initial,
-  showFinancial = true,
   readOnly = false,
   onChange,
   requireCompleteBeforeSave = false,
@@ -34,7 +17,6 @@ export function ContractInfoForm({
 }: {
   bookingId: number
   initial: BookingContractInfo
-  showFinancial?: boolean
   readOnly?: boolean
   onChange?: (info: BookingContractInfo) => void
   requireCompleteBeforeSave?: boolean
@@ -104,25 +86,6 @@ export function ContractInfoForm({
 
   const input = `mt-1 w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/20 transition-all ${readOnly ? 'opacity-70 cursor-not-allowed' : ''}`
   const label = 'text-xs font-medium text-gray-500 uppercase tracking-wider'
-
-  const extraPrices = parseExtraPrices(form.extra_prijzen)
-  const kmVergoeding = getManualKilometervergoeding(extraPrices._km_vergoeding)
-
-  const updateExtraPrices = (next: Record<string, number>) => update('extra_prijzen', JSON.stringify(next))
-
-  const updateKmVergoeding = (value: string) => {
-    const next = { ...parseExtraPrices(form.extra_prijzen) }
-    if (value === '') delete next._km_vergoeding
-    else next._km_vergoeding = getManualKilometervergoeding(value)
-    updateExtraPrices(next)
-  }
-
-  const updateExtraPrice = (key: ExtraKey, value: string) => {
-    const next = { ...parseExtraPrices(form.extra_prijzen) }
-    if (value === '') delete next[key]
-    else next[key] = Number(value)
-    updateExtraPrices(next)
-  }
 
   const handleVenueBlur = async () => {
     if (readOnly || form.locatie_adres?.trim() || !form.locatie_naam?.trim()) return
@@ -200,73 +163,6 @@ export function ContractInfoForm({
           <Toggle value={!!form.dj_booth_nodig} onChange={v => update('dj_booth_nodig', v ? 1 : 0)}>DJ Kwinten zorgt voor DJ-booth</Toggle>
         </div>
       </section>
-
-      <section className="space-y-3">
-        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Extra's</p>
-        <p className="text-xs text-gray-400">Kies hier eventuele extra opties. Deze worden opgeslagen op de boeking en meegenomen in de overeenkomst.</p>
-        <div className="grid sm:grid-cols-2 gap-2">
-          {EXTRA_OPTIONS.map(extra => {
-            const prijs = extraPrices[extra.key]
-            return (
-              <div key={extra.key} className="space-y-2 rounded-2xl border border-gray-200 bg-gray-50 p-3">
-                <Toggle value={!!form[extra.key]} onChange={v => update(extra.key, v ? 1 : 0)}>
-                  <span className="flex flex-col items-start text-left">
-                    <span>{extra.label}{prijs !== undefined ? ` · € ${Number(prijs).toFixed(2).replace('.', ',')}` : ''}</span>
-                    <span className="text-[11px] font-normal opacity-75 mt-0.5">{extra.description}</span>
-                  </span>
-                </Toggle>
-                {extra.link && (
-                  <a href={extra.link} target="_blank" rel="noopener noreferrer" className="inline-flex text-xs font-semibold text-[#007AFF] hover:underline">
-                    Meer info over {extra.label}
-                  </a>
-                )}
-                {showFinancial && !!form[extra.key] && (
-                  <div>
-                    <label className={label}>Prijs {extra.label}</label>
-                    <input type="number" min="0" step="0.01" value={extraPrices[extra.key] ?? ''} onChange={e => updateExtraPrice(extra.key, e.target.value)} className={input} disabled={readOnly} placeholder="0.00" />
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </section>
-
-      {showFinancial && (
-        <section className="space-y-3">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Financieel</p>
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 space-y-3">
-            <div>
-              <p className="text-sm font-bold text-amber-800">Kilometervergoeding</p>
-              <p className="text-xs text-amber-700 mt-0.5">Vul het afgesproken bedrag handmatig in. Leeg laten is € 0.</p>
-            </div>
-            <div className="max-w-xs">
-              <label className={label}>Bedrag in euro</label>
-              <div className="flex items-center gap-2">
-                <span className="text-amber-800">€</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={extraPrices._km_vergoeding ?? ''}
-                  onChange={e => updateKmVergoeding(e.target.value)}
-                  className={input}
-                  disabled={readOnly}
-                  placeholder="0,00"
-                />
-              </div>
-            </div>
-            <div className="text-sm font-semibold text-amber-900 bg-white/70 border border-amber-100 rounded-xl px-3 py-2">
-              Ingesteld bedrag: € {kmVergoeding.toFixed(2).replace('.', ',')}
-            </div>
-          </div>
-          <div className="grid sm:grid-cols-3 gap-3">
-            <div><label className={label}>Basisprijs</label><input type="number" min="0" step="0.01" value={form.basisprijs ?? form.afgesproken_prijs ?? ''} onChange={e => { const v = e.target.value === '' ? null : Number(e.target.value); update('basisprijs', v); update('afgesproken_prijs', v) }} className={input} disabled={readOnly} /></div>
-            <div><label className={label}>Afgesproken totaal/prijs</label><input type="number" min="0" step="0.01" value={form.afgesproken_prijs ?? ''} onChange={e => update('afgesproken_prijs', e.target.value === '' ? null : Number(e.target.value))} className={input} disabled={readOnly} /></div>
-            <div><label className={label}>Voorschot bedrag</label><input type="number" min="0" step="0.01" value={form.voorschot_bedrag ?? ''} onChange={e => update('voorschot_bedrag', e.target.value === '' ? null : Number(e.target.value))} className={input} disabled={readOnly} /></div>
-          </div>
-        </section>
-      )}
 
       {!readOnly && (
         <div className="flex justify-end pt-1">

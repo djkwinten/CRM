@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Music2, Clock,
   Mic, Speaker, Lightbulb, CheckCircle2, XCircle,
-  Printer, Copy, Heart, Volume2, Zap, Star, Phone,
+  Printer, Copy, Volume2, Zap, Star, Phone,
   FileText, Upload, Euro, Save, Download, ExternalLink, RefreshCw
 } from 'lucide-react'
 import { getBooking, updateStatus, updateContractInfo, updateBasisInfo, updatePortalSettings, confirmBooking } from '../lib/api'
@@ -15,6 +15,7 @@ import { WorkspaceTabs } from '../features/event-workspace/components/WorkspaceT
 import { EventWorkspace } from '../features/event-workspace/EventWorkspace'
 import { WorkspaceTab } from '../features/event-workspace/types'
 import { WEDDING_FORMULAS, WEDDING_FORMULA_EXTRA_KEY, getWeddingFormula, parseExtraPrices, stringifyExtraPrices, formatEuro } from '../config/weddingFormulas'
+import { calculateBookingPricing } from '../lib/bookingPricing'
 import { getManualKilometervergoeding } from '../lib/kilometervergoeding'
 
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
@@ -236,7 +237,6 @@ export function BookingDetail() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const DEFAULT_EXTRA_PRIJZEN: Record<string, number> = {
-    ceremonie_set: 250,
     digital_booth: 175,
     draadloze_speaker: 25,
     karaoke: 150,
@@ -298,15 +298,22 @@ export function BookingDetail() {
   const saveContractInfo = async () => {
     if (!booking) return
     setContractSaving(true)
-    const payload = {
-      basisprijs: contractForm.basisprijs ? parseFloat(contractForm.basisprijs) : 0,
+    const basisprijs = contractForm.basisprijs ? parseFloat(contractForm.basisprijs) : 0
+    const totaalprijs = calculateBookingPricing({
+      ...booking,
+      basisprijs,
       extra_prijzen: contractForm.extra_prijzen,
-      totaalprijs: contractForm.totaalprijs ? parseFloat(contractForm.totaalprijs) : 0,
+    }).totaalprijs
+    const payload = {
+      basisprijs,
+      extra_prijzen: contractForm.extra_prijzen,
+      totaalprijs,
       adres_organisator: contractForm.adres_organisator,
       voorschot_instructies: contractForm.voorschot_instructies ||
         'Voor de bevestiging van uw boeking vragen wij een vast voorschot van € 100,00. U kunt dit eenvoudig betalen via de QR-code op de bijgevoegde Billit-factuur.',
     }
     await updateContractInfo(booking.id, payload)
+    setContractForm(prev => ({ ...prev, totaalprijs: String(totaalprijs) }))
     setBooking(prev => prev ? { ...prev, ...payload } : prev)
     setContractSaving(false)
   }
@@ -667,7 +674,6 @@ export function BookingDetail() {
           {/* Prijsopbouw */}
           {(() => {
             const EXTRA_LABELS: Record<string, string> = {
-              ceremonie_set: 'Ceremonie Set',
               digital_booth: 'Digitale Photobooth',
               retro_booth: 'Photobooth met Prints',
               draadloze_speaker: 'Extra Luidspreker',
@@ -676,26 +682,21 @@ export function BookingDetail() {
             const extraPrijzen: Record<string, string> = parseExtraPrices(contractForm.extra_prijzen)
             const gekozenFormule = getWeddingFormula(extraPrijzen[WEDDING_FORMULA_EXTRA_KEY])
             const isTrouwfeest = booking.type_feest === 'Trouw'
-
             const basisVal = contractForm.basisprijs ? parseFloat(contractForm.basisprijs) : 0
-            const kortingVal = parseFloat(extraPrijzen['_korting'] || '0')
-            let extrasTotal = 0
-            for (const key of Object.keys(EXTRA_LABELS)) {
-              const v = parseFloat(extraPrijzen[key] || '0')
-              if (!isNaN(v)) extrasTotal += v
-            }
-            const kmVergoedingVal = getManualKilometervergoeding(extraPrijzen['_km_vergoeding'])
-            extrasTotal += kmVergoedingVal
-            const totaal = Math.max(0, basisVal + extrasTotal - kortingVal)
+            const pricing = calculateBookingPricing({
+              ...booking,
+              basisprijs: basisVal,
+              extra_prijzen: contractForm.extra_prijzen,
+            })
+            const kortingVal = pricing.korting
+            const extrasTotal = pricing.extrasTotaal + pricing.kilometervergoeding
+            const totaal = pricing.totaalprijs
 
-            const recalc = (basis: string, prijzen: Record<string, string>) => {
-              const b = parseFloat(basis) || 0
-              const k = parseFloat(prijzen['_korting'] || '0')
-              let e = 0
-              for (const key of Object.keys(EXTRA_LABELS)) e += parseFloat(prijzen[key] || '0') || 0
-              e += getManualKilometervergoeding(prijzen['_km_vergoeding'])
-              return String(Math.max(0, b + e - k))
-            }
+            const recalc = (basis: string, prijzen: Record<string, string>) => String(calculateBookingPricing({
+              ...booking,
+              basisprijs: parseFloat(basis) || 0,
+              extra_prijzen: stringifyExtraPrices(prijzen),
+            }).totaalprijs)
 
             const updateExtraPreis = (key: string, val: string) => {
               const updated = { ...extraPrijzen, [key]: val }
@@ -714,7 +715,8 @@ export function BookingDetail() {
             const updateWeddingFormula = (formulaKey: string) => {
               const formula = getWeddingFormula(formulaKey)
               if (!formula) return
-              const updated = { ...extraPrijzen, [WEDDING_FORMULA_EXTRA_KEY]: formula.key }
+              const updated: Record<string, string> = { ...extraPrijzen, [WEDDING_FORMULA_EXTRA_KEY]: formula.key }
+              delete updated.ceremonie_set
               setContractForm(p => ({
                 ...p,
                 basisprijs: String(formula.price),
@@ -983,13 +985,13 @@ export function BookingDetail() {
                     if (code !== '7777') { if (code !== null) alert('Ongeldige code.'); return }
                     setContractGenerating(true)
                     try {
-                      const contractBooking = { ...booking,
+                      const contractDraft = { ...booking,
                         extra_prijzen: contractForm.extra_prijzen || booking.extra_prijzen,
                         basisprijs: contractForm.basisprijs ? parseFloat(contractForm.basisprijs) : booking.basisprijs,
-                        totaalprijs: contractForm.totaalprijs ? parseFloat(contractForm.totaalprijs) : booking.totaalprijs,
                         adres_organisator: contractForm.adres_organisator || booking.adres_organisator,
                         voorschot_instructies: contractForm.voorschot_instructies || booking.voorschot_instructies
                       }
+                      const contractBooking = { ...contractDraft, totaalprijs: calculateBookingPricing(contractDraft).totaalprijs }
                       const pdfBase64 = await generateContractPDFBase64(contractBooking)
                       updateContractInfo(booking.id, { contract_pdf: pdfBase64 }).catch(console.error)
                       setBooking(prev => prev ? { ...prev, contract_pdf: pdfBase64 } : prev)
@@ -1024,13 +1026,13 @@ export function BookingDetail() {
                 onClick={async () => {
                   setContractGenerating(true)
                   try {
-                    const contractBooking = { ...booking,
+                    const contractDraft = { ...booking,
                       extra_prijzen: contractForm.extra_prijzen || booking.extra_prijzen,
                       basisprijs: contractForm.basisprijs ? parseFloat(contractForm.basisprijs) : booking.basisprijs,
-                      totaalprijs: contractForm.totaalprijs ? parseFloat(contractForm.totaalprijs) : booking.totaalprijs,
                       adres_organisator: contractForm.adres_organisator || booking.adres_organisator,
                       voorschot_instructies: contractForm.voorschot_instructies || booking.voorschot_instructies
                     }
+                    const contractBooking = { ...contractDraft, totaalprijs: calculateBookingPricing(contractDraft).totaalprijs }
                     const pdfBase64 = await generateContractPDFBase64(contractBooking)
                     updateContractInfo(booking.id, { contract_pdf: pdfBase64 }).catch(console.error)
                     setBooking(prev => prev ? { ...prev, contract_pdf: pdfBase64 } : prev)
@@ -1159,7 +1161,6 @@ export function BookingDetail() {
             {/* Extra's */}
           <Section title="Extra's" icon={<Star size={15} />}>
             <div className="grid grid-cols-2 gap-2">
-              <BoolField label="Ceremonie Set" value={booking.ceremonie_set} icon={<Heart size={12} />} />
               <BoolField label="Digitale Photobooth" value={booking.digital_booth} icon={<Star size={12} />} />
               <BoolField label="Photobooth met Prints" value={booking.retro_booth} icon={<Star size={12} />} />
               <BoolField label="Extra Luidspreker voor Receptie" value={booking.draadloze_speaker} icon={<Volume2 size={12} />} />

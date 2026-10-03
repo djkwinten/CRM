@@ -5,6 +5,7 @@ import { sendContractInfoNotification, sendUpdateNotification, SmtpConfig } from
 import { randomBytes } from 'crypto'
 import { ensureGmailIntakeTables, runGmailImportIfDue } from '../lib/gmailIntake'
 import { publicAppUrl } from '../lib/appUrl'
+import { calculateStoredBookingTotal } from '../lib/bookingPricing'
 
 // ── Slug helpers ──────────────────────────────────────────────────────────────
 
@@ -563,10 +564,16 @@ bookingsRoutes.get('/:id/contract-info', async (c) => {
   const existing = await queryOne<Record<string, unknown>>(c.env, `SELECT * FROM booking_contract_info WHERE booking_id = ?`, [id])
   if (existing) {
     const bookingFinancial = await queryOne<Record<string, unknown>>(c.env, `
-      SELECT basisprijs, extra_prijzen, ceremonie_set, digital_booth, retro_booth, draadloze_speaker, karaoke
+      SELECT totaalprijs, basisprijs, extra_prijzen, ceremonie_set, digital_booth, retro_booth, draadloze_speaker, karaoke
       FROM bookings WHERE id = ?
     `, [id])
-    return c.json({ contract_info: { ...(bookingFinancial || {}), ...existing } })
+    return c.json({
+      contract_info: {
+        ...existing,
+        ...(bookingFinancial || {}),
+        afgesproken_prijs: bookingFinancial?.totaalprijs ?? null,
+      },
+    })
   }
 
   const b = await queryOne<{
@@ -623,7 +630,7 @@ bookingsRoutes.get('/:id/contract-info', async (c) => {
       geluid_voorzien: b.speakers_aanwezig ? 1 : 0,
       licht_voorzien: b.licht_aanwezig ? 1 : 0,
       dj_booth_nodig: b.dj_booth_aanwezig ? 1 : 0,
-      afgesproken_prijs: b.totaalprijs || b.basisprijs || null,
+      afgesproken_prijs: b.totaalprijs ?? b.basisprijs ?? null,
       voorschot_bedrag: null,
       basisprijs: b.basisprijs || null,
       extra_prijzen: b.extra_prijzen || '{}',
@@ -683,9 +690,9 @@ bookingsRoutes.put('/:id/contract-info', async (c) => {
   await execute(c.env, `
     INSERT INTO booking_contract_info (
       booking_id, naam, email, gsm, klant_adres, event_type, event_datum, locatie_naam, locatie_adres,
-      aantal_gasten, uur_dansfeest, geluid_voorzien, licht_voorzien, dj_booth_nodig, afgesproken_prijs, voorschot_bedrag,
+      aantal_gasten, uur_dansfeest, geluid_voorzien, licht_voorzien, dj_booth_nodig,
       contract_ready, notes, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
     ON CONFLICT(booking_id) DO UPDATE SET
       naam = excluded.naam,
       email = excluded.email,
@@ -700,8 +707,6 @@ bookingsRoutes.put('/:id/contract-info', async (c) => {
       geluid_voorzien = excluded.geluid_voorzien,
       licht_voorzien = excluded.licht_voorzien,
       dj_booth_nodig = excluded.dj_booth_nodig,
-      afgesproken_prijs = excluded.afgesproken_prijs,
-      voorschot_bedrag = excluded.voorschot_bedrag,
       contract_ready = excluded.contract_ready,
       notes = excluded.notes,
       updated_at = datetime('now')
@@ -720,8 +725,6 @@ bookingsRoutes.put('/:id/contract-info', async (c) => {
     bool(body.geluid_voorzien),
     bool(body.licht_voorzien),
     bool(body.dj_booth_nodig),
-    body.afgesproken_prijs === '' || body.afgesproken_prijs == null ? null : Number(body.afgesproken_prijs),
-    body.voorschot_bedrag === '' || body.voorschot_bedrag == null ? null : Number(body.voorschot_bedrag),
     body.contract_ready ? 1 : 0,
     body.notes ?? null,
   ])
@@ -748,13 +751,6 @@ bookingsRoutes.put('/:id/contract-info', async (c) => {
   if (body.geluid_voorzien !== undefined) { syncFields.push('speakers_aanwezig = ?'); syncValues.push(bool(body.geluid_voorzien)) }
   if (body.licht_voorzien !== undefined) { syncFields.push('licht_aanwezig = ?'); syncValues.push(bool(body.licht_voorzien)) }
   if (body.dj_booth_nodig !== undefined) { syncFields.push('dj_booth_aanwezig = ?'); syncValues.push(bool(body.dj_booth_nodig)) }
-  if (body.ceremonie_set !== undefined) { syncFields.push('ceremonie_set = ?'); syncValues.push(bool(body.ceremonie_set)) }
-  if (body.digital_booth !== undefined) { syncFields.push('digital_booth = ?'); syncValues.push(bool(body.digital_booth)) }
-  if (body.retro_booth !== undefined) { syncFields.push('retro_booth = ?'); syncValues.push(bool(body.retro_booth)) }
-  if (body.draadloze_speaker !== undefined) { syncFields.push('draadloze_speaker = ?'); syncValues.push(bool(body.draadloze_speaker)) }
-  if (body.karaoke !== undefined) { syncFields.push('karaoke = ?'); syncValues.push(bool(body.karaoke)) }
-  if (body.basisprijs !== undefined) { syncFields.push('basisprijs = ?'); syncValues.push(body.basisprijs === '' || body.basisprijs == null ? null : Number(body.basisprijs)) }
-  if (body.extra_prijzen !== undefined) { syncFields.push('extra_prijzen = ?'); syncValues.push(body.extra_prijzen || '{}') }
   if (syncFields.length > 0) {
     syncFields.push("updated_at = datetime('now')")
     syncValues.push(id)
@@ -875,7 +871,10 @@ bookingsRoutes.get('/:ref/pdf/:type', async (c) => {
 bookingsRoutes.post('/', async (c) => {
   const body = await c.req.json()
   if (!c.env.DB && c.env.STORAGE) {
-    const booking = await createCloudBooking(c.env, body)
+    const booking = await createCloudBooking(c.env, {
+      ...body,
+      totaalprijs: calculateStoredBookingTotal(body),
+    })
     return c.json({ success: true, id: booking.id, slug: booking.slug, access_token: booking.access_token, storage: 'r2' })
   }
   const naam = body.naam_organisator || ''
@@ -891,6 +890,7 @@ bookingsRoutes.post('/', async (c) => {
   const baseSlug = slugify(slugNaam, datum, type)
   const finalSlug = await uniqueSlug(c.env, baseSlug)
   const isAanvraag = body.is_aanvraag ? 1 : 0
+  const totaalprijs = calculateStoredBookingTotal(body)
   // Auto-resolve venue_id: gebruik meegegeven id of zoek op naam
   let venueId: number | null = body.venue_id ?? null
   if (!venueId && body.locatie_naam) {
@@ -901,7 +901,7 @@ bookingsRoutes.post('/', async (c) => {
   const result = await execute(c.env, `
     INSERT INTO bookings (feest_datum, type_feest, naam_organisator, naam_partner1, naam_partner2, email, telefoon, adres_organisator, btw_nr, access_token, slug, basisprijs, extra_prijzen, totaalprijs, verjaardag_naam_leeftijd, is_aanvraag, locatie_naam, locatie_adres, speakers_aanwezig, licht_aanwezig, dj_booth_aanwezig, opmerkingen, venue_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [datum, type, naam, body.naam_partner1 ?? null, body.naam_partner2 ?? null, body.email || '', body.telefoon || '', body.adres_organisator ?? null, body.btw_nr ?? null, token, finalSlug, body.basisprijs ?? null, body.extra_prijzen ?? null, body.totaalprijs ?? body.basisprijs ?? null, body.verjaardag_naam_leeftijd ?? null, isAanvraag, body.locatie_naam ?? null, body.locatie_adres ?? null, body.speakers_aanwezig ? 1 : 0, body.licht_aanwezig ? 1 : 0, body.dj_booth_aanwezig ? 1 : 0, body.opmerkingen ?? null, venueId])
+  `, [datum, type, naam, body.naam_partner1 ?? null, body.naam_partner2 ?? null, body.email || '', body.telefoon || '', body.adres_organisator ?? null, body.btw_nr ?? null, token, finalSlug, body.basisprijs ?? null, body.extra_prijzen ?? null, totaalprijs, body.verjaardag_naam_leeftijd ?? null, isAanvraag, body.locatie_naam ?? null, body.locatie_adres ?? null, body.speakers_aanwezig ? 1 : 0, body.licht_aanwezig ? 1 : 0, body.dj_booth_aanwezig ? 1 : 0, body.opmerkingen ?? null, venueId])
   return c.json({ success: true, id: result.lastRowId, slug: finalSlug, access_token: token })
 })
 
@@ -1077,9 +1077,26 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
   } catch (e: unknown) {
     return c.json({ success: false, error: 'Invalid JSON: ' + String(e) }, 400)
   }
+
+  // Een publieke vragenlijst mag nooit financiële, status-, document- of
+  // identificatievelden van de boeking overschrijven (ook niet in R2 fallback).
+  for (const protectedField of [
+    'id', 'slug', 'access_token', 'basisprijs', 'extra_prijzen', 'totaalprijs',
+    'status_contract', 'status_voorschot', 'is_aanvraag', 'is_afgewezen',
+    'contract_pdf', 'billit_factuur_pdf', 'billit_factuur_naam',
+    'contract_info_unlocked', 'created_at', 'updated_at',
+  ]) {
+    delete body[protectedField]
+  }
+
   if (!c.env.DB && c.env.STORAGE) {
-    const patch: Record<string, unknown> = { ...body, status_vragenlijst: 1, vragenlijst_updated_at: new Date().toISOString() }
     const existing = await findCloudBooking(c.env, ref)
+    const patch: Record<string, unknown> = {
+      ...body,
+      totaalprijs: calculateStoredBookingTotal({ ...(existing || {}), ...body }),
+      status_vragenlijst: 1,
+      vragenlijst_updated_at: new Date().toISOString(),
+    }
     if (existing && !existing.vragenlijst_first_submitted_at) patch.vragenlijst_first_submitted_at = new Date().toISOString()
     const updated = await patchCloudBooking(c.env, ref, patch)
     if (!updated) return c.json({ success: false, error: 'Boeking niet gevonden' }, 404)
@@ -1216,6 +1233,14 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
     extraValues.push(...whereParams)
     await execute(c.env, `UPDATE bookings SET ${extraUpdates.join(', ')} WHERE ${where}`, extraValues)
   }
+
+  const pricingRow = await queryOne<Record<string, unknown>>(c.env, `
+    SELECT type_feest, basisprijs, extra_prijzen, ceremonie_set, digital_booth, retro_booth, draadloze_speaker, karaoke
+    FROM bookings WHERE ${where}
+  `, whereParams)
+  if (pricingRow) {
+    await execute(c.env, `UPDATE bookings SET totaalprijs = ? WHERE ${where}`, [calculateStoredBookingTotal(pricingRow), ...whereParams])
+  }
   } catch (e: unknown) {
     console.error('Questionnaire UPDATE error:', e)
     return c.json({ success: false, error: String(e) }, 500)
@@ -1311,16 +1336,29 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
 // Update contract info (DJ side — price, factuur PDF, instructies)
 bookingsRoutes.patch('/:id/contract', async (c) => {
   const id = c.req.param('id')
-  const body = await c.req.json()
+  const body = await c.req.json() as Record<string, unknown>
+  const { totaalprijs: _ignoredClientTotal, ...safeBody } = body
+  const updatesPricing = body.basisprijs !== undefined || body.extra_prijzen !== undefined
   if (!c.env.DB && c.env.STORAGE) {
-    await patchCloudBooking(c.env, id, body)
+    const existing = await findCloudBooking(c.env, id)
+    const patch = updatesPricing
+      ? { ...safeBody, totaalprijs: calculateStoredBookingTotal({ ...(existing || {}), ...safeBody }) }
+      : safeBody
+    await patchCloudBooking(c.env, id, patch)
     return c.json({ success: true, storage: 'r2' })
   }
   const fields: string[] = []
   const values: unknown[] = []
-  if (body.totaalprijs !== undefined) { fields.push('totaalprijs = ?'); values.push(body.totaalprijs) }
   if (body.basisprijs !== undefined) { fields.push('basisprijs = ?'); values.push(body.basisprijs) }
   if (body.extra_prijzen !== undefined) { fields.push('extra_prijzen = ?'); values.push(body.extra_prijzen) }
+  if (updatesPricing) {
+    const existing = await queryOne<Record<string, unknown>>(c.env, `
+      SELECT type_feest, basisprijs, extra_prijzen, ceremonie_set, digital_booth, retro_booth, draadloze_speaker, karaoke
+      FROM bookings WHERE id = ?
+    `, [id])
+    fields.push('totaalprijs = ?')
+    values.push(calculateStoredBookingTotal({ ...(existing || {}), ...safeBody }))
+  }
   if (body.adres_organisator !== undefined) { fields.push('adres_organisator = ?'); values.push(body.adres_organisator) }
   if (body.voorschot_instructies !== undefined) { fields.push('voorschot_instructies = ?'); values.push(body.voorschot_instructies) }
   if (body.billit_factuur_pdf !== undefined) { fields.push('billit_factuur_pdf = ?'); values.push(body.billit_factuur_pdf) }
