@@ -1,0 +1,45 @@
+import { readFileSync } from 'node:fs'
+import { canShowFeestNadert, daysUntilEvent } from '../src/lib/feestReminder'
+import { getManualKilometervergoeding } from '../src/lib/kilometervergoeding'
+
+function assert(condition: unknown, message: string): asserts condition {
+  if (!condition) throw new Error(message)
+}
+
+const today = new Date(2026, 9, 2, 23, 30)
+assert(daysUntilEvent('2026-10-23', today) === 21, 'Exact drie weken moet 21 kalenderdagen zijn')
+assert(canShowFeestNadert('2026-10-23', today), 'Feest nadert moet vanaf exact drie weken zichtbaar zijn')
+assert(!canShowFeestNadert('2026-10-24', today), 'Feest nadert mag op 22 dagen nog niet zichtbaar zijn')
+assert(canShowFeestNadert('2026-10-02', today), 'Feest nadert moet op de feestdatum zichtbaar zijn')
+assert(!canShowFeestNadert('2026-10-01', today), 'Feest nadert mag na de feestdatum niet zichtbaar zijn')
+assert(!canShowFeestNadert('ongeldig', today), 'Een ongeldige feestdatum mag geen knop tonen')
+
+assert(getManualKilometervergoeding('35.00') === 35, 'Handmatig bedrag wordt niet correct gelezen')
+assert(850 + getManualKilometervergoeding('35.00') === 885, 'Handmatig bedrag wordt niet correct in het totaal meegenomen')
+assert(getManualKilometervergoeding('') === 0, 'Leeg handmatig bedrag moet nul zijn')
+assert(getManualKilometervergoeding(-5) === 0, 'Negatieve kilometervergoeding mag niet meetellen')
+assert(getManualKilometervergoeding('niet-numeriek') === 0, 'Ongeldig bedrag mag niet meetellen')
+
+const dashboard = readFileSync(new URL('../src/pages/Dashboard.tsx', import.meta.url), 'utf8')
+assert((dashboard.match(/canShowFeestNadert\(b\.feest_datum\)/g) || []).length === 2, 'Desktop en mobiel moeten dezelfde 3-wekenregel gebruiken')
+
+const detail = readFileSync(new URL('../src/pages/BookingDetail.tsx', import.meta.url), 'utf8')
+assert(!detail.includes('<Section title="Contact"'), 'De dubbele Contact-kaart staat nog in het boekingsoverzicht')
+assert(detail.includes('Contactgegevens'), 'Contactgegevens moet behouden blijven')
+assert(detail.includes('Aanvullende boekingsinformatie'), 'Unieke gegevens uit Contact moeten behouden blijven')
+assert(detail.includes('updateKmVergoeding'), 'Het handmatige kilometerinvoerveld ontbreekt')
+
+const contractForm = readFileSync(new URL('../src/features/event-workspace/components/ContractInfoForm.tsx', import.meta.url), 'utf8')
+const contractPdf = readFileSync(new URL('../src/lib/contractPDF.ts', import.meta.url), 'utf8')
+const kilometerSources = `${detail}\n${contractForm}\n${contractPdf}`
+for (const legacyKey of ['_km_gratis', '_km_afstand', '_km_ritten', '_km_prijs']) {
+  assert(!kilometerSources.includes(legacyKey), `Automatische kilometerfactor staat nog in actieve code: ${legacyKey}`)
+}
+assert(contractPdf.includes("getManualKilometervergoeding(extraPrijzen['_km_vergoeding'])"), 'Contract gebruikt het handmatige bedrag niet')
+
+console.log(JSON.stringify({
+  success: true,
+  reminderBoundaryDays: 21,
+  manualKilometervergoeding: true,
+  duplicateContactRemoved: true,
+}))

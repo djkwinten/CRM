@@ -15,6 +15,7 @@ import { WorkspaceTabs } from '../features/event-workspace/components/WorkspaceT
 import { EventWorkspace } from '../features/event-workspace/EventWorkspace'
 import { WorkspaceTab } from '../features/event-workspace/types'
 import { WEDDING_FORMULAS, WEDDING_FORMULA_EXTRA_KEY, getWeddingFormula, parseExtraPrices, stringifyExtraPrices, formatEuro } from '../config/weddingFormulas'
+import { getManualKilometervergoeding } from '../lib/kilometervergoeding'
 
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -633,6 +634,23 @@ export function BookingDetail() {
                 className="mt-1 w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#007AFF] focus:ring-2 focus:ring-[#007AFF]/20 transition-all"
               />
             </div>
+            {(booking.bedrijfsnaam || booking.aantal_gasten || booking.thema || booking.backup_contact_naam || booking.backup_contact_telefoon) && (
+              <div className="border-t border-gray-100 pt-3">
+                <p className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Aanvullende boekingsinformatie</p>
+                <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Field label="Bedrijfsnaam" value={booking.bedrijfsnaam} />
+                  <Field label="Aantal Gasten" value={booking.aantal_gasten ? `${booking.aantal_gasten} personen` : undefined} />
+                  <Field label="Thema" value={booking.thema} />
+                  {(booking.backup_contact_naam || booking.backup_contact_telefoon) && (
+                    <div>
+                      <dt className="text-xs text-gray-400 uppercase tracking-wider">📞 Back-up Contact (avond)</dt>
+                      <dd className="text-sm text-gray-900 mt-0.5">{booking.backup_contact_naam}</dd>
+                      {booking.backup_contact_telefoon && <dd className="text-sm text-gray-500">{booking.backup_contact_telefoon}</dd>}
+                    </div>
+                  )}
+                </dl>
+              </div>
+            )}
             <button onClick={saveBasisInfo} disabled={basisInfoSaving}
               className="flex items-center gap-2 bg-[#007AFF] hover:bg-[#0066CC] disabled:opacity-50 text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors">
               <Save size={14} /> {basisInfoSaving ? 'Opslaan...' : 'Opslaan'}
@@ -666,7 +684,7 @@ export function BookingDetail() {
               const v = parseFloat(extraPrijzen[key] || '0')
               if (!isNaN(v)) extrasTotal += v
             }
-            const kmVergoedingVal = parseFloat(extraPrijzen['_km_vergoeding'] || '0') || 0
+            const kmVergoedingVal = getManualKilometervergoeding(extraPrijzen['_km_vergoeding'])
             extrasTotal += kmVergoedingVal
             const totaal = Math.max(0, basisVal + extrasTotal - kortingVal)
 
@@ -675,7 +693,7 @@ export function BookingDetail() {
               const k = parseFloat(prijzen['_korting'] || '0')
               let e = 0
               for (const key of Object.keys(EXTRA_LABELS)) e += parseFloat(prijzen[key] || '0') || 0
-              e += parseFloat(prijzen['_km_vergoeding'] || '0') || 0
+              e += getManualKilometervergoeding(prijzen['_km_vergoeding'])
               return String(Math.max(0, b + e - k))
             }
 
@@ -705,22 +723,12 @@ export function BookingDetail() {
               }))
             }
 
-            const updateKm = (key: '_km_gratis' | '_km_afstand' | '_km_ritten' | '_km_prijs', val: string) => {
-              const updated: Record<string, string> = { ...extraPrijzen, [key]: val }
-              const gratis = parseFloat(updated._km_gratis || '20') || 0
-              const afstand = parseFloat(updated._km_afstand || '0') || 0
-              const ritten = parseFloat(updated._km_ritten || '2') || 0
-              const prijs = parseFloat(updated._km_prijs || '0') || 0
-              const vergoeding = Math.max(0, afstand - gratis) * ritten * prijs
-              if (vergoeding > 0) updated._km_vergoeding = vergoeding.toFixed(2)
-              else delete updated._km_vergoeding
+            const updateKmVergoeding = (val: string) => {
+              const updated: Record<string, string> = { ...extraPrijzen }
+              if (val === '') delete updated._km_vergoeding
+              else updated._km_vergoeding = String(getManualKilometervergoeding(val))
               setContractForm(p => ({ ...p, extra_prijzen: stringifyExtraPrices(updated), totaalprijs: recalc(p.basisprijs, updated) }))
             }
-
-            const kmGratis = parseFloat(extraPrijzen._km_gratis || '20') || 0
-            const kmAfstand = parseFloat(extraPrijzen._km_afstand || '0') || 0
-            const kmRitten = parseFloat(extraPrijzen._km_ritten || '2') || 0
-            const kmPrijs = parseFloat(extraPrijzen._km_prijs || '0') || 0
 
             return (
               <div className="mb-4 space-y-3">
@@ -830,16 +838,22 @@ export function BookingDetail() {
                 <div className="border border-amber-200 bg-amber-50 rounded-xl overflow-hidden">
                   <div className="px-3 py-2 border-b border-amber-200">
                     <p className="text-xs font-bold text-amber-700 uppercase tracking-wider">Kilometervergoeding</p>
-                    <p className="text-[11px] text-amber-700 mt-0.5">Eerste 20 km gratis. Afstand = enkele rit; aantal ritten kan je verhogen bij extra opbouw/verplaatsingen.</p>
+                    <p className="text-[11px] text-amber-700 mt-0.5">Vul het afgesproken bedrag handmatig in. Leeg laten is € 0.</p>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3">
-                    <div><label className="text-[10px] font-bold text-amber-700 uppercase">Gratis km</label><input type="number" min="0" step="0.1" value={extraPrijzen._km_gratis || '20'} onChange={e => updateKm('_km_gratis', e.target.value)} className="mt-1 w-full bg-white border border-amber-200 rounded-lg px-2 py-1.5 text-xs" /></div>
-                    <div><label className="text-[10px] font-bold text-amber-700 uppercase">Afstand enkele rit</label><input type="number" min="0" step="0.1" value={extraPrijzen._km_afstand || ''} onChange={e => updateKm('_km_afstand', e.target.value)} className="mt-1 w-full bg-white border border-amber-200 rounded-lg px-2 py-1.5 text-xs" placeholder="km" /></div>
-                    <div><label className="text-[10px] font-bold text-amber-700 uppercase">Aantal ritten</label><input type="number" min="1" step="1" value={extraPrijzen._km_ritten || '2'} onChange={e => updateKm('_km_ritten', e.target.value)} className="mt-1 w-full bg-white border border-amber-200 rounded-lg px-2 py-1.5 text-xs" /></div>
-                    <div><label className="text-[10px] font-bold text-amber-700 uppercase">Prijs/km</label><input type="number" min="0" step="0.01" value={extraPrijzen._km_prijs || ''} onChange={e => updateKm('_km_prijs', e.target.value)} className="mt-1 w-full bg-white border border-amber-200 rounded-lg px-2 py-1.5 text-xs" placeholder="0.00" /></div>
-                  </div>
-                  <div className="px-3 pb-3 text-xs font-semibold text-amber-900">
-                    Berekend: {kmVergoedingVal > 0 ? `€ ${kmVergoedingVal.toFixed(2)} (${Math.max(0, kmAfstand - kmGratis).toFixed(1)} km × ${kmRitten} ritten × € ${kmPrijs.toFixed(2)})` : 'geen kilometervergoeding'}
+                  <div className="p-3">
+                    <label className="text-[10px] font-bold text-amber-700 uppercase">Bedrag</label>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className="text-amber-700 text-sm">€</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={extraPrijzen._km_vergoeding ?? ''}
+                        onChange={e => updateKmVergoeding(e.target.value)}
+                        className="w-full sm:w-40 bg-white border border-amber-200 rounded-lg px-2 py-1.5 text-xs"
+                        placeholder="0,00"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -1049,35 +1063,6 @@ export function BookingDetail() {
         </div>}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {/* Contact */}
-          <Section title="Contact" icon={<Phone size={15} />}>
-            <dl className="grid grid-cols-1 gap-3">
-              {(booking.naam_partner1 || booking.naam_partner2) && (
-                <div className="bg-pink-50 border border-pink-100 rounded-xl p-2.5 space-y-1">
-                  <dt className="text-[10px] text-pink-500 font-bold uppercase tracking-wider">💍 Koppel</dt>
-                  {booking.naam_partner1 && <dd className="text-sm text-gray-900 font-medium">{booking.naam_partner1}</dd>}
-                  {booking.naam_partner2 && <dd className="text-sm text-gray-900 font-medium">{booking.naam_partner2}</dd>}
-                </div>
-              )}
-              <Field label="Contactpersoon" value={booking.naam_organisator} />
-              {booking.bedrijfsnaam && <Field label="Bedrijfsnaam" value={booking.bedrijfsnaam} />}
-              <Field label="E-mail" value={booking.email} />
-              <Field label="Telefoon" value={booking.telefoon} />
-              <Field label="📍 Adres Organisator" value={booking.adres_organisator} />
-              <Field label="Aantal Gasten" value={booking.aantal_gasten ? `${booking.aantal_gasten} personen` : undefined} />
-              <Field label="Thema" value={booking.thema} />
-              {(booking.backup_contact_naam || booking.backup_contact_telefoon) && (
-                <div className="pt-1 border-t border-gray-100">
-                  <dt className="text-xs text-gray-400 uppercase tracking-wider mb-1">📞 Back-up Contact (avond)</dt>
-                  <dd className="text-sm text-gray-900">{booking.backup_contact_naam}</dd>
-                  {booking.backup_contact_telefoon && (
-                    <dd className="text-sm text-gray-500">{booking.backup_contact_telefoon}</dd>
-                  )}
-                </div>
-              )}
-            </dl>
-          </Section>
-
           {/* Planning */}
           <Section title="Planning" icon={<Clock size={15} />}>
             <div className="space-y-2">

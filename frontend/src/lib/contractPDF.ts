@@ -5,6 +5,7 @@ import { format, parseISO } from 'date-fns'
 import { nl } from 'date-fns/locale'
 import logoUrl from '../assets/logo-dj-kwinten.jpg'
 import { DISCOUNT_NOTE_EXTRA_KEY, getExpandedWeddingFormulaIncludes, getWeddingFormulaFromExtraPrices, isWeddingBooking, parseExtraPrices, WeddingFormula } from '../config/weddingFormulas'
+import { getManualKilometervergoeding } from './kilometervergoeding'
 
 const DJ_INFO = {
   naam: 'Den Tandt Kwinten (DJ Kwinten)',
@@ -42,7 +43,7 @@ function euroFmt(val?: number | null) {
 }
 
 /** Bereken totaal vanuit basisprijs + extra_prijzen JSON — zelfde logica als BookingDetail */
-function berekenTotaal(b: Booking): { basisprijs: number; extras: { label: string; prijs: number }[]; korting: number; kortingUitleg?: string; totaal: number; kmInfo?: string; formule?: WeddingFormula | null } {
+function berekenTotaal(b: Booking): { basisprijs: number; extras: { label: string; prijs: number }[]; korting: number; kortingUitleg?: string; totaal: number; formule?: WeddingFormula | null } {
   const basisprijs = Number(b.basisprijs) || 0
   const extraPrijzen = parseExtraPrices(b.extra_prijzen)
 
@@ -60,20 +61,14 @@ function berekenTotaal(b: Booking): { basisprijs: number; extras: { label: strin
     }
   }
 
-  const kmVergoeding = Number(extraPrijzen['_km_vergoeding']) || 0
-  const kmAfstand = Number(extraPrijzen['_km_afstand']) || 0
-  const kmGratis = Number(extraPrijzen['_km_gratis'] ?? 20)
-  const kmRitten = Number(extraPrijzen['_km_ritten'] ?? 2)
-  const kmPrijs = Number(extraPrijzen['_km_prijs']) || 0
-  let kmInfo: string | undefined
+  const kmVergoeding = getManualKilometervergoeding(extraPrijzen['_km_vergoeding'])
   if (kmVergoeding > 0) {
     extras.push({ label: 'Kilometervergoeding', prijs: kmVergoeding })
-    kmInfo = `${Math.max(0, kmAfstand - kmGratis).toFixed(1).replace('.', ',')} betalende km x ${kmRitten} ritten x € ${kmPrijs.toFixed(2).replace('.', ',')}/km (eerste ${kmGratis} km gratis)`
   }
 
   const extrasTotal = extras.reduce((s, e) => s + e.prijs, 0)
   const totaal = Math.max(0, Number(basisprijs) + extrasTotal - korting)
-  return { basisprijs, extras, korting, kortingUitleg, totaal, kmInfo, formule }
+  return { basisprijs, extras, korting, kortingUitleg, totaal, formule }
 }
 
 /** Gebruik de unwrapped jsPDF output functie — omzeilt de SAFE wrapper die errors slikt */
@@ -128,7 +123,7 @@ function _buildContractPDF(booking: Booking): jsPDF {
     : '—'
   const gegeneerdOp = format(new Date(), 'd MMMM yyyy', { locale: nl })
 
-  const { basisprijs, extras, korting, kortingUitleg, totaal, kmInfo, formule } = berekenTotaal(booking)
+  const { basisprijs, extras, korting, kortingUitleg, totaal, formule } = berekenTotaal(booking)
   const restbedrag = Math.max(0, totaal - VOORSCHOT)
   const voorzieningen = Object.entries(VOORZIENING_LABELS)
     .filter(([key]) => !!(booking as unknown as Record<string, unknown>)[key])
@@ -330,13 +325,6 @@ function _buildContractPDF(booking: Booking): jsPDF {
     prijsRows.push([
       `+ ${extra.label}`,
       { content: euroFmt(extra.prijs), styles: { halign: 'right', textColor: [20, 20, 20] } }
-    ])
-  }
-
-  if (kmInfo) {
-    prijsRows.push([
-      { content: `  ${kmInfo}`, styles: { fontSize: 7, textColor: [120, 90, 20] } },
-      { content: '', styles: { halign: 'right' } }
     ])
   }
 

@@ -14,6 +14,7 @@ import { BottomTabBar } from '../components/BottomTabBar'
 import { importLocalBookings } from '../lib/localStore'
 import { WEDDING_FORMULAS, WEDDING_FORMULA_EXTRA_KEY, stringifyExtraPrices, getDefaultWeddingFormula, getWeddingFormulaFromExtraPrices } from '../config/weddingFormulas'
 import { getPhotoConsentPolicy } from '../lib/photoConsent'
+import { canShowFeestNadert, daysUntilEvent } from '../lib/feestReminder'
 
 function displayNaam(b: Booking): string {
   if (b.type_feest === 'Trouw' && (b.naam_partner1 || b.naam_partner2)) {
@@ -53,15 +54,6 @@ function StatusBadge({ value, label, updated }: { value: number; label: string; 
       {label}
     </span>
   )
-}
-
-function daysUntil(date?: string | null): number | null {
-  if (!date) return null
-  const event = new Date(`${date}T12:00:00`)
-  if (Number.isNaN(event.getTime())) return null
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12)
-  return Math.ceil((event.getTime() - today.getTime()) / 86400000)
 }
 
 function WeddingFormulaBadge({ booking }: { booking: Booking }) {
@@ -1424,7 +1416,7 @@ export function Dashboard() {
                           <Calendar size={11} />
                           <span>{b.feest_datum ? format(parseISO(b.feest_datum), 'd MMM yyyy', { locale: nl }) : '—'}</span>
                           {b.feest_datum && (() => {
-                            const days = daysUntil(b.feest_datum)
+                            const days = daysUntilEvent(b.feest_datum)
                             if (days === null || days < 0) return null
                             const cls = days <= 14
                               ? 'bg-red-100 text-red-600 font-semibold'
@@ -1475,8 +1467,8 @@ export function Dashboard() {
                         <AlertTriangle size={13} /> Acties
                       </button>
                       <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
-                        {/* Feest nadert knop — alleen zichtbaar vóór feestdatum */}
-                        {b.feest_datum && new Date(b.feest_datum) >= new Date() && b.email && (
+                        {/* Feest nadert knop — zichtbaar vanaf exact 3 weken vóór de feestdatum */}
+                        {canShowFeestNadert(b.feest_datum) && b.email && (
                           <button
                             onClick={() => openMailTemplate(b, 'feest_nadert')}
                             disabled={feestHerinneringSending === b.id}
@@ -1523,7 +1515,7 @@ export function Dashboard() {
                           </a>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
-                          {b.feest_datum && new Date(b.feest_datum) >= new Date() && b.email && (
+                          {canShowFeestNadert(b.feest_datum) && b.email && (
                             <button
                               onClick={() => openMailTemplate(b, 'feest_nadert')}
                               disabled={feestHerinneringSending === b.id}
