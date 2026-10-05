@@ -183,6 +183,9 @@ try {
   assert(detailResponse.ok, 'CRM-detail kon niet worden geladen')
   const detailBody = await detailResponse.json() as { booking: Record<string, unknown> }
   assert(String(detailBody.booking.source_original_message).includes('Vanessa Van Parys'), 'CRM-detail geeft de originele brontekst niet terug')
+  assert(detailBody.booking.source_sender === 'DJ Kwinten <info@djkwinten.be>', 'CRM-detail geeft de originele afzender niet terug')
+  assert(detailBody.booking.source_subject === 'Bericht via contactformulier website', 'CRM-detail geeft het originele onderwerp niet terug')
+  assert(detailBody.booking.source_received_at === new Date(activationFloor).toISOString(), 'CRM-detail geeft de ontvangstdatum niet terug')
 
   const reviewResponse = await app.fetch(new Request(`https://crm.test/api/bookings/${bookingId}/intake-status`, {
     method: 'PATCH',

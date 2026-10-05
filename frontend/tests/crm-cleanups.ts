@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { canShowFeestNadert, daysUntilEvent } from '../src/lib/feestReminder'
 import { getManualKilometervergoeding } from '../src/lib/kilometervergoeding'
 import { matchesUpcomingBookingFilter } from '../src/lib/upcomingBookingFilter'
+import { aanvraagMoment } from '../src/pages/Dashboard'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
@@ -33,6 +34,13 @@ assert(statuses.filter(item => matchesUpcomingBookingFilter(item, 'voorschot')).
 assert(matchesUpcomingBookingFilter({ status_contract: 0, status_voorschot: 1 }, 'contract'), 'Bestaande rode contractstatus wordt niet gebruikt')
 assert(matchesUpcomingBookingFilter({ status_contract: 1, status_voorschot: 0 }, 'voorschot'), 'Bestaande rode voorschotstatus wordt niet gebruikt')
 
+const aanvraagVolgorde = [
+  { id: 1, created_at: '2026-10-01 10:00:00' },
+  { id: 2, created_at: '2026-10-03 09:00:00', source_received_at: '2026-10-02T08:00:00.000Z' },
+  { id: 3, created_at: '2026-10-04 12:00:00' },
+].sort((a, b) => aanvraagMoment(b) - aanvraagMoment(a))
+assert(aanvraagVolgorde.map(item => item.id).join(',') === '3,2,1', 'Aanvragen staan niet op aanmaak/importtijd van nieuw naar oud')
+
 const dashboard = readFileSync(new URL('../src/pages/Dashboard.tsx', import.meta.url), 'utf8')
 assert((dashboard.match(/canShowFeestNadert\(b\.feest_datum\)/g) || []).length === 2, 'Desktop en mobiel moeten dezelfde 3-wekenregel gebruiken')
 assert(dashboard.includes("activeFilter === 'boekingen' && ("), 'De tweede filterbalk is niet uitsluitend aan KOMEND gekoppeld')
@@ -47,6 +55,13 @@ assert(!detail.includes('<Section title="Contact"'), 'De dubbele Contact-kaart s
 assert(detail.includes('Contactgegevens'), 'Contactgegevens moet behouden blijven')
 assert(detail.includes('Aanvullende boekingsinformatie'), 'Unieke gegevens uit Contact moeten behouden blijven')
 assert(detail.includes('updateKmVergoeding'), 'Het handmatige kilometerinvoerveld ontbreekt')
+assert(dashboard.includes('.sort((a, b) => aanvraagMoment(b) - aanvraagMoment(a))'), 'De aanvragenlijst sorteert niet op ontvangst-/aanmaaktijd')
+
+const communication = readFileSync(new URL('../src/features/event-workspace/tabs/CommunicationTab.tsx', import.meta.url), 'utf8')
+for (const field of ['source_original_message', 'source_sender', 'source_subject', 'source_received_at']) {
+  assert(communication.includes(field), `Communicatie mist Gmail-bronveld ${field}`)
+}
+assert(communication.includes('E-mail ontvangen'), 'Ontvangen Gmail-bericht heeft geen herkenbaar communicatielabel')
 
 const contractForm = readFileSync(new URL('../src/features/event-workspace/components/ContractInfoForm.tsx', import.meta.url), 'utf8')
 const contractPdf = readFileSync(new URL('../src/lib/contractPDF.ts', import.meta.url), 'utf8')

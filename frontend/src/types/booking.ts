@@ -118,6 +118,11 @@ export interface Booking {
   wedding_meeting_at?: string
   wedding_meeting_note?: string
   vragenlijst_diff?: string
+  // Alleen-lezen brongegevens van een geïmporteerde Gmail-aanvraag
+  source_sender?: string
+  source_subject?: string
+  source_received_at?: string
+  source_original_message?: string
   // Klantpagina boolean vlaggen (grote PDFs worden niet meegestuurd)
   has_contract_pdf?: number
   has_billit_factuur_pdf?: number

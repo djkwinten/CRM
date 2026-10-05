@@ -13,6 +13,6 @@ export function EventWorkspace({ booking, activeTab, onShowQuestionnaireChanges 
   if (activeTab === 'contract') return <ContractInfoTab booking={booking} />
   if (activeTab === 'vragenlijst') return <QuestionnaireTab booking={booking} onShowChanges={onShowQuestionnaireChanges} />
   if (activeTab === 'bestanden') return <FilesTab booking={booking} />
-  if (activeTab === 'communicatie') return <CommunicationTab />
+  if (activeTab === 'communicatie') return <CommunicationTab booking={booking} />
   return null
 }

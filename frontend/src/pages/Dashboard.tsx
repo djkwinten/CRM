@@ -17,6 +17,13 @@ import { getPhotoConsentPolicy } from '../lib/photoConsent'
 import { canShowFeestNadert, daysUntilEvent } from '../lib/feestReminder'
 import { matchesUpcomingBookingFilter, UpcomingBookingFilter } from '../lib/upcomingBookingFilter'
 
+export function aanvraagMoment(b: Pick<Booking, 'source_received_at' | 'created_at'>): number {
+  const raw = b.source_received_at || b.created_at || ''
+  const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(raw) ? `${raw.replace(' ', 'T')}Z` : raw
+  const timestamp = Date.parse(normalized)
+  return Number.isFinite(timestamp) ? timestamp : 0
+}
+
 function displayNaam(b: Booking): string {
   if (b.type_feest === 'Trouw' && (b.naam_partner1 || b.naam_partner2)) {
     const v1 = (b.naam_partner1 || '').split(' ')[0]
@@ -1183,7 +1190,9 @@ export function Dashboard() {
   const filteredBoekingen = boekingenBase
     .filter(filterFn)
     .filter(b => activeFilter !== 'boekingen' || matchesUpcomingBookingFilter(b, upcomingFilter))
-  const filteredAanvragen = aanvragen.filter(filterFn)
+  const filteredAanvragen = aanvragen
+    .filter(filterFn)
+    .sort((a, b) => aanvraagMoment(b) - aanvraagMoment(a))
   const filteredAfgewezen = afgewezen.filter(filterFn)
 
   const stats = {
