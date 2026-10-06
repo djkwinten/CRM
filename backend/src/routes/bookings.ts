@@ -5,7 +5,7 @@ import { sendContractInfoNotification, sendUpdateNotification, SmtpConfig } from
 import { randomBytes } from 'crypto'
 import { ensureGmailIntakeTables, runGmailImportIfDue } from '../lib/gmailIntake'
 import { publicAppUrl } from '../lib/appUrl'
-import { calculateStoredBookingTotal } from '../lib/bookingPricing'
+import { calculateStoredBookingTotal, upgradeWeddingFormulaForHallEntrance } from '../lib/bookingPricing'
 
 // ── Slug helpers ──────────────────────────────────────────────────────────────
 
@@ -1078,6 +1078,10 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
     return c.json({ success: false, error: 'Invalid JSON: ' + String(e) }, 400)
   }
 
+  const formulaUpgradeRequested = body._formula_upgrade_reason === 'intrede_zaal'
+  delete body._formula_upgrade_reason
+  let formulaUpgraded = false
+
   // Een publieke vragenlijst mag nooit financiële, status-, document- of
   // identificatievelden van de boeking overschrijven (ook niet in R2 fallback).
   for (const protectedField of [
@@ -1091,9 +1095,12 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
 
   if (!c.env.DB && c.env.STORAGE) {
     const existing = await findCloudBooking(c.env, ref)
+    const source = { ...(existing || {}), ...body }
+    const formulaUpgrade = formulaUpgradeRequested ? upgradeWeddingFormulaForHallEntrance(source) : null
+    formulaUpgraded = !!formulaUpgrade
     const patch: Record<string, unknown> = {
       ...body,
-      totaalprijs: calculateStoredBookingTotal({ ...(existing || {}), ...body }),
+      ...(formulaUpgrade || { totaalprijs: calculateStoredBookingTotal(source) }),
       status_vragenlijst: 1,
       vragenlijst_updated_at: new Date().toISOString(),
     }
@@ -1235,11 +1242,21 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
   }
 
   const pricingRow = await queryOne<Record<string, unknown>>(c.env, `
-    SELECT type_feest, basisprijs, extra_prijzen, ceremonie_set, digital_booth, retro_booth, draadloze_speaker, karaoke
+    SELECT type_feest, basisprijs, extra_prijzen, ceremonie_set, digital_booth, retro_booth, draadloze_speaker, karaoke, intrede_zaal_nummer
     FROM bookings WHERE ${where}
   `, whereParams)
   if (pricingRow) {
-    await execute(c.env, `UPDATE bookings SET totaalprijs = ? WHERE ${where}`, [calculateStoredBookingTotal(pricingRow), ...whereParams])
+    const formulaUpgrade = formulaUpgradeRequested ? upgradeWeddingFormulaForHallEntrance(pricingRow) : null
+    formulaUpgraded = !!formulaUpgrade
+    if (formulaUpgrade) {
+      await execute(c.env, `
+        UPDATE bookings
+        SET basisprijs = ?, extra_prijzen = ?, ceremonie_set = ?, totaalprijs = ?
+        WHERE ${where}
+      `, [formulaUpgrade.basisprijs, formulaUpgrade.extra_prijzen, formulaUpgrade.ceremonie_set, formulaUpgrade.totaalprijs, ...whereParams])
+    } else {
+      await execute(c.env, `UPDATE bookings SET totaalprijs = ? WHERE ${where}`, [calculateStoredBookingTotal(pricingRow), ...whereParams])
+    }
   }
   } catch (e: unknown) {
     console.error('Questionnaire UPDATE error:', e)
@@ -1324,7 +1341,7 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
       )
       const naam = String(row?.naam_organisator || row?.naam_partner1 || 'Klant')
       const datum = String(row?.feest_datum || '')
-      await sendUpdateNotification(cfg, { naam, datum, appUrl, isUpdate })
+      await sendUpdateNotification(cfg, { naam, datum, appUrl, isUpdate, formulaUpgrade: formulaUpgraded })
     } catch (e) {
       console.error('Vragenlijst notificatie e-mail mislukt:', e)
     }

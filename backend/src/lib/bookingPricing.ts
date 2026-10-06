@@ -37,6 +37,35 @@ function extraPrices(value: unknown): Record<string, unknown> {
  * Autoritatieve serverberekening. Prijzen komen uitsluitend uit de CRM-velden;
  * een klant kan via een keuzevlag nooit zelf een bedrag insturen.
  */
+export function upgradeWeddingFormulaForHallEntrance(source: ServerPricingSource): {
+  basisprijs: number
+  extra_prijzen: string
+  ceremonie_set: 0
+  totaalprijs: number
+} | null {
+  const prices = extraPrices(source.extra_prijzen)
+  if (String(source.type_feest || '') !== 'Trouw'
+    || prices._trouw_formule !== 'avondfeest'
+    || source.intrede_zaal_nummer !== 'Ja') {
+    return null
+  }
+
+  const upgradedPrices: Record<string, unknown> = { ...prices, _trouw_formule: 'receptie_avondfeest' }
+  delete upgradedPrices.ceremonie_set
+  const upgraded = {
+    ...source,
+    basisprijs: 950,
+    extra_prijzen: JSON.stringify(upgradedPrices),
+    ceremonie_set: 0,
+  }
+  return {
+    basisprijs: 950,
+    extra_prijzen: upgraded.extra_prijzen,
+    ceremonie_set: 0,
+    totaalprijs: calculateStoredBookingTotal(upgraded),
+  }
+}
+
 export function calculateStoredBookingTotal(source: ServerPricingSource): number {
   const prices = extraPrices(source.extra_prijzen)
   const basisprijs = amount(source.basisprijs)

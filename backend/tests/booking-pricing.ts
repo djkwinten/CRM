@@ -1,4 +1,4 @@
-import { calculateStoredBookingTotal } from '../src/lib/bookingPricing'
+import { calculateStoredBookingTotal, upgradeWeddingFormulaForHallEntrance } from '../src/lib/bookingPricing'
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
@@ -32,4 +32,23 @@ assert(calculateStoredBookingTotal({
   extra_prijzen: '{}',
 }) === 700, 'Een optie op aanvraag mag zonder CRM-bedrag niet meetellen')
 
-console.log(JSON.stringify({ success: true, authoritativeStoredTotal: true }))
+const hallEntranceUpgrade = upgradeWeddingFormulaForHallEntrance({
+  type_feest: 'Trouw',
+  basisprijs: 850,
+  intrede_zaal_nummer: 'Ja',
+  digital_booth: 1,
+  extra_prijzen: JSON.stringify({ _trouw_formule: 'avondfeest', digital_booth: 175, _km_vergoeding: 20, _korting: 50 }),
+})
+assert(hallEntranceUpgrade?.basisprijs === 950, 'Een bevestigde zaalintrede moet de formulebasisprijs naar €950 brengen')
+assert(hallEntranceUpgrade?.totaalprijs === 1095, 'De formule-upgrade moet bestaande extra’s, kilometers en korting behouden')
+assert(JSON.parse(hallEntranceUpgrade?.extra_prijzen || '{}')._trouw_formule === 'receptie_avondfeest', 'De formulecode werd niet opgewaardeerd')
+
+for (const source of [
+  { type_feest: 'Trouw', basisprijs: 850, intrede_zaal_nummer: 'Nee', extra_prijzen: JSON.stringify({ _trouw_formule: 'avondfeest' }) },
+  { type_feest: 'Trouw', basisprijs: 950, intrede_zaal_nummer: 'Ja', extra_prijzen: JSON.stringify({ _trouw_formule: 'receptie_avondfeest' }) },
+  { type_feest: 'Verjaardag', basisprijs: 850, intrede_zaal_nummer: 'Ja', extra_prijzen: JSON.stringify({ _trouw_formule: 'avondfeest' }) },
+]) {
+  assert(upgradeWeddingFormulaForHallEntrance(source) === null, 'Een niet-toegestane formule-upgrade werd uitgevoerd')
+}
+
+console.log(JSON.stringify({ success: true, authoritativeStoredTotal: true, hallEntranceUpgradeGuarded: true }))

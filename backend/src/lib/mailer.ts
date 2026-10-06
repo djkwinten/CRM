@@ -190,10 +190,12 @@ DJ Manager
   await sendViaBrevo(cfg, opts.to, subject, html, text)
 }
 
-export async function sendUpdateNotification(cfg: SmtpConfig, opts: { naam: string; datum: string; appUrl: string; isUpdate?: boolean }): Promise<void> {
-  const subject = opts.isUpdate
-    ? `✏️ Vragenlijst aangepast — ${opts.naam}`
-    : `✅ Vragenlijst ingediend — ${opts.naam}`
+export async function sendUpdateNotification(cfg: SmtpConfig, opts: { naam: string; datum: string; appUrl: string; isUpdate?: boolean; formulaUpgrade?: boolean }): Promise<void> {
+  const subject = opts.formulaUpgrade
+    ? `Formule gewijzigd via vragenlijst — ${opts.naam}`
+    : opts.isUpdate
+      ? `✏️ Vragenlijst aangepast — ${opts.naam}`
+      : `✅ Vragenlijst ingediend — ${opts.naam}`
   const datumStr = opts.datum ? new Date(opts.datum).toLocaleDateString('nl-BE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '—'
 
   const html = `
@@ -203,11 +205,15 @@ export async function sendUpdateNotification(cfg: SmtpConfig, opts: { naam: stri
     <tr><td align="center">
       <table width="520" style="max-width:520px;width:100%;background:white;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">
         <tr><td style="background:linear-gradient(135deg,#007AFF,#5856D6);padding:24px 28px;">
-          <p style="color:white;font-size:20px;font-weight:800;margin:0;">${opts.isUpdate ? '✏️ Vragenlijst Aangepast' : '✅ Vragenlijst Ingediend'}</p>
+          <p style="color:white;font-size:20px;font-weight:800;margin:0;">${opts.formulaUpgrade ? 'Formule gewijzigd via vragenlijst' : opts.isUpdate ? '✏️ Vragenlijst Aangepast' : '✅ Vragenlijst Ingediend'}</p>
           <p style="color:rgba(255,255,255,0.7);font-size:13px;margin:4px 0 0;">DJ Manager — Automatische melding</p>
         </td></tr>
         <tr><td style="padding:24px 28px;">
-          <p style="color:#1a1a2e;font-size:15px;margin:0 0 12px;">${opts.isUpdate ? 'Een klant heeft zijn/haar vragenlijst aangepast:' : 'Een klant heeft de vragenlijst ingevuld en ingediend:'}</p>
+          <p style="color:#1a1a2e;font-size:15px;margin:0 0 12px;">${opts.formulaUpgrade
+            ? `${opts.naam} heeft ‘Intrede in de zaal’ geselecteerd. De formule is automatisch gewijzigd van Avondfeest (€850) naar Receptie + avondfeest (€950). Controleer de prijs vóór de definitieve bevestiging.`
+            : opts.isUpdate
+              ? 'Een klant heeft zijn/haar vragenlijst aangepast:'
+              : 'Een klant heeft de vragenlijst ingevuld en ingediend:'}</p>
           <table style="background:#f8f9fa;border-radius:12px;padding:16px;width:100%;border-collapse:collapse;">
             <tr><td style="color:#6b7280;font-size:13px;padding:4px 0;">Klant</td><td style="color:#111827;font-size:13px;font-weight:600;padding:4px 0;">${opts.naam}</td></tr>
             <tr><td style="color:#6b7280;font-size:13px;padding:4px 0;">Feestdatum</td><td style="color:#111827;font-size:13px;font-weight:600;padding:4px 0;text-transform:capitalize;">${datumStr}</td></tr>
@@ -223,7 +229,10 @@ export async function sendUpdateNotification(cfg: SmtpConfig, opts: { naam: stri
 </body></html>`
 
   const action = opts.isUpdate ? 'aangepast' : 'ingediend'
-  await sendViaBrevo(cfg, cfg.user, subject, html, `Vragenlijst ${action} door ${opts.naam} (${datumStr}). Bekijk via ${opts.appUrl}`)
+  const text = opts.formulaUpgrade
+    ? `Formule gewijzigd via vragenlijst\n\n${opts.naam} heeft ‘Intrede in de zaal’ geselecteerd. De formule is automatisch gewijzigd van Avondfeest (€850) naar Receptie + avondfeest (€950). Controleer de prijs vóór de definitieve bevestiging.\n\nBekijk via ${opts.appUrl}`
+    : `Vragenlijst ${action} door ${opts.naam} (${datumStr}). Bekijk via ${opts.appUrl}`
+  await sendViaBrevo(cfg, cfg.user, subject, html, text)
 }
 
 

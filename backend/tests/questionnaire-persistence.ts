@@ -57,7 +57,26 @@ sqlite.prepare(`
   0,
   0,
   850,
-  JSON.stringify({ digital_booth: 200, _km_vergoeding: 10, _korting: 50 }),
+  JSON.stringify({ _trouw_formule: 'avondfeest', digital_booth: 200, _km_vergoeding: 10, _korting: 50 }),
+)
+
+sqlite.prepare(`
+  INSERT INTO bookings (
+    access_token, slug, feest_datum, type_feest, naam_organisator,
+    email, telefoon, is_aanvraag, status_vragenlijst, basisprijs, extra_prijzen
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+  'synthetic-unconfirmed-upgrade-token',
+  'synthetic-unconfirmed-upgrade',
+  '2033-05-15',
+  'Trouw',
+  'Synthetische onbevestigde klant',
+  'synthetic-unconfirmed@example.invalid',
+  '0000000000',
+  0,
+  0,
+  850,
+  JSON.stringify({ _trouw_formule: 'avondfeest' }),
 )
 
 const env = { DB: new MockD1Database(sqlite) as unknown as D1Database, ENVIRONMENT: 'test' }
@@ -71,6 +90,7 @@ const submitted = {
   anderstalige_gasten: 'Ja',
   anderstalige_talen: 'synthetische taal',
   opmerkingen: 'synthetische opmerking',
+  intrede_zaal_nummer: 'Ja',
   digital_booth: 1,
   totaalprijs: 999999,
 }
@@ -78,7 +98,7 @@ const submitted = {
 const saveResponse = await app.fetch(new Request('https://crm.test/api/bookings/synthetic-questionnaire-token/questionnaire', {
   method: 'PUT',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(submitted),
+  body: JSON.stringify({ ...submitted, _formula_upgrade_reason: 'intrede_zaal' }),
 }), env)
 if (!saveResponse.ok) throw new Error(`Vragenlijst opslaan mislukte: ${await saveResponse.text()}`)
 const saveResult = await saveResponse.json() as { success?: boolean }
@@ -90,10 +110,34 @@ const { booking } = await readResponse.json() as { booking: Record<string, unkno
 for (const [field, expected] of Object.entries(submitted).filter(([field]) => field !== 'totaalprijs')) {
   assert(String(booking[field] ?? '') === String(expected), `${field} bleef niet bewaard na herlezen`)
 }
-assert(Number(booking.totaalprijs) === 1010, 'De server herberekende het totaal niet uit de CRM-prijzen')
+assert(Number(booking.basisprijs) === 950, 'De bevestigde zaalintrede verhoogde de basisprijs niet naar €950')
+assert(JSON.parse(String(booking.extra_prijzen))._trouw_formule === 'receptie_avondfeest', 'De bevestigde zaalintrede bewaarde niet de juiste formulecode')
+assert(Number(booking.totaalprijs) === 1110, 'De server herberekende het totaal niet uit de opgewaardeerde CRM-prijzen')
 assert(Number(booking.totaalprijs) !== submitted.totaalprijs, 'Een klant kon zelf de totaalprijs bepalen')
 assert(Number(booking.status_vragenlijst) === 1, 'Vragenlijststatus werd niet als ingediend bewaard')
 assert(Boolean(booking.vragenlijst_first_submitted_at), 'Eerste indieningstijdstip ontbreekt')
+
+const noDowngradeResponse = await app.fetch(new Request('https://crm.test/api/bookings/synthetic-questionnaire-token/questionnaire', {
+  method: 'PUT',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ intrede_zaal_nummer: 'Nee', _formula_upgrade_reason: 'hall_entrance' }),
+}), env)
+assert(noDowngradeResponse.ok, 'Tweede vragenlijstopslag mislukte')
+const afterNo = sqlite.prepare('SELECT basisprijs, extra_prijzen, totaalprijs FROM bookings WHERE id = 1').get() as Record<string, unknown>
+assert(Number(afterNo.basisprijs) === 950, 'Intrede “Nee” verlaagde de formule ten onrechte')
+assert(JSON.parse(String(afterNo.extra_prijzen))._trouw_formule === 'receptie_avondfeest', 'Intrede “Nee” wijzigde de formulecode ten onrechte')
+assert(Number(afterNo.totaalprijs) === 1110, 'Intrede “Nee” wijzigde het totaal ten onrechte')
+
+const unconfirmedResponse = await app.fetch(new Request('https://crm.test/api/bookings/synthetic-unconfirmed-upgrade-token/questionnaire', {
+  method: 'PUT',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ intrede_zaal_nummer: 'Ja', basisprijs: 950, totaalprijs: 950 }),
+}), env)
+assert(unconfirmedResponse.ok, 'Opslag zonder formulebevestiging mislukte')
+const unconfirmed = sqlite.prepare('SELECT basisprijs, extra_prijzen, totaalprijs FROM bookings WHERE id = 2').get() as Record<string, unknown>
+assert(Number(unconfirmed.basisprijs) === 850, 'Een onbevestigde zaalintrede wijzigde de basisprijs')
+assert(JSON.parse(String(unconfirmed.extra_prijzen))._trouw_formule === 'avondfeest', 'Een onbevestigde zaalintrede wijzigde de formulecode')
+assert(Number(unconfirmed.totaalprijs) === 850, 'Een onbevestigde zaalintrede wijzigde het totaal')
 
 const contractResponse = await app.fetch(new Request('https://crm.test/api/bookings/1/contract', {
   method: 'PATCH',

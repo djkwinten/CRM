@@ -9,6 +9,7 @@ import { Booking } from '../types/booking'
 import { format, parseISO } from 'date-fns'
 import { nl } from 'date-fns/locale'
 import { calculateBookingPricing } from '../lib/bookingPricing'
+import { getWeddingFormulaFromExtraPrices, selectMinimumWeddingFormula } from '../config/weddingFormulas'
 
 // ─── Reusable form components ─────────────────────────────────────────────────
 
@@ -120,7 +121,10 @@ const DJ_VOORZIENINGEN = [
 
 const FEEST_TYPES = ['Verjaardag', 'Jubileum', 'Pensioen', 'Bedrijfsfeest', 'Familiefeest', 'Anders']
 
-type FormState = Partial<Booking> & { subtype?: string }
+type FormState = Partial<Booking> & {
+  subtype?: string
+  _formula_upgrade_reason?: 'intrede_zaal'
+}
 
 
 type LeveranciersInfo = {
@@ -740,6 +744,49 @@ function GenreSelector({ label, sublabel, pillsValue, onPillsChange, extraValue,
 }
 
 function StepMuziek({ form, setForm, isTrouw }: { form: FormState; setForm: (u: Partial<FormState>) => void; isTrouw: boolean }) {
+  const [showFormulaUpgrade, setShowFormulaUpgrade] = useState(false)
+  const hallEntranceFields: (keyof FormState)[] = [
+    'intrede_eretafel_nummer',
+    'intrede_bridesmaids_nummer',
+    'intrede_groomsmen_nummer',
+    'intrede_koppel_nummer',
+    'intrede_anders_nummer',
+  ]
+  const hallEntranceSelected = form.intrede_zaal_nummer === 'Ja'
+    || hallEntranceFields.some(key => !!form[key] && form[key] !== 'n.v.t.')
+  const currentFormula = getWeddingFormulaFromExtraPrices(form.extra_prijzen)
+
+  const selectHallEntrance = () => {
+    if (currentFormula?.key === 'avondfeest') {
+      setShowFormulaUpgrade(true)
+      return
+    }
+    setForm({ intrede_zaal_nummer: 'Ja' })
+  }
+
+  const removeHallEntrance = () => {
+    setForm({
+      intrede_zaal_nummer: '',
+      intrede_eretafel_nummer: '',
+      intrede_bridesmaids_nummer: '',
+      intrede_groomsmen_nummer: '',
+      intrede_koppel_nummer: '',
+      intrede_anders_nummer: '',
+    })
+  }
+
+  const confirmFormulaUpgrade = () => {
+    const upgraded = selectMinimumWeddingFormula(form.extra_prijzen, 'receptie_avondfeest')
+    setForm({
+      intrede_zaal_nummer: 'Ja',
+      basisprijs: upgraded.basisprijs,
+      extra_prijzen: upgraded.extra_prijzen,
+      ceremonie_set: upgraded.ceremonie_set,
+      _formula_upgrade_reason: 'intrede_zaal',
+    })
+    setShowFormulaUpgrade(false)
+  }
+
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-1 gap-5">
@@ -837,8 +884,26 @@ function StepMuziek({ form, setForm, isTrouw }: { form: FormState; setForm: (u: 
 
           {/* Intredes in de zaal — checklist */}
           <div className="bg-pink-50 border border-pink-200 rounded-2xl p-4 space-y-3">
-            <p className="text-xs font-semibold text-pink-600">🚶 Intredes in de Zaal</p>
-            <p className="text-xs text-pink-500/80">Vink aan welke intredes van toepassing zijn en vul het nummer in</p>
+            <p className="text-xs font-semibold text-pink-600">🚶 Intrede in de zaal</p>
+            <p className="text-xs text-pink-500/80">Willen jullie een begeleide intrede in de zaal?</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={selectHallEntrance}
+                className={`rounded-xl border-2 py-2.5 text-sm font-semibold transition-all ${hallEntranceSelected ? 'border-pink-500 bg-pink-500 text-white' : 'border-pink-200 bg-white text-gray-500'}`}
+              >
+                Ja
+              </button>
+              <button
+                type="button"
+                onClick={removeHallEntrance}
+                className={`rounded-xl border-2 py-2.5 text-sm font-semibold transition-all ${!hallEntranceSelected ? 'border-pink-500 bg-pink-500 text-white' : 'border-pink-200 bg-white text-gray-500'}`}
+              >
+                Nee
+              </button>
+            </div>
+            {hallEntranceSelected && <>
+              <p className="text-xs text-pink-500/80">Vink aan welke intredes van toepassing zijn en vul het nummer in</p>
             {[
               { key: 'intrede_eretafel_nummer', label: 'Eretafel', placeholder: 'Artiest - Nummer' },
               { key: 'intrede_bridesmaids_nummer', label: 'Bridesmaids', placeholder: 'Artiest - Nummer' },
@@ -878,6 +943,7 @@ function StepMuziek({ form, setForm, isTrouw }: { form: FormState; setForm: (u: 
                 </div>
               )
             })}
+            </>}
           </div>
 
           {/* Andere speciale momenten */}
@@ -1087,6 +1153,28 @@ function StepMuziek({ form, setForm, isTrouw }: { form: FormState; setForm: (u: 
             )
           })()}
         </>
+      )}
+
+      {showFormulaUpgrade && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-bold text-gray-900">Formule wordt aangepast</h3>
+            <p className="mt-3 text-sm leading-relaxed text-gray-600">
+              Jullie hebben een intrede in de zaal geselecteerd. Hiervoor moet ik vóór de start van het avondfeest aanwezig zijn. Daarom wordt jullie formule aangepast van Avondfeest naar Receptie + avondfeest.
+            </p>
+            <p className="mt-4 rounded-xl bg-pink-50 px-4 py-3 text-center text-sm font-bold text-pink-700">
+              Avondfeest: €850 → Receptie + avondfeest: €950
+            </p>
+            <div className="mt-5 flex gap-3">
+              <button type="button" onClick={() => setShowFormulaUpgrade(false)} className="flex-1 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600">
+                Annuleren
+              </button>
+              <button type="button" onClick={confirmFormulaUpgrade} className="flex-1 rounded-xl bg-[#007AFF] px-4 py-2.5 text-sm font-semibold text-white">
+                Formule aanpassen
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
