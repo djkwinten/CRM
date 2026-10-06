@@ -7,7 +7,10 @@ export type ServerPricingSource = Record<string, unknown> & {
   retro_booth?: unknown
   draadloze_speaker?: unknown
   karaoke?: unknown
+  vroeger_aanwezig_receptie?: unknown
 }
+
+export const EARLY_RECEPTION_SURCHARGE = 75
 
 const EXTRA_DEFAULTS: Record<string, number | null> = {
   digital_booth: 175,
@@ -19,6 +22,10 @@ const EXTRA_DEFAULTS: Record<string, number | null> = {
 function amount(value: unknown): number {
   const parsed = Number(value)
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0
+}
+
+function enabledFlag(value: unknown): boolean {
+  return value === true || value === 1 || value === '1' || value === 'Ja' || value === 'ja'
 }
 
 function extraPrices(value: unknown): Record<string, unknown> {
@@ -72,6 +79,10 @@ export function calculateStoredBookingTotal(source: ServerPricingSource): number
   const korting = amount(prices._korting)
   const kilometervergoeding = amount(prices._km_vergoeding)
   let extras = 0
+
+  if (String(source.type_feest || '') !== 'Trouw' && enabledFlag(source.vroeger_aanwezig_receptie)) {
+    extras += EARLY_RECEPTION_SURCHARGE
+  }
 
   for (const [key, fallback] of Object.entries(EXTRA_DEFAULTS)) {
     if (!source[key]) continue

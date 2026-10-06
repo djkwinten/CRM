@@ -44,6 +44,29 @@ const legacyCeremony = calculateBookingPricing({
 assert(legacyCeremony.extras.some(extra => extra.key === 'ceremonie_set' && extra.amount === 275 && extra.legacy), 'Een bestaande ceremonietoeslag zonder formule moet behouden blijven')
 assert(legacyCeremony.totaalprijs === 1125, 'Historische omzet mag niet stil verdwijnen')
 
+const earlyReception = calculateBookingPricing({
+  type_feest: 'Algemeen',
+  basisprijs: 700,
+  vroeger_aanwezig_receptie: 1,
+  vroeger_aanwezig_receptie_na_contract: 1,
+  digital_booth: 1,
+  extra_prijzen: JSON.stringify({ digital_booth: 175, _korting: 50 }),
+})
+const earlyReceptionLine = earlyReception.extras.find(extra => extra.key === 'vroeger_aanwezig_receptie')
+assert(earlyReception.basisprijs === 700, 'De receptietoeslag mag de basisprijs niet wijzigen')
+assert(earlyReceptionLine?.amount === 75, 'De receptietoeslag moet een afzonderlijke regel van €75 zijn')
+assert(earlyReceptionLine?.addedAfterContract === true, 'Een na-contracttoeslag moet zichtbaar gemarkeerd blijven')
+assert(earlyReception.totaalprijs === 900, 'Het actuele totaal moet basis + receptietoeslag + extra - korting zijn')
+
+const weddingWithoutSurcharge = calculateBookingPricing({
+  type_feest: 'Trouw',
+  basisprijs: 850,
+  vroeger_aanwezig_receptie: 1,
+  extra_prijzen: JSON.stringify({ _trouw_formule: 'avondfeest' }),
+})
+assert(!weddingWithoutSurcharge.extras.some(extra => extra.key === 'vroeger_aanwezig_receptie'), 'De receptietoeslag mag niet op trouwfeesten worden toegepast')
+assert(weddingWithoutSurcharge.totaalprijs === 850, 'Een trouwfeest kreeg ten onrechte de algemene receptietoeslag')
+
 const requestPrice = calculateBookingPricing({
   type_feest: 'Bedrijfsfeest',
   basisprijs: 700,

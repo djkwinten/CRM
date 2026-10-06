@@ -37,6 +37,7 @@ const expectedBookingColumns = [
   'vragenlijst_first_submitted_at', 'vragenlijst_diff', 'feedback_vragenlijst',
   'feedback_herkomst', 'is_afgewezen', 'afgewezen_reden', 'portal_title',
   'aanvraag_reminder_sent_at', 'review_sent_at', 'feest_herinnering_sent_at',
+  'vroeger_aanwezig_receptie', 'vroeger_aanwezig_receptie_na_contract',
 ]
 const bookingColumns = new Set(
   (db.prepare(`PRAGMA table_info(bookings)`).all() as { name: string }[]).map(row => row.name),

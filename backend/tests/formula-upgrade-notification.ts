@@ -47,8 +47,28 @@ try {
     assert(String(payload.htmlContent).includes(requiredText), `De HTML-melding mist: ${requiredText}`)
     assert(String(payload.textContent).includes(requiredText), `De tekstmelding mist: ${requiredText}`)
   }
+
+  await sendUpdateNotification(cfg, {
+    naam: 'Synthetisch feest',
+    datum: '2033-05-17',
+    appUrl: 'https://crm.example.invalid',
+    isUpdate: true,
+    earlyReceptionAfterContract: true,
+  })
+  const priceChangePayload = JSON.parse(String(capturedInit?.body || '{}')) as Record<string, unknown>
+  assert(priceChangePayload.subject === 'Prijswijziging na contract — Synthetisch feest', 'Het onderwerp van de na-contractmelding is onjuist')
+  for (const requiredText of [
+    'Prijswijziging na contract',
+    'Vroeger aanwezig vanaf receptie',
+    'Hierdoor komt er €75 bij.',
+    'Het contract werd al opgesteld en is daarom niet automatisch aangepast.',
+    'Controleer en bevestig de nieuwe prijs.',
+  ]) {
+    assert(String(priceChangePayload.htmlContent).includes(requiredText), `De HTML-prijswaarschuwing mist: ${requiredText}`)
+    assert(String(priceChangePayload.textContent).includes(requiredText), `De tekstprijswaarschuwing mist: ${requiredText}`)
+  }
 } finally {
   globalThis.fetch = originalFetch
 }
 
-console.log(JSON.stringify({ success: true, formulaUpgradeNotification: true }))
+console.log(JSON.stringify({ success: true, formulaUpgradeNotification: true, earlyReceptionAfterContractNotification: true }))

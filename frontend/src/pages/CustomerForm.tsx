@@ -501,6 +501,20 @@ function StepPlanning({ form, setForm, isTrouw }: { form: FormState; setForm: (u
         Vul de tijdstippen in die van toepassing zijn. Klik op <strong>n.v.t.</strong> als een moment niet van toepassing is.
       </p>
 
+      {!isTrouw && (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+          <FormField label="Vroeger aanwezig vanaf de receptie?" sublabel="Als DJ Kwinten al vanaf de receptie aanwezig moet zijn, wordt een vaste toeslag van €75 toegevoegd.">
+            <Select
+              value={Number(form.vroeger_aanwezig_receptie) === 1 ? 'ja' : 'nee'}
+              onChange={value => setForm({ vroeger_aanwezig_receptie: value === 'ja' ? 1 : 0 })}
+            >
+              <option value="nee">Nee</option>
+              <option value="ja">Ja, ik ben al vanaf de receptie aanwezig (+ €75)</option>
+            </Select>
+          </FormField>
+        </div>
+      )}
+
       <div className="bg-white border border-gray-200 rounded-2xl px-4 divide-y divide-gray-100">
         {/* Ceremonie — enkel trouw */}
         {isTrouw && (
@@ -694,6 +708,7 @@ const GENRE_OPTIES = [
   '90s & Eurodance',
   'Ambiance & Foute Muziek',
   'Rock',
+  'RnB/HipHop',
   'Dance & House & EDM',
   'Retro',
   'Jump & Hardstyle',
@@ -791,18 +806,18 @@ function StepMuziek({ form, setForm, isTrouw }: { form: FormState; setForm: (u: 
     <div className="space-y-5">
       <div className="grid grid-cols-1 gap-5">
         <GenreSelector
-          label="🎵 Top Genres" sublabel="Genres waar jullie van houden — selecteer of typ zelf"
+          label="✅ Must play — genres" sublabel="Genres waar jullie van houden — selecteer of typ zelf"
           pillsValue={form.top_genres || ''} onPillsChange={v => setForm({ top_genres: v })}
           extraValue={form.top_genres_extra || ''} onExtraChange={v => setForm({ top_genres_extra: v })}
         />
         <GenreSelector
-          label="🚫 Flop Genres" sublabel="Genres die jullie liever niet horen"
+          label="❌ Do not play — genres" sublabel="Genres die jullie liever niet horen"
           pillsValue={form.flop_genres || ''} onPillsChange={v => setForm({ flop_genres: v })}
           extraValue={form.flop_genres_extra || ''} onExtraChange={v => setForm({ flop_genres_extra: v })}
         />
       </div>
       <div className="grid grid-cols-1 gap-5">
-        <FormField label="✅ Must Play" sublabel="Nummers die zeker moeten draaien — liefst één nummer per regel: Artiest — Titel">
+        <FormField label="✅ Must play — nummers" sublabel="Nummers die zeker moeten draaien — liefst één nummer per regel: Artiest — Titel">
           <Textarea
             value={form.must_play || ''}
             onChange={v => setForm({ must_play: v })}
@@ -810,7 +825,7 @@ function StepMuziek({ form, setForm, isTrouw }: { form: FormState; setForm: (u: 
             rows={7}
           />
         </FormField>
-        <FormField label="❌ Do Not Play" sublabel="Nummers die absoluut niet mogen — liefst één nummer per regel: Artiest — Titel">
+        <FormField label="❌ Do not play — nummers" sublabel="Nummers die absoluut niet mogen — liefst één nummer per regel: Artiest — Titel">
           <Textarea
             value={form.do_not_play || ''}
             onChange={v => setForm({ do_not_play: v })}

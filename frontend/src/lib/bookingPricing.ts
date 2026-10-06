@@ -14,6 +14,7 @@ export interface BookingPriceLine {
   selected: boolean
   onRequest?: boolean
   legacy?: boolean
+  addedAfterContract?: boolean
 }
 
 export interface BookingPricing {
@@ -35,10 +36,16 @@ export const EDITABLE_EXTRA_PRICES = [
 ] as const
 
 const LEGACY_CEREMONY_PRICE = 250
+export const EARLY_RECEPTION_SURCHARGE = 75
+export const EARLY_RECEPTION_SURCHARGE_KEY = 'vroeger_aanwezig_receptie'
 
 function positiveAmount(value: unknown): number {
   const amount = Number(value)
   return Number.isFinite(amount) && amount > 0 ? amount : 0
+}
+
+function enabledFlag(value: unknown): boolean {
+  return value === true || value === 1 || value === '1' || value === 'Ja' || value === 'ja'
 }
 
 export function parseBookingExtraPrices(value: unknown): Record<string, number | string> {
@@ -68,6 +75,16 @@ export function calculateBookingPricing(source: PricingSource): BookingPricing {
   const kilometervergoeding = getManualKilometervergoeding(extraPrijzen._km_vergoeding)
 
   const extras: BookingPriceLine[] = []
+  if (eventType !== 'Trouw' && enabledFlag(source.vroeger_aanwezig_receptie)) {
+    extras.push({
+      key: EARLY_RECEPTION_SURCHARGE_KEY,
+      label: 'Vroeger aanwezig vanaf receptie',
+      amount: EARLY_RECEPTION_SURCHARGE,
+      selected: true,
+      addedAfterContract: enabledFlag(source.vroeger_aanwezig_receptie_na_contract),
+    })
+  }
+
   for (const extra of EDITABLE_EXTRA_PRICES) {
     const storedValue = extraPrijzen[extra.key]
     const hasStoredPrice = storedValue !== undefined && storedValue !== null && String(storedValue).trim() !== ''

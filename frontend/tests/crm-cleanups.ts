@@ -75,6 +75,12 @@ assert(detail.includes('calculateBookingPricing'), 'CRM-overzicht gebruikt de ce
 assert(contractPdf.includes('calculateBookingPricing'), 'Contract gebruikt de centrale prijsberekening niet')
 assert(pricing.includes("getManualKilometervergoeding(extraPrijzen._km_vergoeding)"), 'De centrale berekening gebruikt het handmatige kilometerbedrag niet')
 
+const customerForm = readFileSync(new URL('../src/pages/CustomerForm.tsx', import.meta.url), 'utf8')
+assert(customerForm.includes("'RnB/HipHop'"), 'RnB/HipHop ontbreekt in de gedeelde genrelijst')
+assert(customerForm.includes('label="✅ Must play — genres"'), 'De gedeelde genres zijn niet beschikbaar bij Must play')
+assert(customerForm.includes('label="❌ Do not play — genres"'), 'De gedeelde genres zijn niet beschikbaar bij Do not play')
+assert(customerForm.includes('Vroeger aanwezig vanaf de receptie?'), 'De receptietoeslagkeuze ontbreekt in de vragenlijst')
+
 console.log(JSON.stringify({
   success: true,
   reminderBoundaryDays: 21,

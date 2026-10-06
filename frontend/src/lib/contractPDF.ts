@@ -381,6 +381,10 @@ function _buildContractPDF(booking: Booking): jsPDF {
   y += 7
 
   const voorwaarden = [
+    ...(!booking.vroeger_aanwezig_receptie ? [[
+      'Wijzigingen & bijkomende wensen',
+      'Wijzigingen aan de gemaakte afspraken of bijkomende wensen die na het opstellen van dit contract worden toegevoegd, kunnen een invloed hebben op de totaalprijs. Eventuele bijkomende kosten worden vooraf met de klant besproken en bevestigd.',
+    ]] : []),
     ['1. Akkoord via Betaling',
       'Door betaling van het voorschot van € 100,00 verklaart de opdrachtgever zich akkoord met deze volledige overeenkomst.'],
     ['2. Annulering',

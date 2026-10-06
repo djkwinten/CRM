@@ -43,6 +43,7 @@ export function generatePricingOverview(booking: Booking, dateStr: string) {
           retro_booth: '🎞️',
           draadloze_speaker: '🔊',
           karaoke: '🎤',
+          vroeger_aanwezig_receptie: '🥂',
           kilometervergoeding: '🚗',
         }
         const geselecteerd = pricing.extras.map(extra => ({
@@ -51,9 +52,10 @@ export function generatePricingOverview(booking: Booking, dateStr: string) {
           emoji: extraEmoji[extra.key] || '➕',
           prijs: extra.amount,
           opAanvraag: extra.onRequest,
+          laterToegevoegd: extra.addedAfterContract,
         }))
         if (pricing.kilometervergoeding > 0) {
-          geselecteerd.push({ key: 'kilometervergoeding', label: 'Kilometervergoeding', emoji: '🚗', prijs: pricing.kilometervergoeding, opAanvraag: false })
+          geselecteerd.push({ key: 'kilometervergoeding', label: 'Kilometervergoeding', emoji: '🚗', prijs: pricing.kilometervergoeding, opAanvraag: false, laterToegevoegd: false })
         }
         const totaal = pricing.totaalprijs
         const restbedrag = Math.max(0, totaal - 100)
@@ -90,6 +92,15 @@ export function generatePricingOverview(booking: Booking, dateStr: string) {
               </div>
             </div>
 
+            {booking.vroeger_aanwezig_receptie_na_contract ? (
+              <div className="mb-6 rounded-xl border-2 border-amber-300 bg-amber-50 p-4">
+                <p className="text-sm font-black text-amber-800">Prijswijziging na contract</p>
+                <p className="mt-1 text-xs leading-relaxed text-amber-700">
+                  “Vroeger aanwezig vanaf receptie” werd na het opstellen van het contract toegevoegd. De actuele totaalprijs bevat €75 extra; het bestaande contract is niet automatisch aangepast.
+                </p>
+              </div>
+            ) : null}
+
             {/* Prijsdetail tabel */}
             <div className="mb-6">
               <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500 border-b border-gray-300 pb-1 mb-3">Gekozen opties</h2>
@@ -111,14 +122,17 @@ export function generatePricingOverview(booking: Booking, dateStr: string) {
                 <tbody>
                   {basisprijs > 0 && (
                     <tr className="border-b border-gray-100">
-                      <td className="py-2.5 text-sm text-gray-700 font-medium">{gekozenFormule ? `${gekozenFormule.emoji} Formule — ${gekozenFormule.label}` : '🎧 DJ Kwinten — Basisprijs'}</td>
+                      <td className="py-2.5 text-sm text-gray-700 font-medium">{gekozenFormule ? `${gekozenFormule.emoji} Formule — ${gekozenFormule.label}` : '🎧 DJ + materiaal'}</td>
                       <td className="py-2.5 text-sm font-bold text-black text-right">€ {basisprijs.toFixed(2)}</td>
                     </tr>
                   )}
                   {geselecteerd.map(e => {
                     return (
                       <tr key={e.key} className="border-b border-gray-100">
-                        <td className="py-2.5 text-sm text-gray-700 font-medium">{e.emoji} {e.label}</td>
+                        <td className="py-2.5 text-sm text-gray-700 font-medium">
+                          {e.emoji} {e.label}
+                          {e.laterToegevoegd && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">later toegevoegd</span>}
+                        </td>
                         <td className="py-2.5 text-sm font-bold text-right">
                           {e.opAanvraag
                             ? <span className="text-blue-600 italic font-normal">op aanvraag</span>

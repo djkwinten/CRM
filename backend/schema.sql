@@ -45,6 +45,8 @@ CREATE TABLE IF NOT EXISTS bookings (
   backup_contact_naam TEXT,
   backup_contact_telefoon TEXT,
   verzoeknummers TEXT DEFAULT 'Ja',
+  vroeger_aanwezig_receptie INTEGER NOT NULL DEFAULT 0,
+  vroeger_aanwezig_receptie_na_contract INTEGER NOT NULL DEFAULT 0,
 
   -- Planning
   uur_ceremonie TEXT,

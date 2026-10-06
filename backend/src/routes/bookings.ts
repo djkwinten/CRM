@@ -13,6 +13,10 @@ function generateToken(): string {
   return randomBytes(16).toString('hex') // 32-char hex, unguessable
 }
 
+function enabledFlag(value: unknown): boolean {
+  return value === true || value === 1 || value === '1' || value === 'Ja' || value === 'ja'
+}
+
 function slugify(naam: string, datum: string, type: string): string {
   const prefix = type === 'Trouw' ? 'trouw' : 'feest'
   const namePart = naam
@@ -50,6 +54,28 @@ type Bindings = {
 }
 
 export const bookingsRoutes = new Hono<{ Bindings: Bindings }>()
+
+async function sendQuestionnaireNotificationForBooking(env: Bindings, requestUrl: string, opts: {
+  naam: string
+  datum: string
+  isUpdate: boolean
+  formulaUpgrade: boolean
+  earlyReceptionAfterContract: boolean
+}) {
+  const brevoApiKey = env.BREVO_API_KEY || env.SMTP_PASS
+  if (!env.SMTP_USER || !brevoApiKey) return
+  const cfg: SmtpConfig = {
+    host: env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(env.SMTP_PORT || '587'),
+    user: env.SMTP_USER,
+    pass: brevoApiKey,
+    from: env.SMTP_FROM || env.SMTP_USER,
+  }
+  await sendUpdateNotification(cfg, {
+    ...opts,
+    appUrl: publicAppUrl(env, requestUrl),
+  })
+}
 
 const bookingListColumns: Record<string, string> = {
   id: '0',
@@ -155,6 +181,8 @@ const bookingDetailColumns: Record<string, string> = {
   backup_contact_naam: 'NULL',
   backup_contact_telefoon: 'NULL',
   verzoeknummers: "'Ja'",
+  vroeger_aanwezig_receptie: '0',
+  vroeger_aanwezig_receptie_na_contract: '0',
   uur_ceremonie: 'NULL',
   uur_receptie: 'NULL',
   uur_receptie_einde: 'NULL',
@@ -340,6 +368,8 @@ bookingsRoutes.post('/init', async (c) => {
       backup_contact_naam TEXT,
       backup_contact_telefoon TEXT,
       verzoeknummers TEXT DEFAULT 'Ja',
+      vroeger_aanwezig_receptie INTEGER NOT NULL DEFAULT 0,
+      vroeger_aanwezig_receptie_na_contract INTEGER NOT NULL DEFAULT 0,
       -- Zaal & Techniek
       zaal_contact TEXT,
       leveranciers_info TEXT,
@@ -372,6 +402,8 @@ bookingsRoutes.post('/init', async (c) => {
       `ALTER TABLE bookings ADD COLUMN backup_contact_naam TEXT`,
       `ALTER TABLE bookings ADD COLUMN backup_contact_telefoon TEXT`,
       `ALTER TABLE bookings ADD COLUMN verzoeknummers TEXT DEFAULT 'Ja'`,
+      `ALTER TABLE bookings ADD COLUMN vroeger_aanwezig_receptie INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE bookings ADD COLUMN vroeger_aanwezig_receptie_na_contract INTEGER NOT NULL DEFAULT 0`,
       `ALTER TABLE bookings ADD COLUMN access_token TEXT`,
       `ALTER TABLE bookings ADD COLUMN slug TEXT`,
       `ALTER TABLE bookings ADD COLUMN totaalprijs REAL DEFAULT 0`,
@@ -1008,6 +1040,8 @@ async function ensureQuestionnaireColumns(env: Bindings) {
     `ALTER TABLE bookings ADD COLUMN extra_koppel_info TEXT`,
     `ALTER TABLE bookings ADD COLUMN anderstalige_gasten TEXT`,
     `ALTER TABLE bookings ADD COLUMN anderstalige_talen TEXT`,
+    `ALTER TABLE bookings ADD COLUMN vroeger_aanwezig_receptie INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE bookings ADD COLUMN vroeger_aanwezig_receptie_na_contract INTEGER NOT NULL DEFAULT 0`,
   ]
   for (const m of migrations) {
     try { await execute(env, m) } catch { /* column already exists */ }
@@ -1079,8 +1113,13 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
   }
 
   const formulaUpgradeRequested = body._formula_upgrade_reason === 'intrede_zaal'
+  const earlyReceptionChoiceProvided = Object.prototype.hasOwnProperty.call(body, 'vroeger_aanwezig_receptie')
+  const earlyReceptionRequested = enabledFlag(body.vroeger_aanwezig_receptie)
+  const questionnaireIsUpdate = body._is_update === 1
   delete body._formula_upgrade_reason
+  delete body.vroeger_aanwezig_receptie_na_contract
   let formulaUpgraded = false
+  let earlyReceptionPriceChangeAfterContract = false
 
   // Een publieke vragenlijst mag nooit financiële, status-, document- of
   // identificatievelden van de boeking overschrijven (ook niet in R2 fallback).
@@ -1095,7 +1134,20 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
 
   if (!c.env.DB && c.env.STORAGE) {
     const existing = await findCloudBooking(c.env, ref)
-    const source = { ...(existing || {}), ...body }
+    if (!existing) return c.json({ success: false, error: 'Boeking niet gevonden' }, 404)
+    const isGeneralParty = String(existing.type_feest || body.type_feest || '') !== 'Trouw'
+    const wasEarlyReception = enabledFlag(existing.vroeger_aanwezig_receptie)
+    const contractAlreadyCreated = enabledFlag(existing.status_contract) || Boolean(existing.contract_pdf)
+    if (earlyReceptionChoiceProvided) {
+      body.vroeger_aanwezig_receptie = isGeneralParty && earlyReceptionRequested ? 1 : 0
+      body.vroeger_aanwezig_receptie_na_contract = isGeneralParty && earlyReceptionRequested
+        ? (!wasEarlyReception && contractAlreadyCreated ? 1 : enabledFlag(existing.vroeger_aanwezig_receptie_na_contract) ? 1 : 0)
+        : 0
+      earlyReceptionPriceChangeAfterContract = !wasEarlyReception
+        && enabledFlag(body.vroeger_aanwezig_receptie)
+        && contractAlreadyCreated
+    }
+    const source = { ...existing, ...body }
     const formulaUpgrade = formulaUpgradeRequested ? upgradeWeddingFormulaForHallEntrance(source) : null
     formulaUpgraded = !!formulaUpgrade
     const patch: Record<string, unknown> = {
@@ -1107,6 +1159,17 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
     if (existing && !existing.vragenlijst_first_submitted_at) patch.vragenlijst_first_submitted_at = new Date().toISOString()
     const updated = await patchCloudBooking(c.env, ref, patch)
     if (!updated) return c.json({ success: false, error: 'Boeking niet gevonden' }, 404)
+    try {
+      await sendQuestionnaireNotificationForBooking(c.env, c.req.url, {
+        naam: String(updated.naam_organisator || updated.naam_partner1 || 'Klant'),
+        datum: String(updated.feest_datum || ''),
+        isUpdate: questionnaireIsUpdate,
+        formulaUpgrade: formulaUpgraded,
+        earlyReceptionAfterContract: earlyReceptionPriceChangeAfterContract,
+      })
+    } catch (e) {
+      console.error('Vragenlijst notificatie e-mail mislukt:', e)
+    }
     return c.json({ success: true, storage: 'r2' })
   }
   await ensureQuestionnaireColumns(c.env)
@@ -1116,18 +1179,35 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
   const hasBodyField = (field: string) => Object.prototype.hasOwnProperty.call(body, field)
   const boolField = (v: unknown) => (v ? 1 : 0)
   const optionalBool = (field: string) => hasBodyField(field) ? boolField(body[field]) : null
-  const isUpdate = body._is_update === 1
+  const isUpdate = questionnaireIsUpdate
 
   // Resolve ref → WHERE clause
   const isNumeric = /^\d+$/.test(ref)
   const where = isNumeric ? 'id = ?' : '(slug = ? OR access_token = ?)'
   const whereParams = isNumeric ? [ref] : [ref, ref]
 
+  const currentReceptionState = await queryOne<Record<string, unknown>>(c.env, `
+    SELECT type_feest, vroeger_aanwezig_receptie, vroeger_aanwezig_receptie_na_contract, status_contract, contract_pdf
+    FROM bookings WHERE ${where}
+  `, whereParams)
+  if (earlyReceptionChoiceProvided && currentReceptionState) {
+    const isGeneralParty = String(currentReceptionState.type_feest || '') !== 'Trouw'
+    const wasEarlyReception = enabledFlag(currentReceptionState.vroeger_aanwezig_receptie)
+    const contractAlreadyCreated = enabledFlag(currentReceptionState.status_contract) || Boolean(currentReceptionState.contract_pdf)
+    body.vroeger_aanwezig_receptie = isGeneralParty && earlyReceptionRequested ? 1 : 0
+    body.vroeger_aanwezig_receptie_na_contract = isGeneralParty && earlyReceptionRequested
+      ? (!wasEarlyReception && contractAlreadyCreated ? 1 : enabledFlag(currentReceptionState.vroeger_aanwezig_receptie_na_contract) ? 1 : 0)
+      : 0
+    earlyReceptionPriceChangeAfterContract = !wasEarlyReception
+      && enabledFlag(body.vroeger_aanwezig_receptie)
+      && contractAlreadyCreated
+  }
+
   // Haal huidige waarden op vóór de update zodat we een diff kunnen berekenen
   const diffFields = [
     'naam_organisator','naam_partner1','naam_partner2','email','telefoon','adres_organisator',
     'locatie_naam','locatie_adres','aantal_gasten','thema','publiek_leeftijd','parkeren_info',
-    'backup_contact_naam','backup_contact_telefoon','verzoeknummers',
+    'backup_contact_naam','backup_contact_telefoon','verzoeknummers','vroeger_aanwezig_receptie',
     'uur_ceremonie','uur_receptie','uur_receptie_einde','uur_receptie2','uur_receptie2_einde',
     'uur_diner','uur_dessert','uur_dansfeest','uur_midnightsnack','einduur','planning_extra','einde_feest',
     'top_genres','top_genres_extra','flop_genres','flop_genres_extra','must_play','do_not_play',
@@ -1223,6 +1303,18 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
     return c.json({ success: false, error: 'Boeking niet gevonden; je invoer is niet verwijderd.' }, 404)
   }
 
+  if (earlyReceptionChoiceProvided) {
+    await execute(c.env, `
+      UPDATE bookings
+      SET vroeger_aanwezig_receptie = ?, vroeger_aanwezig_receptie_na_contract = ?
+      WHERE ${where}
+    `, [
+      enabledFlag(body.vroeger_aanwezig_receptie) ? 1 : 0,
+      enabledFlag(body.vroeger_aanwezig_receptie_na_contract) ? 1 : 0,
+      ...whereParams,
+    ])
+  }
+
   const extraQuestionnaireFields = [
     'werk_partner1', 'werk_partner2', 'hobbys_interesses',
     'leeftijd_partner1', 'leeftijd_partner2', 'extra_koppel_info', 'anderstalige_gasten', 'anderstalige_talen'
@@ -1242,7 +1334,7 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
   }
 
   const pricingRow = await queryOne<Record<string, unknown>>(c.env, `
-    SELECT type_feest, basisprijs, extra_prijzen, ceremonie_set, digital_booth, retro_booth, draadloze_speaker, karaoke, intrede_zaal_nummer
+    SELECT type_feest, basisprijs, extra_prijzen, ceremonie_set, digital_booth, retro_booth, draadloze_speaker, karaoke, intrede_zaal_nummer, vroeger_aanwezig_receptie
     FROM bookings WHERE ${where}
   `, whereParams)
   if (pricingRow) {
@@ -1274,6 +1366,7 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
       parkeren_info: body.parkeren_info ?? null,
       backup_contact_naam: body.backup_contact_naam ?? null, backup_contact_telefoon: body.backup_contact_telefoon ?? null,
       verzoeknummers: hasBodyField('verzoeknummers') ? (body.verzoeknummers ?? 'Ja') : null,
+      vroeger_aanwezig_receptie: earlyReceptionChoiceProvided ? (enabledFlag(body.vroeger_aanwezig_receptie) ? 1 : 0) : null,
       uur_ceremonie: body.uur_ceremonie ?? null, uur_receptie: body.uur_receptie ?? null,
       uur_receptie_einde: body.uur_receptie_einde ?? null, uur_receptie2: body.uur_receptie2 ?? null,
       uur_receptie2_einde: body.uur_receptie2_einde ?? null,
@@ -1321,30 +1414,23 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
     } catch { /* ignore diff save errors */ }
   }
 
-  // Stuur notificatie naar DJ bij elke indiening (eerste keer én aanpassingen)
-  // Haal naam + datum op uit de DB zodat ze altijd correct zijn (body bevat geen feest_datum)
-  const brevoApiKey = c.env.BREVO_API_KEY || c.env.SMTP_PASS
-  if (c.env.SMTP_USER && brevoApiKey) {
-    try {
-      const cfg: SmtpConfig = {
-        host: c.env.SMTP_HOST || 'smtp.gmail.com',
-        port: parseInt(c.env.SMTP_PORT || '587'),
-        user: c.env.SMTP_USER,
-        pass: brevoApiKey,
-        from: c.env.SMTP_FROM || c.env.SMTP_USER
-      }
-      const appUrl = publicAppUrl(c.env, c.req.url)
-      const row = await queryOne<{ naam_organisator: string; naam_partner1: string; feest_datum: string }>(
-        c.env,
-        `SELECT naam_organisator, naam_partner1, feest_datum FROM bookings WHERE ${where}`,
-        whereParams
-      )
-      const naam = String(row?.naam_organisator || row?.naam_partner1 || 'Klant')
-      const datum = String(row?.feest_datum || '')
-      await sendUpdateNotification(cfg, { naam, datum, appUrl, isUpdate, formulaUpgrade: formulaUpgraded })
-    } catch (e) {
-      console.error('Vragenlijst notificatie e-mail mislukt:', e)
-    }
+  // Stuur notificatie naar DJ bij elke indiening (eerste keer én aanpassingen).
+  // Haal naam + datum op uit de DB zodat ze altijd correct zijn (body bevat geen feest_datum).
+  try {
+    const row = await queryOne<{ naam_organisator: string; naam_partner1: string; feest_datum: string }>(
+      c.env,
+      `SELECT naam_organisator, naam_partner1, feest_datum FROM bookings WHERE ${where}`,
+      whereParams
+    )
+    await sendQuestionnaireNotificationForBooking(c.env, c.req.url, {
+      naam: String(row?.naam_organisator || row?.naam_partner1 || 'Klant'),
+      datum: String(row?.feest_datum || ''),
+      isUpdate,
+      formulaUpgrade: formulaUpgraded,
+      earlyReceptionAfterContract: earlyReceptionPriceChangeAfterContract,
+    })
+  } catch (e) {
+    console.error('Vragenlijst notificatie e-mail mislukt:', e)
   }
 
   return c.json({ success: true })
@@ -1370,7 +1456,7 @@ bookingsRoutes.patch('/:id/contract', async (c) => {
   if (body.extra_prijzen !== undefined) { fields.push('extra_prijzen = ?'); values.push(body.extra_prijzen) }
   if (updatesPricing) {
     const existing = await queryOne<Record<string, unknown>>(c.env, `
-      SELECT type_feest, basisprijs, extra_prijzen, ceremonie_set, digital_booth, retro_booth, draadloze_speaker, karaoke
+      SELECT type_feest, basisprijs, extra_prijzen, ceremonie_set, digital_booth, retro_booth, draadloze_speaker, karaoke, vroeger_aanwezig_receptie
       FROM bookings WHERE id = ?
     `, [id])
     fields.push('totaalprijs = ?')

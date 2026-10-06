@@ -79,6 +79,7 @@ export async function submitQuestionnaire(id: string, payload: Partial<Booking>)
     billit_factuur_pdf: _factuurPdf,
     billit_factuur_naam: _factuurNaam,
     contract_info_unlocked: _contractUnlocked,
+    vroeger_aanwezig_receptie_na_contract: _earlyReceptionAfterContract,
     created_at: _createdAt,
     updated_at: _updatedAt,
     ...safePayload
@@ -95,6 +96,12 @@ export async function submitQuestionnaire(id: string, payload: Partial<Booking>)
     }
     const existing = findLocalBooking(id)
     const localUpdate: Partial<Booking> = { ...safePayload, status_vragenlijst: 1, vragenlijst_first_submitted_at: new Date().toISOString() }
+    if (!safePayload.vroeger_aanwezig_receptie) {
+      localUpdate.vroeger_aanwezig_receptie_na_contract = 0
+    } else if (existing) {
+      localUpdate.vroeger_aanwezig_receptie_na_contract = existing.vroeger_aanwezig_receptie_na_contract
+        || ((!existing.vroeger_aanwezig_receptie && (existing.status_contract || existing.has_contract_pdf || existing.contract_pdf)) ? 1 : 0)
+    }
     if (existing) {
       localUpdate.totaalprijs = calculateBookingPricing({
         ...existing,

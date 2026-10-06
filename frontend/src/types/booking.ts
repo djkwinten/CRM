@@ -39,6 +39,8 @@ export interface Booking {
   backup_contact_naam?: string
   backup_contact_telefoon?: string
   verzoeknummers?: string
+  vroeger_aanwezig_receptie?: number
+  vroeger_aanwezig_receptie_na_contract?: number
   // Planning
   uur_ceremonie?: string
   uur_receptie?: string

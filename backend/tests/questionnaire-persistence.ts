@@ -79,6 +79,47 @@ sqlite.prepare(`
   JSON.stringify({ _trouw_formule: 'avondfeest' }),
 )
 
+for (const booking of [
+  {
+    token: 'synthetic-early-reception-before-contract',
+    slug: 'synthetic-early-before-contract',
+    date: '2033-05-16',
+    name: 'Synthetisch feest voor contract',
+    statusContract: 0,
+    contractPdf: null,
+  },
+  {
+    token: 'synthetic-early-reception-after-contract',
+    slug: 'synthetic-early-after-contract',
+    date: '2033-05-17',
+    name: 'Synthetisch feest na contract',
+    statusContract: 1,
+    contractPdf: 'synthetic-existing-contract-pdf',
+  },
+]) {
+  sqlite.prepare(`
+    INSERT INTO bookings (
+      access_token, slug, feest_datum, type_feest, naam_organisator,
+      email, telefoon, is_aanvraag, status_vragenlijst, status_contract,
+      basisprijs, extra_prijzen, contract_pdf
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    booking.token,
+    booking.slug,
+    booking.date,
+    'Algemeen',
+    booking.name,
+    'synthetic-party@example.invalid',
+    '0000000000',
+    0,
+    0,
+    booking.statusContract,
+    700,
+    '{}',
+    booking.contractPdf,
+  )
+}
+
 const env = { DB: new MockD1Database(sqlite) as unknown as D1Database, ENVIRONMENT: 'test' }
 const submitted = {
   werk_partner1: 'synthetisch beroep 1',
@@ -90,6 +131,8 @@ const submitted = {
   anderstalige_gasten: 'Ja',
   anderstalige_talen: 'synthetische taal',
   opmerkingen: 'synthetische opmerking',
+  top_genres: 'Disco, RnB/HipHop',
+  flop_genres: 'Rock, RnB/HipHop',
   intrede_zaal_nummer: 'Ja',
   digital_booth: 1,
   totaalprijs: 999999,
@@ -138,6 +181,42 @@ const unconfirmed = sqlite.prepare('SELECT basisprijs, extra_prijzen, totaalprij
 assert(Number(unconfirmed.basisprijs) === 850, 'Een onbevestigde zaalintrede wijzigde de basisprijs')
 assert(JSON.parse(String(unconfirmed.extra_prijzen))._trouw_formule === 'avondfeest', 'Een onbevestigde zaalintrede wijzigde de formulecode')
 assert(Number(unconfirmed.totaalprijs) === 850, 'Een onbevestigde zaalintrede wijzigde het totaal')
+
+for (const scenario of [
+  { token: 'synthetic-early-reception-before-contract', id: 3, afterContract: 0 },
+  { token: 'synthetic-early-reception-after-contract', id: 4, afterContract: 1 },
+]) {
+  const response = await app.fetch(new Request(`https://crm.test/api/bookings/${scenario.token}/questionnaire`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ vroeger_aanwezig_receptie: 1 }),
+  }), env)
+  assert(response.ok, `Receptiekeuze opslaan mislukte voor scenario ${scenario.id}`)
+  const stored = sqlite.prepare(`
+    SELECT basisprijs, vroeger_aanwezig_receptie, vroeger_aanwezig_receptie_na_contract, totaalprijs, contract_pdf
+    FROM bookings WHERE id = ?
+  `).get(scenario.id) as Record<string, unknown>
+  assert(Number(stored.basisprijs) === 700, 'De receptiekeuze wijzigde de basisprijs')
+  assert(Number(stored.vroeger_aanwezig_receptie) === 1, 'De receptiekeuze werd niet opgeslagen')
+  assert(Number(stored.vroeger_aanwezig_receptie_na_contract) === scenario.afterContract, 'De na-contractmarkering is onjuist')
+  assert(Number(stored.totaalprijs) === 775, 'De centrale prijsberekening voegde de toeslag van €75 niet toe')
+  if (scenario.afterContract) {
+    assert(stored.contract_pdf === 'synthetic-existing-contract-pdf', 'Een bestaand contract werd automatisch herschreven')
+  }
+}
+
+const repeatedAfterContractResponse = await app.fetch(new Request('https://crm.test/api/bookings/synthetic-early-reception-after-contract/questionnaire', {
+  method: 'PUT',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ vroeger_aanwezig_receptie: 1 }),
+}), env)
+assert(repeatedAfterContractResponse.ok, 'Ongewijzigde receptiekeuze opnieuw opslaan mislukte')
+const repeatedAfterContract = sqlite.prepare(`
+  SELECT vroeger_aanwezig_receptie_na_contract, totaalprijs, contract_pdf FROM bookings WHERE id = 4
+`).get() as Record<string, unknown>
+assert(Number(repeatedAfterContract.vroeger_aanwezig_receptie_na_contract) === 1, 'De bestaande na-contractmarkering ging verloren')
+assert(Number(repeatedAfterContract.totaalprijs) === 775, 'Een herinzending telde de receptietoeslag dubbel')
+assert(repeatedAfterContract.contract_pdf === 'synthetic-existing-contract-pdf', 'Een herinzending wijzigde het bestaande contract')
 
 const contractResponse = await app.fetch(new Request('https://crm.test/api/bookings/1/contract', {
   method: 'PATCH',

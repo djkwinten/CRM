@@ -32,6 +32,27 @@ assert(calculateStoredBookingTotal({
   extra_prijzen: '{}',
 }) === 700, 'Een optie op aanvraag mag zonder CRM-bedrag niet meetellen')
 
+assert(calculateStoredBookingTotal({
+  type_feest: 'Algemeen',
+  basisprijs: 700,
+  vroeger_aanwezig_receptie: 1,
+}) === 775, 'De server moet €75 receptietoeslag bij de basisprijs van €700 tellen')
+
+assert(calculateStoredBookingTotal({
+  type_feest: 'Trouw',
+  basisprijs: 850,
+  vroeger_aanwezig_receptie: 1,
+  extra_prijzen: JSON.stringify({ _trouw_formule: 'avondfeest' }),
+}) === 850, 'De server mag de algemene receptietoeslag niet op een trouwfeest toepassen')
+
+assert(calculateStoredBookingTotal({
+  type_feest: 'Algemeen',
+  basisprijs: 700,
+  vroeger_aanwezig_receptie: 1,
+  digital_booth: 1,
+  extra_prijzen: JSON.stringify({ digital_booth: 175, _km_vergoeding: 20, _korting: 50 }),
+}) === 920, 'De server moet receptietoeslag, bestaande extra’s, kilometers en korting centraal combineren')
+
 const hallEntranceUpgrade = upgradeWeddingFormulaForHallEntrance({
   type_feest: 'Trouw',
   basisprijs: 850,

@@ -34,6 +34,8 @@ export const CONSOLIDATION_BOOKING_COLUMNS: ColumnDefinition[] = [
   { name: 'is_afgewezen', definition: 'INTEGER NOT NULL DEFAULT 0' },
   { name: 'afgewezen_reden', definition: 'TEXT' },
   { name: 'portal_title', definition: 'TEXT' },
+  { name: 'vroeger_aanwezig_receptie', definition: 'INTEGER NOT NULL DEFAULT 0' },
+  { name: 'vroeger_aanwezig_receptie_na_contract', definition: 'INTEGER NOT NULL DEFAULT 0' },
 ]
 
 const CONSOLIDATION_TABLES: TableDefinition[] = [

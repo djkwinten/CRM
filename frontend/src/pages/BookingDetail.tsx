@@ -690,6 +690,8 @@ export function BookingDetail() {
             })
             const kortingVal = pricing.korting
             const extrasTotal = pricing.extrasTotaal + pricing.kilometervergoeding
+            const earlyReceptionLine = pricing.extras.find(extra => extra.key === 'vroeger_aanwezig_receptie')
+            const overigeExtrasTotal = extrasTotal - (earlyReceptionLine?.amount || 0)
             const totaal = pricing.totaalprijs
 
             const recalc = (basis: string, prijzen: Record<string, string>) => String(calculateBookingPricing({
@@ -734,6 +736,14 @@ export function BookingDetail() {
 
             return (
               <div className="mb-4 space-y-3">
+                {earlyReceptionLine?.addedAfterContract && (
+                  <div className="rounded-xl border-2 border-amber-300 bg-amber-50 p-3">
+                    <p className="text-sm font-black text-amber-800">Prijswijziging na contract</p>
+                    <p className="mt-1 text-xs leading-relaxed text-amber-700">
+                      De klant koos via de vragenlijst voor “Vroeger aanwezig vanaf receptie”. Hierdoor komt er €75 bij. Het bestaande contract is niet automatisch aangepast; controleer en bevestig de nieuwe prijs.
+                    </p>
+                  </div>
+                )}
                 {isTrouwfeest && (
                   <div className="bg-pink-50 border border-pink-200 rounded-xl p-3 space-y-3">
                     <div className="flex items-center justify-between gap-3">
@@ -872,8 +882,9 @@ export function BookingDetail() {
                     </div>
                   </div>
                   <div className="text-[11px] text-gray-500 space-y-0.5 border-t border-gray-700 pt-2">
-                    <div className="flex justify-between"><span>Basisprijs</span><span>€ {basisVal.toFixed(2)}</span></div>
-                    {extrasTotal !== 0 && <div className="flex justify-between"><span>Extra's incl. km</span><span>+ € {extrasTotal.toFixed(2)}</span></div>}
+                    <div className="flex justify-between"><span>DJ + materiaal</span><span>€ {basisVal.toFixed(2)}</span></div>
+                    {earlyReceptionLine && <div className="flex justify-between text-amber-300"><span>Vroeger aanwezig vanaf receptie{earlyReceptionLine.addedAfterContract ? ' (later toegevoegd)' : ''}</span><span>+ € {earlyReceptionLine.amount.toFixed(2)}</span></div>}
+                    {overigeExtrasTotal !== 0 && <div className="flex justify-between"><span>Overige extra's incl. km</span><span>+ € {overigeExtrasTotal.toFixed(2)}</span></div>}
                     {kortingVal > 0 && <div className="flex justify-between text-green-400"><span>Korting</span><span>- € {kortingVal.toFixed(2)}</span></div>}
                   </div>
                 </div>

@@ -97,7 +97,13 @@ const contractPdfSource = readFileSync(new URL('../src/lib/contractPDF.ts', impo
 for (const removedText of ['Wijzigingen & mogelijke meerkost', 'WEDDING_TIMING_NOTICE', 'Trouwformule - ${formule.label}']) {
   if (contractPdfSource.includes(removedText)) throw new Error(`Verouderde contracttekst staat nog in het contract: ${removedText}`)
 }
-for (const requiredText of ['Trouwformule: ${formule.label}', 'INBEGREPEN IN DE TROUWFORMULE', 'fontSize: 8.25']) {
+for (const requiredText of [
+  'Trouwformule: ${formule.label}',
+  'INBEGREPEN IN DE TROUWFORMULE',
+  'fontSize: 8.25',
+  'Wijzigingen & bijkomende wensen',
+  'Eventuele bijkomende kosten worden vooraf met de klant besproken en bevestigd.',
+]) {
   if (!contractPdfSource.includes(requiredText)) throw new Error(`De verbeterde contractopmaak mist: ${requiredText}`)
 }
 
