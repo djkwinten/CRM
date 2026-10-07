@@ -54,8 +54,8 @@ export function CalendarView({
           const hasBooking = dayBookings.length > 0
           const today = isToday(day)
           const isSelected = selectedDay ? isSameDay(day, selectedDay) : false
-          const hasTrouw = dayBookings.some(b => b.type_feest === 'Trouw')
-          const hasAlgemeen = dayBookings.some(b => b.type_feest !== 'Trouw')
+          const hasConfirmedBooking = dayBookings.some(booking => !booking.is_aanvraag)
+          const hasRequest = dayBookings.some(booking => !!booking.is_aanvraag)
 
           return (
             <div
@@ -81,11 +81,11 @@ export function CalendarView({
                 {format(day, 'd')}
               </span>
               <div className="flex gap-0.5 mt-0.5 h-2 items-center">
-                {hasTrouw && (
-                  <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-pink-300' : 'bg-pink-400'}`} />
+                {hasConfirmedBooking && (
+                  <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-red-200' : 'bg-red-500'}`} />
                 )}
-                {hasAlgemeen && (
-                  <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-blue-300' : 'bg-[#007AFF]'}`} />
+                {hasRequest && (
+                  <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-orange-200' : 'bg-orange-500'}`} />
                 )}
               </div>
             </div>

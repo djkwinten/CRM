@@ -56,6 +56,17 @@ assert(detail.includes('Contactgegevens'), 'Contactgegevens moet behouden blijve
 assert(detail.includes('Aanvullende boekingsinformatie'), 'Unieke gegevens uit Contact moeten behouden blijven')
 assert(detail.includes('updateKmVergoeding'), 'Het handmatige kilometerinvoerveld ontbreekt')
 assert(dashboard.includes('.sort((a, b) => aanvraagMoment(b) - aanvraagMoment(a))'), 'De aanvragenlijst sorteert niet op ontvangst-/aanmaaktijd')
+assert(dashboard.includes('const origin = window.location.origin'), 'Agenda-abonnementen gebruiken geen absolute publieke URL')
+assert(dashboard.includes("httpsUrl: `${origin}/api/calendar/confirmed.ics`"), 'De rode boekingenfeed ontbreekt')
+assert(dashboard.includes("httpsUrl: `${origin}/api/calendar/requests.ics`"), 'De oranje aanvragenfeed ontbreekt')
+assert(dashboard.includes("replace(/^https?:\\/\\//, 'webcal://')"), 'De iPhone-link wordt niet als geldige absolute webcal-URL opgebouwd')
+
+const agenda = readFileSync(new URL('../src/pages/Agenda.tsx', import.meta.url), 'utf8')
+const calendarView = readFileSync(new URL('../src/components/CalendarView.tsx', import.meta.url), 'utf8')
+assert(agenda.includes('.filter((booking: Booking) => !booking.is_afgewezen)'), 'Afgewezen aanvragen blijven zichtbaar in de CRM-agenda')
+assert(agenda.includes("isAanvraag ? 'border-l-orange-500' : 'border-l-red-500'"), 'De agendalijst gebruikt niet oranje voor aanvragen en rood voor boekingen')
+assert(calendarView.includes("'bg-red-500'"), 'De maandkalender mist rode boekingen')
+assert(calendarView.includes("'bg-orange-500'"), 'De maandkalender mist oranje aanvragen')
 
 const communication = readFileSync(new URL('../src/features/event-workspace/tabs/CommunicationTab.tsx', import.meta.url), 'utf8')
 for (const field of ['source_original_message', 'source_sender', 'source_subject', 'source_received_at']) {

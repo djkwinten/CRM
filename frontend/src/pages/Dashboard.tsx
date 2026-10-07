@@ -550,19 +550,36 @@ function NewBookingModal({ onClose, onCreated }: { onClose: () => void; onCreate
 
 
 function CalendarSubscribeModal({ onClose }: { onClose: () => void }) {
-  const [copied, setCopied] = useState(false)
-    const icsUrl = `/api/calendar/bookings.ics`
-  const webcalUrl = icsUrl.replace(/^https?:/, 'webcal:')
+  const [copied, setCopied] = useState<'bookings' | 'requests' | null>(null)
+  const origin = window.location.origin
+  const feeds = [
+    {
+      key: 'bookings' as const,
+      title: 'Boekingen',
+      subtitle: 'Bevestigde boekingen — rood',
+      color: 'bg-red-500',
+      button: 'bg-red-500 hover:bg-red-600',
+      httpsUrl: `${origin}/api/calendar/confirmed.ics`,
+    },
+    {
+      key: 'requests' as const,
+      title: 'Aanvragen',
+      subtitle: 'Openstaande aanvragen — oranje',
+      color: 'bg-orange-500',
+      button: 'bg-orange-500 hover:bg-orange-600',
+      httpsUrl: `${origin}/api/calendar/requests.ics`,
+    },
+  ]
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(icsUrl)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+  const handleCopy = async (key: 'bookings' | 'requests', url: string) => {
+    await navigator.clipboard.writeText(url)
+    setCopied(key)
+    setTimeout(() => setCopied(null), 2000)
   }
 
   return (
     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-[0_8px_40px_rgba(0,0,0,0.18)]">
+      <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-[0_8px_40px_rgba(0,0,0,0.18)]">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-[#007AFF]/10 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -570,7 +587,7 @@ function CalendarSubscribeModal({ onClose }: { onClose: () => void }) {
             </div>
             <div>
               <h3 className="font-bold text-gray-900">iPhone Agenda</h3>
-              <p className="text-xs text-gray-400">Boekingen automatisch synchroniseren</p>
+              <p className="text-xs text-gray-400">Twee agenda’s met duidelijke kleuren</p>
             </div>
           </div>
           <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-xl text-gray-400 hover:text-gray-600 transition-colors">
@@ -578,44 +595,43 @@ function CalendarSubscribeModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        {/* Stap 1 */}
-        <div className="space-y-3 mb-5">
-          <div className="flex items-start gap-3">
-            <div className="w-6 h-6 bg-[#007AFF] rounded-full flex items-center justify-center flex-shrink-0 text-white text-xs font-bold mt-0.5">1</div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-gray-800">Tap op de knop hieronder</p>
-              <p className="text-xs text-gray-500 mt-0.5">Dit opent rechtstreeks de Agenda-app op je iPhone om te abonneren.</p>
-              <a
-                href={webcalUrl}
-                className="mt-2 flex items-center justify-center gap-2 w-full bg-[#007AFF] hover:bg-[#0066CC] text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors"
-              >
-                <CalendarDays size={16} /> Abonneer via iPhone Agenda
-              </a>
-            </div>
-          </div>
+        <p className="mb-4 text-xs leading-relaxed text-gray-500">
+          Abonneer op beide agenda’s. Kies <strong>rood</strong> voor Boekingen en <strong>oranje</strong> voor Aanvragen als je iPhone om een kleur vraagt.
+        </p>
 
-          <div className="border-t border-gray-100 pt-3 flex items-start gap-3">
-            <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0 text-gray-500 text-xs font-bold mt-0.5">2</div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-gray-800">Werkt niet automatisch?</p>
-              <p className="text-xs text-gray-500 mt-0.5">Kopieer de URL en voeg handmatig toe via <span className="font-medium">Agenda → Agenda's → Abonneer op agenda</span>.</p>
-              <button
-                onClick={handleCopy}
-                className={`mt-2 flex items-center justify-center gap-2 w-full border px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-                  copied
-                    ? 'border-green-300 bg-green-50 text-green-700'
-                    : 'border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700'
-                }`}
-              >
-                <Copy size={14} /> {copied ? '✓ Gekopieerd!' : 'Kopieer agenda-URL'}
-              </button>
-            </div>
-          </div>
+        <div className="space-y-3">
+          {feeds.map(feed => {
+            const webcalUrl = feed.httpsUrl.replace(/^https?:\/\//, 'webcal://')
+            return (
+              <div key={feed.key} className="rounded-2xl border border-gray-200 p-4">
+                <div className="flex items-center gap-2">
+                  <span className={`h-3 w-3 rounded-full ${feed.color}`} />
+                  <div>
+                    <p className="text-sm font-bold text-gray-900">{feed.title}</p>
+                    <p className="text-xs text-gray-500">{feed.subtitle}</p>
+                  </div>
+                </div>
+                <a
+                  href={webcalUrl}
+                  className={`mt-3 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-colors ${feed.button}`}
+                >
+                  <CalendarDays size={16} /> Abonneer op {feed.title.toLowerCase()}
+                </a>
+                <button
+                  type="button"
+                  onClick={() => handleCopy(feed.key, feed.httpsUrl)}
+                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-xs font-medium text-gray-700 hover:bg-gray-100"
+                >
+                  <Copy size={13} /> {copied === feed.key ? '✓ URL gekopieerd' : 'Kopieer URL voor handmatige invoer'}
+                </button>
+              </div>
+            )
+          })}
         </div>
 
-        <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5">
-          <p className="text-xs text-blue-700">
-            <span className="font-semibold">Automatisch bijgewerkt:</span> Nieuwe boekingen en aanvragen verschijnen automatisch in je agenda. Aanvragen worden getoond als <span className="italic">tentatieven</span>.
+        <div className="mt-4 bg-blue-50 border border-blue-100 rounded-xl px-3 py-2.5">
+          <p className="text-xs leading-relaxed text-blue-700">
+            Nieuwe boekingen en aanvragen worden automatisch bijgewerkt. Zodra een aanvraag wordt afgewezen, verdwijnt ze bij de volgende synchronisatie uit de agenda.
           </p>
         </div>
       </div>

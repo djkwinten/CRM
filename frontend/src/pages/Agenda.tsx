@@ -28,9 +28,9 @@ export function Agenda() {
     setLoading(true)
     try {
       const data = await getBookings()
-      const sorted = [...data].sort((a: Booking, b: Booking) =>
-        a.feest_datum.localeCompare(b.feest_datum)
-      )
+      const sorted = data
+        .filter((booking: Booking) => !booking.is_afgewezen)
+        .sort((a: Booking, b: Booking) => a.feest_datum.localeCompare(b.feest_datum))
       setBookings(sorted)
     } catch (e) {
       console.error(e)
@@ -68,7 +68,7 @@ export function Agenda() {
               </div>
               <div>
                 <h1 className="font-bold text-base text-white">Agenda</h1>
-                <p className="text-xs text-white/70">{bookings.length} feesten gepland</p>
+                <p className="text-xs text-white/70">{bookings.length} boekingen en aanvragen gepland</p>
               </div>
             </div>
             <button onClick={load} className="p-2 hover:bg-white/20 rounded-xl text-white/70 hover:text-white transition-colors">
@@ -86,6 +86,10 @@ export function Agenda() {
           <>
             {/* Kalender bovenaan */}
             <div className="mb-6">
+              <div className="mb-3 flex items-center justify-end gap-4 px-1 text-xs font-medium text-gray-500">
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-red-500" /> Boekingen</span>
+                <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-orange-500" /> Aanvragen</span>
+              </div>
               <CalendarView
                 bookings={bookings}
                 onSelectBooking={(id) => navigate(`/boeking/${id}`)}
@@ -120,9 +124,9 @@ export function Agenda() {
                             <button
                               key={b.id}
                               onClick={() => navigate(`/boeking/${b.id}`)}
-                              className={`w-full text-left flex items-center gap-3 px-4 py-3 transition-colors ${
-                                isHighlighted ? 'bg-[#007AFF]/5' : 'hover:bg-gray-50'
-                              } ${idx > 0 ? 'border-t border-gray-100' : ''}`}
+                              className={`w-full text-left flex items-center gap-3 border-l-4 px-4 py-3 transition-colors ${
+                                isAanvraag ? 'border-l-orange-500' : 'border-l-red-500'
+                              } ${isHighlighted ? (isAanvraag ? 'bg-orange-50' : 'bg-red-50') : 'hover:bg-gray-50'} ${idx > 0 ? 'border-t border-gray-100' : ''}`}
                             >
                               <div className={`flex-shrink-0 w-11 text-center rounded-xl py-1 ${
                                 isHighlighted ? 'bg-[#007AFF]/10' : ''
@@ -133,7 +137,7 @@ export function Agenda() {
                                       {format(day, 'EEE', { locale: nl })}
                                     </div>
                                     <div className={`text-xl font-bold leading-tight ${
-                                      isHighlighted ? 'text-[#007AFF]' : 'text-gray-800'
+                                      isAanvraag ? 'text-orange-600' : 'text-red-600'
                                     }`}>
                                       {format(day, 'd')}
                                     </div>
