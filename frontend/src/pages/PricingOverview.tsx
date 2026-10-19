@@ -7,7 +7,6 @@ import { Booking } from '../types/booking'
 import { format, parseISO } from 'date-fns'
 import { nl } from 'date-fns/locale'
 import { calculateBookingPricing } from '../lib/bookingPricing'
-import { DISCOUNT_NOTE_EXTRA_KEY, parseExtraPrices } from '../config/weddingFormulas'
 
 class PricingOverviewErrorBoundary extends Component<{ children: ReactNode }, { error: string | null }> {
   constructor(props: { children: ReactNode }) {
@@ -37,8 +36,6 @@ export function generatePricingOverview(booking: Booking, dateStr: string) {
       {(() => {
         const pricing = calculateBookingPricing(booking)
         const { basisprijs, korting } = pricing
-        const extraPrijzen = parseExtraPrices(booking.extra_prijzen)
-        const kortingUitleg = String(extraPrijzen[DISCOUNT_NOTE_EXTRA_KEY] || '').trim()
         const gekozenFormule = pricing.formule
         const extraEmoji: Record<string, string> = {
           ceremonie_set: '🎵',
@@ -147,10 +144,7 @@ export function generatePricingOverview(booking: Booking, dateStr: string) {
                   })}
                   {korting > 0 && (
                     <tr className="border-b border-gray-100">
-                      <td className="py-2.5 text-sm text-green-700 font-medium">
-                        🎁 Korting
-                        {kortingUitleg && <p className="mt-0.5 text-xs font-normal text-green-700">{kortingUitleg}</p>}
-                      </td>
+                      <td className="py-2.5 text-sm text-green-700 font-medium">🎁 Korting</td>
                       <td className="py-2.5 text-sm font-bold text-green-700 text-right">- € {korting.toFixed(2)}</td>
                     </tr>
                   )}
