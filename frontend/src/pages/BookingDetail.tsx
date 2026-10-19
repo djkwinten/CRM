@@ -14,7 +14,7 @@ import { generateContractPDFBase64 } from '../lib/contractPDF'
 import { WorkspaceTabs } from '../features/event-workspace/components/WorkspaceTabs'
 import { EventWorkspace } from '../features/event-workspace/EventWorkspace'
 import { WorkspaceTab } from '../features/event-workspace/types'
-import { WEDDING_FORMULAS, WEDDING_FORMULA_EXTRA_KEY, getWeddingFormula, parseExtraPrices, stringifyExtraPrices, formatEuro } from '../config/weddingFormulas'
+import { WEDDING_FORMULAS, WEDDING_FORMULA_EXTRA_KEY, DISCOUNT_NOTE_EXTRA_KEY, getWeddingFormula, parseExtraPrices, stringifyExtraPrices, formatEuro } from '../config/weddingFormulas'
 import { calculateBookingPricing } from '../lib/bookingPricing'
 import { getManualKilometervergoeding } from '../lib/kilometervergoeding'
 
@@ -714,6 +714,11 @@ export function BookingDetail() {
               setContractForm(p => ({ ...p, extra_prijzen: stringifyExtraPrices(updated), totaalprijs: recalc(p.basisprijs, updated) }))
             }
 
+            const updateKortingUitleg = (val: string) => {
+              const updated = { ...extraPrijzen, [DISCOUNT_NOTE_EXTRA_KEY]: val }
+              setContractForm(p => ({ ...p, extra_prijzen: stringifyExtraPrices(updated) }))
+            }
+
             const updateWeddingFormula = (formulaKey: string) => {
               const formula = getWeddingFormula(formulaKey)
               if (!formula) return
@@ -812,6 +817,15 @@ export function BookingDetail() {
                         className="flex-1 bg-white border border-green-200 text-gray-900 rounded-xl px-2 py-2 text-sm focus:outline-none focus:border-green-400 focus:ring-2 focus:ring-green-400/20 transition-all"
                       />
                     </div>
+                    <label className="block text-[11px] font-semibold text-green-700 mt-3 mb-1">Omschrijving korting (optioneel)</label>
+                    <input
+                      type="text"
+                      maxLength={120}
+                      placeholder="Bijv. Vriendenkorting of commerciële geste"
+                      value={extraPrijzen[DISCOUNT_NOTE_EXTRA_KEY] || ''}
+                      onChange={e => updateKortingUitleg(e.target.value)}
+                      className="w-full bg-white border border-green-200 text-gray-900 rounded-xl px-2 py-2 text-sm focus:outline-none focus:border-green-400 focus:ring-2 focus:ring-green-400/20 transition-all"
+                    />
                   </div>
                 </div>
 
