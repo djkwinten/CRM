@@ -14,7 +14,7 @@ import { generateContractPDFBase64 } from '../lib/contractPDF'
 import { WorkspaceTabs } from '../features/event-workspace/components/WorkspaceTabs'
 import { EventWorkspace } from '../features/event-workspace/EventWorkspace'
 import { WorkspaceTab } from '../features/event-workspace/types'
-import { WEDDING_FORMULAS, WEDDING_FORMULA_EXTRA_KEY, DISCOUNT_NOTE_EXTRA_KEY, getWeddingFormula, parseExtraPrices, stringifyExtraPrices, formatEuro } from '../config/weddingFormulas'
+import { WEDDING_FORMULAS, WEDDING_FORMULA_EXTRA_KEY, getWeddingFormula, parseExtraPrices, stringifyExtraPrices, formatEuro } from '../config/weddingFormulas'
 import { calculateBookingPricing } from '../lib/bookingPricing'
 import { getManualKilometervergoeding } from '../lib/kilometervergoeding'
 
@@ -714,11 +714,6 @@ export function BookingDetail() {
               setContractForm(p => ({ ...p, extra_prijzen: stringifyExtraPrices(updated), totaalprijs: recalc(p.basisprijs, updated) }))
             }
 
-            const updateKortingUitleg = (val: string) => {
-              const updated = { ...extraPrijzen, [DISCOUNT_NOTE_EXTRA_KEY]: val }
-              setContractForm(p => ({ ...p, extra_prijzen: stringifyExtraPrices(updated) }))
-            }
-
             const updateWeddingFormula = (formulaKey: string) => {
               const formula = getWeddingFormula(formulaKey)
               if (!formula) return
@@ -818,17 +813,6 @@ export function BookingDetail() {
                       />
                     </div>
                   </div>
-                </div>
-                <div className="bg-green-50/60 border border-green-200 rounded-xl p-3">
-                  <label className="text-xs font-bold text-green-700 uppercase tracking-wider">Omschrijving korting (optioneel)</label>
-                  <input
-                    type="text"
-                    placeholder="Bijv. Vriendenkorting of commerciële geste"
-                    value={extraPrijzen[DISCOUNT_NOTE_EXTRA_KEY] || ''}
-                    onChange={e => updateKortingUitleg(e.target.value)}
-                    className="mt-1.5 w-full bg-white border border-green-200 text-gray-900 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-green-400 focus:ring-2 focus:ring-green-400/20 transition-all"
-                  />
-                  <p className="text-[11px] text-green-700/80 mt-1">Wordt vermeld bij de korting op het prijsoverzicht en het contract.</p>
                 </div>
 
                 {/* Extra's meerprijs */}
