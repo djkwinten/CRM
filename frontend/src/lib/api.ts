@@ -179,6 +179,9 @@ export async function updateBasisInfo(id: number, payload: {
   telefoon?: string
   feest_datum?: string
   created_at?: string
+  type_feest?: string
+  bedrijfsnaam?: string
+  verjaardag_naam_leeftijd?: string
 }) {
   updateLocalBooking(id, payload)
   try {
