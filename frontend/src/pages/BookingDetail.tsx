@@ -517,6 +517,52 @@ export function BookingDetail() {
 
         <WorkspaceTabs active={activeWorkspaceTab} onChange={setActiveWorkspaceTab} />
 
+        {activeWorkspaceTab === 'overzicht' && (
+          <section className="rounded-2xl border border-gray-200/80 bg-white p-4 sm:p-5 shadow-sm">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Boekingsoverzicht</p>
+                <h2 className="mt-1 truncate text-lg font-bold text-gray-900">
+                  {booking.type_feest === 'Trouw' && (booking.naam_partner1 || booking.naam_partner2)
+                    ? [booking.naam_partner1, booking.naam_partner2].filter(Boolean).join(' & ')
+                    : booking.naam_organisator || 'Naam nog niet ingevuld'}
+                </h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  {booking.feest_datum ? format(parseISO(booking.feest_datum), 'EEEE d MMMM yyyy', { locale: nl }) : 'Datum nog niet ingevuld'}
+                  <span className="mx-2 text-gray-300">·</span>{booking.type_feest || 'Feestsoort onbekend'}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:min-w-[300px]">
+                <div className="rounded-xl bg-gray-50 px-3 py-2.5">
+                  <p className="text-xs text-gray-500">Contract</p>
+                  <p className={`mt-1 flex items-center gap-1.5 text-sm font-semibold ${booking.status_contract ? 'text-emerald-700' : 'text-amber-700'}`}>
+                    {booking.status_contract ? <CheckCircle2 size={15} /> : <Clock size={15} />}
+                    {booking.status_contract ? 'In orde' : 'Nog te doen'}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-gray-50 px-3 py-2.5">
+                  <p className="text-xs text-gray-500">Voorschot</p>
+                  <p className={`mt-1 flex items-center gap-1.5 text-sm font-semibold ${booking.status_voorschot ? 'text-emerald-700' : 'text-amber-700'}`}>
+                    {booking.status_voorschot ? <CheckCircle2 size={15} /> : <Clock size={15} />}
+                    {booking.status_voorschot ? 'In orde' : 'Opvolgen'}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-gray-50 px-3 py-2.5">
+                  <p className="text-xs text-gray-500">Vragenlijst</p>
+                  <p className={`mt-1 flex items-center gap-1.5 text-sm font-semibold ${booking.status_vragenlijst ? 'text-emerald-700' : 'text-amber-700'}`}>
+                    {booking.status_vragenlijst ? <CheckCircle2 size={15} /> : <Clock size={15} />}
+                    {booking.status_vragenlijst ? 'Ontvangen' : 'Nakijken'}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-blue-50 px-3 py-2.5">
+                  <p className="text-xs text-blue-600">Boekingsstatus</p>
+                  <p className="mt-1 text-sm font-semibold text-blue-800">{isAanvraag ? 'Aanvraag' : 'Boeking'}</p>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
         <div className="bg-white rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_16px_rgba(0,0,0,0.04)] p-4">
           <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
             <div className="flex-1">
