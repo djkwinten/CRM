@@ -183,15 +183,21 @@ export async function updateBasisInfo(id: number, payload: {
   bedrijfsnaam?: string
   verjaardag_naam_leeftijd?: string
 }) {
-  updateLocalBooking(id, payload)
   try {
     const res = await fetch(`${BASE}/${id}/basisinfo`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     })
-    return res.json()
+    const data = await res.json() as { success?: boolean; error?: string }
+    if (!res.ok || data.success === false) {
+      return { success: false, error: data.error || 'Basisgegevens opslaan mislukt' }
+    }
+    updateLocalBooking(id, payload)
+    return data
   } catch {
+    // Offline fallback: keep the CRM usable locally when the API is unreachable.
+    updateLocalBooking(id, payload)
     return { success: true, local: true }
   }
 }
