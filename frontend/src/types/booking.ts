@@ -7,7 +7,7 @@ export interface Booking {
   contract_info_unlocked?: number
   // Beheer
   feest_datum: string
-  type_feest: 'Trouw' | 'Algemeen'
+  type_feest: string
   is_aanvraag: number
   status_contract: number
   status_voorschot: number
