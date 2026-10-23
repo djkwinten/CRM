@@ -231,7 +231,7 @@ export function BookingDetail() {
   const [contractGenerating, setContractGenerating] = useState(false)
   const [factuurUploading, setFactuurUploading] = useState(false)
   const [basisInfoSaving, setBasisInfoSaving] = useState(false)
-  const [basisInfoForm, setBasisInfoForm] = useState({ naam_organisator: '', naam_partner1: '', naam_partner2: '', email: '', telefoon: '', feest_datum: '', created_at: '' })
+  const [basisInfoForm, setBasisInfoForm] = useState({ naam_organisator: '', naam_partner1: '', naam_partner2: '', email: '', telefoon: '', feest_datum: '', created_at: '', type_feest: 'Algemeen', bedrijfsnaam: '', verjaardag_naam_leeftijd: '' })
   const [portalTitle, setPortalTitle] = useState('')
   const [portalSaving, setPortalSaving] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -274,6 +274,9 @@ export function BookingDetail() {
         telefoon: data.telefoon || '',
         feest_datum: data.feest_datum || '',
         created_at: data.created_at ? data.created_at.slice(0, 10) : '',
+        type_feest: data.type_feest || 'Algemeen',
+        bedrijfsnaam: data.bedrijfsnaam || '',
+        verjaardag_naam_leeftijd: data.verjaardag_naam_leeftijd || '',
       })
     }
     setLoading(false)
@@ -340,7 +343,8 @@ export function BookingDetail() {
   const saveBasisInfo = async () => {
     if (!booking) return
     setBasisInfoSaving(true)
-    await updateBasisInfo(booking.id, basisInfoForm)
+    const result = await updateBasisInfo(booking.id, basisInfoForm)
+    if (result?.success === false) { alert('Opslaan mislukt: ' + (result.error || 'onbekende fout')); setBasisInfoSaving(false); return }
     // Adres apart opslaan via contract endpoint
     await updateContractInfo(booking.id, { adres_organisator: contractForm.adres_organisator })
     setBooking(prev => prev ? { ...prev, ...basisInfoForm, adres_organisator: contractForm.adres_organisator } : prev)
@@ -531,6 +535,25 @@ export function BookingDetail() {
               <ExternalLink size={14} /> Open klantpagina
             </a>
           </div>
+        </div>
+
+
+        <div className="bg-white rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_16px_rgba(0,0,0,0.04)] p-5 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div><h3 className="text-sm font-semibold text-gray-700">Feestsoort en basisgegevens</h3><p className="text-xs text-gray-500 mt-1">Ook na automatische e-mailherkenning aanpasbaar.</p></div>
+            <button onClick={saveBasisInfo} disabled={basisInfoSaving} className="flex items-center gap-2 bg-[#007AFF] hover:bg-[#0066CC] disabled:opacity-50 text-white px-4 py-2 rounded-xl text-sm font-semibold"><Save size={14} /> {basisInfoSaving ? 'Opslaan…' : 'Wijzigingen opslaan'}</button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <label className="text-xs font-medium text-gray-600">Feestsoort
+              <select value={basisInfoForm.type_feest} onChange={e => setBasisInfoForm(p => ({ ...p, type_feest: e.target.value }))} className="mt-1 w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-3 py-2.5 text-sm">
+                {Array.from(new Set(['Algemeen', 'Trouw', 'Verjaardag', 'Personeelsfeest', 'Jubileum', 'Communie', basisInfoForm.type_feest])).filter(Boolean).map(type => <option key={type} value={type}>{type === 'Trouw' ? 'Trouwfeest' : type}</option>)}
+              </select>
+            </label>
+            <label className="text-xs font-medium text-gray-600">Naam organisator / klant<input value={basisInfoForm.naam_organisator} onChange={e => setBasisInfoForm(p => ({ ...p, naam_organisator: e.target.value }))} className="mt-1 w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-3 py-2.5 text-sm" /></label>
+            <label className="text-xs font-medium text-gray-600">Bedrijf (personeelsfeest)<input value={basisInfoForm.bedrijfsnaam} onChange={e => setBasisInfoForm(p => ({ ...p, bedrijfsnaam: e.target.value }))} placeholder="Naam van het bedrijf" className="mt-1 w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-3 py-2.5 text-sm" /></label>
+            {basisInfoForm.type_feest === 'Verjaardag' && <label className="text-xs font-medium text-gray-600 sm:col-span-2">Naam en leeftijd jarige<input value={basisInfoForm.verjaardag_naam_leeftijd} onChange={e => setBasisInfoForm(p => ({ ...p, verjaardag_naam_leeftijd: e.target.value }))} placeholder="Bijv. Thomas — 40 jaar" className="mt-1 w-full bg-gray-50 border border-gray-200 text-gray-900 rounded-xl px-3 py-2.5 text-sm" /></label>}
+          </div>
+          {basisInfoForm.type_feest === 'Trouw' && <p className="text-xs text-pink-700 bg-pink-50 rounded-lg p-3">Trouwfeest geselecteerd. De bestaande trouwfuncties en vragenlijst blijven beschikbaar. Controleer na een wijziging wel even de formule en prijs.</p>}
         </div>
 
         {activeWorkspaceTab !== 'overzicht' ? (
