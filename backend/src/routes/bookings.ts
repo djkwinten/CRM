@@ -1495,6 +1495,9 @@ bookingsRoutes.patch('/:id/basisinfo', async (c) => {
   if (body.telefoon !== undefined) { fields.push('telefoon = ?'); values.push(body.telefoon || null) }
   if (body.feest_datum !== undefined) { fields.push('feest_datum = ?'); values.push(body.feest_datum || null) }
   if (body.created_at !== undefined) { fields.push('created_at = ?'); values.push(body.created_at || null) }
+  if (body.type_feest !== undefined) { fields.push('type_feest = ?'); values.push(body.type_feest || 'Algemeen') }
+  if (body.bedrijfsnaam !== undefined) { fields.push('bedrijfsnaam = ?'); values.push(body.bedrijfsnaam || null) }
+  if (body.verjaardag_naam_leeftijd !== undefined) { fields.push('verjaardag_naam_leeftijd = ?'); values.push(body.verjaardag_naam_leeftijd || null) }
   if (body.venue_id !== undefined) { fields.push('venue_id = ?'); values.push(body.venue_id ?? null) }
   if (fields.length === 0) return c.json({ error: 'No fields to update' }, 400)
   fields.push("updated_at = datetime('now')")
