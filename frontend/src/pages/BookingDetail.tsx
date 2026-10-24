@@ -20,12 +20,14 @@ import { getManualKilometervergoeding } from '../lib/kilometervergoeding'
 
 function Section({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_16px_rgba(0,0,0,0.04)] p-5">
-      <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
-        <span className="text-[#007AFF]">{icon}</span>{title}
-      </h3>
-      {children}
-    </div>
+    <details className="group bg-white rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_16px_rgba(0,0,0,0.04)] p-5">
+      <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider [&::-webkit-details-marker]:hidden">
+        <span className="text-[#007AFF]">{icon}</span>
+        <span className="flex-1">{title}</span>
+        <span className="text-gray-400 transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
+      </summary>
+      <div className="pt-4">{children}</div>
+    </details>
   )
 }
 
