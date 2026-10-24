@@ -605,11 +605,12 @@ export function BookingDetail() {
         )}
 
         {/* Basisinfo bewerken */}
-        <div className="bg-white rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_16px_rgba(0,0,0,0.04)] p-5">
-          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-            <Phone size={15} className="text-[#007AFF]" /> Contactgegevens
-          </h3>
-          <div className="space-y-3">
+        <details className="group bg-white rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_16px_rgba(0,0,0,0.04)] p-5">
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider [&::-webkit-details-marker]:hidden">
+            <Phone size={15} className="text-[#007AFF]" /> <span className="flex-1">Contactgegevens</span>
+            <span className="text-gray-400 transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
+          </summary>
+          <div className="pt-4 space-y-3">
             {isTrouw ? (
               <div className="bg-pink-50 border border-pink-100 rounded-xl p-4 space-y-3">
                 <p className="text-xs font-bold text-pink-500 uppercase tracking-wider">💍 Namen Koppel</p>
@@ -690,13 +691,15 @@ export function BookingDetail() {
               <Save size={14} /> {basisInfoSaving ? 'Opslaan...' : 'Opslaan'}
             </button>
           </div>
-        </div>
+        </details>
 
         {/* Factuur & Contract — alleen voor bevestigde boekingen */}
-        {!isAanvraag && <div className="bg-white rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_16px_rgba(0,0,0,0.04)] p-5">
-          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
-            <Euro size={15} className="text-[#007AFF]" /> Factuur & Contract
-          </h3>
+        {!isAanvraag && <details className="group bg-white rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_16px_rgba(0,0,0,0.04)] p-5">
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-gray-500 uppercase tracking-wider [&::-webkit-details-marker]:hidden">
+            <Euro size={15} className="text-[#007AFF]" /> <span className="flex-1">Factuur & Contract</span>
+            <span className="text-gray-400 transition-transform group-open:rotate-180" aria-hidden="true">⌄</span>
+          </summary>
+          <div className="pt-4">
 
           {/* Prijsopbouw */}
           {(() => {
@@ -1114,7 +1117,8 @@ export function BookingDetail() {
               </button>
             )}
           </div>
-        </div>}
+          </div>
+        </details>}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* Planning */}
