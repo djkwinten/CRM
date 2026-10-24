@@ -344,7 +344,7 @@ export function BookingDetail() {
     if (!booking) return
     setBasisInfoSaving(true)
     const result = await updateBasisInfo(booking.id, basisInfoForm)
-    if (result?.success === false) { alert('Opslaan mislukt: ' + (result.error || 'onbekende fout')); setBasisInfoSaving(false); return }
+    if (result?.success === false) { alert('Opslaan mislukt: ' + (('error' in result && result.error) || 'onbekende fout')); setBasisInfoSaving(false); return }
     // Adres apart opslaan via contract endpoint
     await updateContractInfo(booking.id, { adres_organisator: contractForm.adres_organisator })
     setBooking(prev => prev ? { ...prev, ...basisInfoForm, adres_organisator: contractForm.adres_organisator } : prev)
