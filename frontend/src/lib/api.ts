@@ -141,17 +141,27 @@ export async function updateContractInfo(id: number, payload: {
   }
 }
 
-export async function updatePortalSettings(id: number, payload: { portal_title?: string }) {
-  updateLocalBooking(id, payload)
+export async function updatePortalSettings(id: number, payload: { portal_title?: string }): Promise<{ success: boolean; error?: string; local?: boolean }> {
   try {
     const res = await fetch(`${BASE}/${id}/portal`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(12000),
     })
-    return res.json()
-  } catch {
-    return { success: true, local: true }
+    const data = await res.json() as { success?: boolean; error?: string }
+    if (!res.ok || data.success === false) {
+      return { success: false, error: data.error || `Serverfout (${res.status})` }
+    }
+    updateLocalBooking(id, payload)
+    return { success: true }
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error && error.name === 'TimeoutError'
+        ? 'De server reageert niet binnen 12 seconden.'
+        : 'Geen verbinding met de server. Probeer opnieuw.',
+    }
   }
 }
 
