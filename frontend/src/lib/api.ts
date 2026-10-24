@@ -182,7 +182,7 @@ export async function updateBasisInfo(id: number, payload: {
   type_feest?: string
   bedrijfsnaam?: string
   verjaardag_naam_leeftijd?: string
-}) {
+}): Promise<{ success?: boolean; error?: string; local?: boolean }> {
   try {
     const res = await fetch(`${BASE}/${id}/basisinfo`, {
       method: 'PATCH',
