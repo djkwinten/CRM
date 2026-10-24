@@ -392,11 +392,21 @@ export function BookingDetail() {
   }
 
   const savePortalTitle = async () => {
-    if (!booking) return
+    if (!booking || portalSaving) return
     setPortalSaving(true)
-    await updatePortalSettings(booking.id, { portal_title: portalTitle })
-    setBooking(prev => prev ? { ...prev, portal_title: portalTitle } : prev)
-    setPortalSaving(false)
+    try {
+      const result = await updatePortalSettings(booking.id, { portal_title: portalTitle })
+      if (result?.success === false) {
+        alert('Naam van de klantpagina kon niet worden opgeslagen: ' + (result.error || 'onbekende fout'))
+        return
+      }
+      setBooking(prev => prev ? { ...prev, portal_title: portalTitle } : prev)
+      alert('Naam van de klantpagina opgeslagen.')
+    } catch (error) {
+      alert('Naam van de klantpagina kon niet worden opgeslagen. Probeer opnieuw.')
+    } finally {
+      setPortalSaving(false)
+    }
   }
 
   if (loading) return (
