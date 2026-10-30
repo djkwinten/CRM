@@ -1492,14 +1492,18 @@ bookingsRoutes.patch('/:id/contract', async (c) => {
   if (body.billit_factuur_naam !== undefined) { fields.push('billit_factuur_naam = ?'); values.push(body.billit_factuur_naam) }
   if (body.contract_pdf !== undefined) { fields.push('contract_pdf = ?'); values.push(body.contract_pdf) }
   if (body.contract_pdf !== undefined || body.billit_factuur_pdf !== undefined) {
-    const existingDocs = await queryOne<{ contract_pdf?: string | null; billit_factuur_pdf?: string | null; voorschot_documenten_klaar_op?: string | null }>(
+    const existingDocs = await queryOne<{ has_contract_pdf?: number; has_billit_factuur_pdf?: number; voorschot_documenten_klaar_op?: string | null }>(
       c.env,
-      `SELECT contract_pdf, billit_factuur_pdf, voorschot_documenten_klaar_op FROM bookings WHERE id = ?`,
+      `SELECT
+        CASE WHEN contract_pdf IS NOT NULL AND contract_pdf != '' THEN 1 ELSE 0 END AS has_contract_pdf,
+        CASE WHEN billit_factuur_pdf IS NOT NULL AND billit_factuur_pdf != '' THEN 1 ELSE 0 END AS has_billit_factuur_pdf,
+        voorschot_documenten_klaar_op
+       FROM bookings WHERE id = ?`,
       [id]
     )
-    const contractPdf = body.contract_pdf !== undefined ? body.contract_pdf : existingDocs?.contract_pdf
-    const invoicePdf = body.billit_factuur_pdf !== undefined ? body.billit_factuur_pdf : existingDocs?.billit_factuur_pdf
-    if (contractPdf && invoicePdf && !existingDocs?.voorschot_documenten_klaar_op) {
+    const contractPdfExists = body.contract_pdf !== undefined ? !!body.contract_pdf : !!existingDocs?.has_contract_pdf
+    const invoicePdfExists = body.billit_factuur_pdf !== undefined ? !!body.billit_factuur_pdf : !!existingDocs?.has_billit_factuur_pdf
+    if (contractPdfExists && invoicePdfExists && !existingDocs?.voorschot_documenten_klaar_op) {
       fields.push("voorschot_documenten_klaar_op = datetime('now')")
     }
   }
