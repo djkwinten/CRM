@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Download, FileText, FolderOpen, RefreshCw, Trash2, Upload } from 'lucide-react'
 import { Booking } from '../../../types/booking'
-import { bookingFileDownloadUrl, BookingFile, deleteBookingFile, getBookingFiles, uploadBookingFile, updateBookingFileCategory } from '../../../lib/api'
+import { bookingFileDownloadUrl, BookingFile, deleteBookingFile, getBookingFiles, uploadBookingFile } from '../../../lib/api'
 
 
 type QuestionnaireUpload = { naam: string; type: string; key: string; category?: 'uitnodiging' | 'zaal_foto' | 'grondplan' }
@@ -59,7 +59,6 @@ export function FilesTab({ booking }: { booking: Booking }) {
   const [files, setFiles] = useState<BookingFile[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
-  const [uploadCategory, setUploadCategory] = useState<'overeenkomst' | 'voorschotfactuur' | 'ander'>('ander')
   const inputRef = useRef<HTMLInputElement>(null)
   const questionnaireFiles = parseQuestionnaireUploads(booking.zaal_fotos)
 
@@ -75,17 +74,11 @@ export function FilesTab({ booking }: { booking: Booking }) {
     const file = e.target.files?.[0]
     if (!file) return
     setUploading(true)
-    const res = await uploadBookingFile(booking.id, file, uploadCategory)
+    const res = await uploadBookingFile(booking.id, file)
     setUploading(false)
     if (!res.success) alert(res.error || 'Upload mislukt')
     await load()
     if (inputRef.current) inputRef.current.value = ''
-  }
-
-  const handleCategoryChange = async (file: BookingFile, category: 'overeenkomst' | 'voorschotfactuur' | 'ander') => {
-    const res = await updateBookingFileCategory(file.id, category)
-    if (!res.success) alert(res.error || 'Documenttype opslaan mislukt')
-    await load()
   }
 
   const handleDelete = async (file: BookingFile) => {
@@ -106,14 +99,6 @@ export function FilesTab({ booking }: { booking: Booking }) {
 
       <div className="border border-dashed border-gray-300 rounded-2xl p-4 bg-gray-50">
         <input ref={inputRef} type="file" onChange={handleUpload} className="hidden" />
-        <div className="mb-3">
-          <label className="block text-xs font-semibold text-gray-600 mb-1.5">Type document</label>
-          <select value={uploadCategory} onChange={e => setUploadCategory(e.target.value as 'overeenkomst' | 'voorschotfactuur' | 'ander')} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 outline-none focus:border-[#007AFF]">
-            <option value="ander">Ander bestand</option>
-            <option value="overeenkomst">Overeenkomst</option>
-            <option value="voorschotfactuur">Voorschotfactuur</option>
-          </select>
-        </div>
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
@@ -156,11 +141,6 @@ export function FilesTab({ booking }: { booking: Booking }) {
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900 truncate">{file.name}</p>
                 <p className="text-xs text-gray-400">{file.type || 'bestand'} {formatSize(file.size) && `· ${formatSize(file.size)}`}</p>
-                <select aria-label={`Documenttype voor ${file.name}`} value={file.category || 'ander'} onChange={e => handleCategoryChange(file, e.target.value as 'overeenkomst' | 'voorschotfactuur' | 'ander')} className="max-w-36 rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600">
-                  <option value="ander">Ander</option>
-                  <option value="overeenkomst">Overeenkomst</option>
-                  <option value="voorschotfactuur">Voorschotfactuur</option>
-                </select>
               </div>
               <button type="button" onClick={() => openRemoteFile(bookingFileDownloadUrl(file.id), file.name)} className="p-2 rounded-xl hover:bg-blue-50 text-blue-600" aria-label="Bestand openen">
                 <Download size={15} />
