@@ -107,6 +107,7 @@ const bookingListColumns: Record<string, string> = {
   aanvraag_reminder_sent_at: 'NULL',
   review_sent_at: 'NULL',
   feest_herinnering_sent_at: 'NULL',
+  voorschot_documenten_klaar_op: 'NULL',
   wedding_meeting_at: '(SELECT meeting_at FROM wedding_meetings wm WHERE wm.booking_id = bookings.id)',
   wedding_meeting_note: '(SELECT note FROM wedding_meetings wm WHERE wm.booking_id = bookings.id)',
   vragenlijst_diff: 'NULL',
@@ -462,6 +463,8 @@ bookingsRoutes.post('/init', async (c) => {
       `ALTER TABLE bookings ADD COLUMN review_sent_at TEXT`,
       // Feest nadert herinnering
       `ALTER TABLE bookings ADD COLUMN feest_herinnering_sent_at TEXT`,
+      // Startdatum opvolging voorschot zodra overeenkomst én factuur klaarstaan
+      `ALTER TABLE bookings ADD COLUMN voorschot_documenten_klaar_op TEXT`,
       // Trouw-afspraak met koppel
       `ALTER TABLE bookings ADD COLUMN wedding_meeting_at TEXT`,
       `ALTER TABLE bookings ADD COLUMN wedding_meeting_note TEXT`,
@@ -490,6 +493,13 @@ bookingsRoutes.post('/init', async (c) => {
     for (const m of migrations) {
       try { await execute(c.env, m) } catch { /* column already exists */ }
     }
+    // Bestaande boekingen met beide documenten krijgen een startdatum bij de eerste migratie.
+    try {
+      await execute(c.env, `UPDATE bookings SET voorschot_documenten_klaar_op = datetime('now')
+        WHERE (voorschot_documenten_klaar_op IS NULL OR voorschot_documenten_klaar_op = '')
+          AND contract_pdf IS NOT NULL AND contract_pdf != ''
+          AND billit_factuur_pdf IS NOT NULL AND billit_factuur_pdf != ''`)
+    } catch { /* oudere database of kolom nog niet beschikbaar */ }
     // Contract Info tabel — korte, aparte input voor contract/PDF/factuur flows
     await execute(c.env, `
       CREATE TABLE IF NOT EXISTS booking_contract_info (
@@ -1444,9 +1454,14 @@ bookingsRoutes.patch('/:id/contract', async (c) => {
   const updatesPricing = body.basisprijs !== undefined || body.extra_prijzen !== undefined
   if (!c.env.DB && c.env.STORAGE) {
     const existing = await findCloudBooking(c.env, id)
-    const patch = updatesPricing
+    const patch: Record<string, unknown> = updatesPricing
       ? { ...safeBody, totaalprijs: calculateStoredBookingTotal({ ...(existing || {}), ...safeBody }) }
-      : safeBody
+      : { ...safeBody }
+    const nextContractPdf = safeBody.contract_pdf !== undefined ? safeBody.contract_pdf : existing?.contract_pdf
+    const nextInvoicePdf = safeBody.billit_factuur_pdf !== undefined ? safeBody.billit_factuur_pdf : existing?.billit_factuur_pdf
+    if (nextContractPdf && nextInvoicePdf && !existing?.voorschot_documenten_klaar_op) {
+      patch.voorschot_documenten_klaar_op = new Date().toISOString()
+    }
     await patchCloudBooking(c.env, id, patch)
     return c.json({ success: true, storage: 'r2' })
   }
@@ -1467,6 +1482,18 @@ bookingsRoutes.patch('/:id/contract', async (c) => {
   if (body.billit_factuur_pdf !== undefined) { fields.push('billit_factuur_pdf = ?'); values.push(body.billit_factuur_pdf) }
   if (body.billit_factuur_naam !== undefined) { fields.push('billit_factuur_naam = ?'); values.push(body.billit_factuur_naam) }
   if (body.contract_pdf !== undefined) { fields.push('contract_pdf = ?'); values.push(body.contract_pdf) }
+  if (body.contract_pdf !== undefined || body.billit_factuur_pdf !== undefined) {
+    const existingDocs = await queryOne<{ contract_pdf?: string | null; billit_factuur_pdf?: string | null; voorschot_documenten_klaar_op?: string | null }>(
+      c.env,
+      `SELECT contract_pdf, billit_factuur_pdf, voorschot_documenten_klaar_op FROM bookings WHERE id = ?`,
+      [id]
+    )
+    const contractPdf = body.contract_pdf !== undefined ? body.contract_pdf : existingDocs?.contract_pdf
+    const invoicePdf = body.billit_factuur_pdf !== undefined ? body.billit_factuur_pdf : existingDocs?.billit_factuur_pdf
+    if (contractPdf && invoicePdf && !existingDocs?.voorschot_documenten_klaar_op) {
+      fields.push("voorschot_documenten_klaar_op = datetime('now')")
+    }
+  }
   const updatesContractUnlock = body.contract_info_unlocked !== undefined
   if (fields.length === 0 && !updatesContractUnlock) return c.json({ error: 'No fields to update' }, 400)
   if (fields.length > 0) {
