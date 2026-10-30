@@ -101,7 +101,10 @@ function renderTemplate(template: string, vars: Record<string, string>): string 
 function bodyToHtml(body: string): string {
   return body
     .split('\n\n')
-    .map(p => `<p style="margin:0 0 16px;line-height:1.65;color:#374151;">${p.replace(/\n/g, '<br>')}</p>`)
+    .map(p => {
+      const linked = p.replace(/(https?:\\/\\/[^\\s<]+)/g, '<a href="$1" style="color:#007AFF;text-decoration:underline;word-break:break-all;">$1</a>')
+      return `<p style="margin:0 0 16px;line-height:1.65;color:#374151;">${linked.replace(/\n/g, '<br>')}</p>`
+    })
     .join('')
 }
 
