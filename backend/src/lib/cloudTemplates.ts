@@ -1,4 +1,4 @@
-export type TemplateKey = 'vragenlijst_reminder' | 'feest_nadert' | 'review_request' | 'aanvraag_followup' | 'afwijzing'
+export type TemplateKey = 'vragenlijst_reminder' | 'feest_nadert' | 'review_request' | 'aanvraag_followup' | 'afwijzing' | 'voorschot_reminder'
 
 export interface EmailTemplate {
   id: number
@@ -78,6 +78,28 @@ Ik help je graag verder.
 Groetjes,
 DJ Kwinten`
   },
+  voorschot_reminder: {
+    name: 'Voorschot herinnering',
+    subject: 'Automatische herinnering – voorschotfactuur DJ Kwinten',
+    body: `Hey,
+
+Dit is een automatisch berichtje van DJ Kwinten.
+
+Enkele dagen geleden bezorgde ik jullie de overeenkomst en voorschotfactuur. Deze documenten kunnen jullie ook steeds terugvinden op jullie persoonlijke klantenpagina, onder 'Bestanden'.
+
+{{klantenpagina_link}}
+
+Via deze weg wil ik jullie er graag aan herinneren dat het voorschot nog niet ontvangen werd.
+
+De betaling van het voorschot bevestigt de overeenkomst en zorgt ervoor dat jullie datum definitief wordt vastgehouden. Zolang het voorschot niet ontvangen is, kan ik de datum helaas nog niet definitief garanderen.
+
+Is het voorschot ondertussen betaald? Dan mogen jullie dit bericht uiteraard negeren.
+
+Alvast bedankt om dit even in orde te brengen!
+
+Groetjes,
+DJ Kwinten`
+  },
   afwijzing: {
     name: 'Afwijzing / doorgeven',
     subject: 'Jouw aanvraag voor {{feest_datum}}',
@@ -123,7 +145,16 @@ export async function readCloudTemplates(env: CloudEnv | null | undefined): Prom
   try {
     const body = await obj.json() as { templates?: EmailTemplate[] } | EmailTemplate[]
     const templates = Array.isArray(body) ? body : Array.isArray(body.templates) ? body.templates : []
-    if (templates.length > 0) return templates
+    if (templates.length > 0) {
+      // Voeg nieuwe standaardtemplates toe aan bestaande R2-opslag zonder
+      // eerder aangepaste templates te overschrijven.
+      const merged = [...templates]
+      for (const fallback of defaultTemplates()) {
+        if (!merged.some(item => item.key === fallback.key)) merged.push(fallback)
+      }
+      if (merged.length !== templates.length) await writeCloudTemplates(env, merged)
+      return merged
+    }
   } catch { /* fall through to defaults */ }
   const templates = defaultTemplates()
   await writeCloudTemplates(env, templates)

@@ -36,6 +36,9 @@ interface BookingRow {
   is_aanvraag: number
   slug: string | null
   afgewezen_reden?: string | null
+  status_voorschot?: number
+  has_contract_pdf?: number
+  has_billit_factuur_pdf?: number
 }
 
 const DEFAULT_TEMPLATES = DEFAULT_EMAIL_TEMPLATES
@@ -101,7 +104,6 @@ function bodyToHtml(body: string): string {
     .map(p => `<p style="margin:0 0 16px;line-height:1.65;color:#374151;">${p.replace(/\n/g, '<br>')}</p>`)
     .join('')
 }
-
 async function buildPreview(env: Bindings, requestUrl: string, key: string, bookingId: string, overrides?: { subject?: string; body?: string }) {
   await ensureTemplates(env)
   const template = !env.DB && env.STORAGE
@@ -110,10 +112,16 @@ async function buildPreview(env: Bindings, requestUrl: string, key: string, book
   if (!template) throw new Error('Template niet gevonden')
 
   const booking = !env.DB && env.STORAGE
-    ? await findCloudBooking(env, bookingId) as unknown as BookingRow | null
+    ? await findCloudBooking(env, bookingId).then(raw => raw ? ({
+        ...raw,
+        has_contract_pdf: raw.contract_pdf ? 1 : 0,
+        has_billit_factuur_pdf: raw.billit_factuur_pdf ? 1 : 0,
+      } as unknown as BookingRow) : null)
     : await queryOne<BookingRow>(env, `
       SELECT id, feest_datum, type_feest, naam_organisator, naam_partner1, naam_partner2, email,
-             locatie_naam, is_aanvraag, slug, afgewezen_reden
+             locatie_naam, is_aanvraag, slug, afgewezen_reden, status_voorschot,
+             CASE WHEN contract_pdf IS NOT NULL AND contract_pdf != '' THEN 1 ELSE 0 END AS has_contract_pdf,
+             CASE WHEN billit_factuur_pdf IS NOT NULL AND billit_factuur_pdf != '' THEN 1 ELSE 0 END AS has_billit_factuur_pdf
       FROM bookings WHERE id = ?
     `, [bookingId])
   if (!booking) throw new Error('Boeking niet gevonden')
@@ -126,6 +134,7 @@ async function buildPreview(env: Bindings, requestUrl: string, key: string, book
     type_feest: booking.type_feest || '',
     locatie: booking.locatie_naam || '',
     vragenlijst_link: vragenlijstLink,
+    klantenpagina_link: `${base}/event/${booking.slug || booking.id}`,
     review_link: REVIEW_URL,
     dagen_tot_feest: String(daysUntil(booking.feest_datum)),
     afgewezen_reden: booking.afgewezen_reden || ''
@@ -133,7 +142,7 @@ async function buildPreview(env: Bindings, requestUrl: string, key: string, book
 
   const subject = renderTemplate(overrides?.subject ?? template.subject, vars)
   const body = renderTemplate(overrides?.body ?? template.body, vars)
-  const html = `<!DOCTYPE html><html lang="nl"><body style="margin:0;padding:0;background:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"><table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px;"><tr><td align="center"><table width="600" style="max-width:600px;width:100%;background:white;border-radius:18px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.08);"><tr><td style="background:linear-gradient(135deg,#111827,#374151);padding:28px 32px;color:white;"><h1 style="margin:0;font-size:24px;">DJ Kwinten</h1><p style="margin:6px 0 0;color:rgba(255,255,255,.7);font-size:14px;">Boekingsbeheer</p></td></tr><tr><td style="padding:32px;">${bodyToHtml(body)}</td></tr><tr><td style="background:#f9fafb;padding:16px 32px;border-top:1px solid #e5e7eb;color:#9ca3af;font-size:11px;">Verstuurd door DJ Kwinten via DJ Manager</td></tr></table></td></tr></table></body></html>`
+  const html = `<!DOCTYPE html><html lang="nl"><body style="margin:0;padding:0;background:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"><table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px;"><tr><td align="center"><table width="600" style="max-width:600px;width:100%;background:white;border-radius:18px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.08);"><tr><td style="background:linear-gradient(135deg,#111827,#374151);padding:28px 32px;color:white;"><h1 style="margin:0;font-size:24px;">DJ Kwinten</h1><p style="margin:6px 0 0;color:rgba(255,255,255,.7);font-size:14px;">Boekingsbeheer</p></td></tr><tr><td style="padding:32px;">${bodyToHtml(body.replace(vars.klantenpagina_link, '<a href="' + vars.klantenpagina_link + '" style="color:#007AFF;text-decoration:underline;">Open jullie persoonlijke klantenpagina</a>'))}</td></tr><tr><td style="background:#f9fafb;padding:16px 32px;border-top:1px solid #e5e7eb;color:#9ca3af;font-size:11px;">Verstuurd door DJ Kwinten via DJ Manager</td></tr></table></td></tr></table></body></html>`
 
   return { template, booking, to: booking.email, subject, body, html }
 }
@@ -178,6 +187,12 @@ templatesRoutes.post('/:key/send/:bookingId', async (c) => {
     const payload = await c.req.json<{ subject?: string; body?: string }>().catch(() => ({}))
     const data = await buildPreview(c.env, c.req.url, key, c.req.param('bookingId'), payload)
     if (!data.to) return c.json({ error: 'Geen e-mailadres voor deze boeking' }, 400)
+    if (key === 'voorschot_reminder') {
+      if (data.booking.status_voorschot) return c.json({ error: 'Het voorschot staat al als ontvangen geregistreerd.' }, 400)
+      if (!data.booking.has_contract_pdf || !data.booking.has_billit_factuur_pdf) {
+        return c.json({ error: 'De overeenkomst en voorschotfactuur moeten allebei op de klantenpagina staan.' }, 400)
+      }
+    }
 
     const cfg = getSmtpConfig(c.env)
     const ok = await verifySmtpConnection(cfg)

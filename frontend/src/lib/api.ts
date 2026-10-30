@@ -427,7 +427,7 @@ export async function sendFeestHerinnering(id: number): Promise<{ success: boole
 
 // ── Email templates ────────────────────────────────────────────────────────
 
-export type TemplateKey = 'vragenlijst_reminder' | 'feest_nadert' | 'review_request' | 'aanvraag_followup' | 'afwijzing'
+export type TemplateKey = 'vragenlijst_reminder' | 'feest_nadert' | 'review_request' | 'aanvraag_followup' | 'afwijzing' | 'voorschot_reminder'
 
 export interface EmailTemplate {
   id: number

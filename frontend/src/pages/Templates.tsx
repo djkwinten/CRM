@@ -65,7 +65,7 @@ export function Templates() {
             <textarea value={body} onChange={e => setBody(e.target.value)} rows={16} className="mt-1 w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-sm font-mono focus:outline-none focus:border-[#007AFF]" />
           </div>
           <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
-            Variabelen: {'{{naam}}'}, {'{{feest_datum}}'}, {'{{type_feest}}'}, {'{{locatie}}'}, {'{{vragenlijst_link}}'}, {'{{review_link}}'}, {'{{dagen_tot_feest}}'}, {'{{afgewezen_reden}}'}
+            Variabelen: {'{{naam}}'}, {'{{feest_datum}}'}, {'{{type_feest}}'}, {'{{locatie}}'}, {'{{vragenlijst_link}}'}, {'{{klantenpagina_link}}'}, {'{{review_link}}'}, {'{{dagen_tot_feest}}'}, {'{{afgewezen_reden}}'}
           </div>
           <button onClick={save} disabled={saving} className="flex items-center gap-2 bg-[#007AFF] text-white px-4 py-2 rounded-xl font-semibold text-sm disabled:opacity-50">
             {saving ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />} Opslaan
