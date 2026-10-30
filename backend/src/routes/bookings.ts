@@ -121,6 +121,17 @@ async function bookingColumnSet(env: Bindings) {
   return new Set(rows.map(r => r.name))
 }
 
+// Houd de voorschotdocumentdatum buiten bookings: die tabel heeft de SQLite-kolomlimiet bereikt.
+async function ensureVoorschotReadinessTable(env: Bindings) {
+  await execute(env, `
+    CREATE TABLE IF NOT EXISTS booking_document_readiness (
+      booking_id INTEGER PRIMARY KEY,
+      ready_at TEXT NOT NULL,
+      FOREIGN KEY (booking_id) REFERENCES bookings(id)
+    )
+  `)
+}
+
 async function ensureContractUnlocksTable(env: Bindings) {
   await execute(env, `
     CREATE TABLE IF NOT EXISTS booking_contract_unlocks (
@@ -132,6 +143,10 @@ async function ensureContractUnlocksTable(env: Bindings) {
 }
 
 function bookingSelectField(name: string, fallback: string, existing: Set<string>) {
+  if (name === 'voorschot_documenten_klaar_op') {
+    const legacyValue = existing.has(name) ? 'bookings.voorschot_documenten_klaar_op' : 'NULL'
+    return `COALESCE((SELECT ready_at FROM booking_document_readiness dr WHERE dr.booking_id = bookings.id), ${legacyValue}) AS voorschot_documenten_klaar_op`
+  }
   if (name === 'contract_info_unlocked') {
     const legacyValue = existing.has(name) ? 'bookings.contract_info_unlocked' : '0'
     return `COALESCE((SELECT unlocked FROM booking_contract_unlocks cu WHERE cu.booking_id = bookings.id), ${legacyValue}, 0) AS contract_info_unlocked`
@@ -151,6 +166,7 @@ async function setContractUnlockState(env: Bindings, bookingId: string, unlocked
 }
 
 async function bookingListSelectSql(env: Bindings) {
+  await ensureVoorschotReadinessTable(env)
   await ensureWeddingMeetingsTable(env)
   await ensureContractUnlocksTable(env)
   await ensureGmailIntakeTables(env)
@@ -577,16 +593,16 @@ bookingsRoutes.get('/', async (c) => {
       }
     }
     const sql = await bookingListSelectSql(c.env)
-    const bookings = await query<Record<string, any>>(c.env, sql)
-    // Backfill ook bij het ophalen van het dashboard: bestaande boekingen met beide
-    // contractdocumenten krijgen zo een startdatum, ook als de eenmalige init al eerder liep.
-    for (const booking of bookings) {
-      if (Number(booking.has_contract_pdf) && Number(booking.has_billit_factuur_pdf) && !booking.voorschot_documenten_klaar_op) {
-        const readyAt = new Date().toISOString()
-        await execute(c.env, "UPDATE bookings SET voorschot_documenten_klaar_op = ? WHERE id = ? AND (voorschot_documenten_klaar_op IS NULL OR voorschot_documenten_klaar_op = '')", [readyAt, booking.id])
-        booking.voorschot_documenten_klaar_op = readyAt
-      }
+    const columns = await bookingColumnSet(c.env)
+    if (columns.has('contract_pdf') && columns.has('billit_factuur_pdf')) {
+      await execute(c.env, `
+        INSERT OR IGNORE INTO booking_document_readiness (booking_id, ready_at)
+        SELECT id, datetime('now') FROM bookings
+        WHERE contract_pdf IS NOT NULL AND contract_pdf != ''
+          AND billit_factuur_pdf IS NOT NULL AND billit_factuur_pdf != ''
+      `)
     }
+    const bookings = await query<Record<string, any>>(c.env, sql)
     return c.json({ bookings })
   } catch (e: any) {
     return c.json({ bookings: [], error: e?.message || 'Database query failed' }, 500)
@@ -1508,19 +1524,22 @@ bookingsRoutes.patch('/:id/contract', async (c) => {
   if (body.billit_factuur_naam !== undefined) { fields.push('billit_factuur_naam = ?'); values.push(body.billit_factuur_naam) }
   if (body.contract_pdf !== undefined) { fields.push('contract_pdf = ?'); values.push(body.contract_pdf) }
   if (body.contract_pdf !== undefined || body.billit_factuur_pdf !== undefined) {
-    const existingDocs = await queryOne<{ has_contract_pdf?: number; has_billit_factuur_pdf?: number; voorschot_documenten_klaar_op?: string | null }>(
+    const existingDocs = await queryOne<{ has_contract_pdf?: number; has_billit_factuur_pdf?: number }>(
       c.env,
       `SELECT
         CASE WHEN contract_pdf IS NOT NULL AND contract_pdf != '' THEN 1 ELSE 0 END AS has_contract_pdf,
-        CASE WHEN billit_factuur_pdf IS NOT NULL AND billit_factuur_pdf != '' THEN 1 ELSE 0 END AS has_billit_factuur_pdf,
-        voorschot_documenten_klaar_op
+        CASE WHEN billit_factuur_pdf IS NOT NULL AND billit_factuur_pdf != '' THEN 1 ELSE 0 END AS has_billit_factuur_pdf
        FROM bookings WHERE id = ?`,
       [id]
     )
     const contractPdfExists = body.contract_pdf !== undefined ? !!body.contract_pdf : !!existingDocs?.has_contract_pdf
     const invoicePdfExists = body.billit_factuur_pdf !== undefined ? !!body.billit_factuur_pdf : !!existingDocs?.has_billit_factuur_pdf
-    if (contractPdfExists && invoicePdfExists && !existingDocs?.voorschot_documenten_klaar_op) {
-      fields.push("voorschot_documenten_klaar_op = datetime('now')")
+    if (contractPdfExists && invoicePdfExists) {
+      await ensureVoorschotReadinessTable(c.env)
+      await execute(c.env, `
+        INSERT OR IGNORE INTO booking_document_readiness (booking_id, ready_at)
+        VALUES (?, datetime('now'))
+      `, [Number(id)])
     }
   }
   const updatesContractUnlock = body.contract_info_unlocked !== undefined
