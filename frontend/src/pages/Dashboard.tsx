@@ -1094,11 +1094,12 @@ export function Dashboard() {
     if (!silent) setLoading(true)
     else setRefreshing(true)
     try {
+      // Eerst de database-migraties uitvoeren, zodat bestaande boekingen hun
+      // voorschot-documentdatum al meekrijgen vóór we de lijst ophalen.
+      await initDb().catch(() => {})
       const data = await getBookings()
       setBookings(data)
       writeCache(data)
-      // Migrations op de achtergrond, nooit blokkerend
-      initDb().catch(() => {})
     } catch (e) {
       console.error(e)
     }
@@ -1449,7 +1450,7 @@ export function Dashboard() {
 
             {/* ── Boekingen / Afgelopen ── */}
             {activeFilter !== 'aanvragen' && activeFilter !== 'afgewezen' && <div className="space-y-3">
-              <h2 className="font-semibold text-gray-500 text-sm uppercase tracking-wider flex items-center gap-2">
+              <h2 className="font-semibold text-[#007AFF] text-sm uppercase tracking-wider flex items-center gap-2">
                 <CheckCircle2 size={14} />
                 {activeFilter === 'afgelopen'
                   ? `Afgelopen feesten (${filteredBoekingen.length})`
@@ -1465,7 +1466,7 @@ export function Dashboard() {
                   <div key={b.id}
                     onClick={(e) => handleCardClick(e, b.id)}
                     title="Klik om details te openen"
-                    className="bg-white rounded-2xl shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_16px_rgba(0,0,0,0.04)] p-4 hover:shadow-[0_2px_8px_rgba(0,0,0,0.10),0_8px_24px_rgba(0,0,0,0.06)] transition-all cursor-pointer">
+                    className="bg-white rounded-2xl border-l-4 border-[#007AFF] shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_16px_rgba(0,0,0,0.04)] p-4 hover:shadow-[0_2px_8px_rgba(0,0,0,0.10),0_8px_24px_rgba(0,0,0,0.06)] transition-all cursor-pointer">
                     {/* Bovenste rij: icoon + info + icoontjes */}
                     <div className="flex items-start gap-3">
                       <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 text-lg ${
@@ -1635,7 +1636,7 @@ export function Dashboard() {
             </div>}
 
             {/* ── Afgewezen ── */}
-            {(activeFilter === 'afgewezen' || activeFilter === 'all') && filteredAfgewezen.length > 0 && (
+            {activeFilter === 'afgewezen' && filteredAfgewezen.length > 0 && (
               <div className="space-y-3">
                 <h2 className="font-semibold text-red-400 text-sm uppercase tracking-wider flex items-center gap-2">
                   <XCircle size={14} /> Afgewezen ({filteredAfgewezen.length})
