@@ -117,6 +117,7 @@ export interface Booking {
   aanvraag_reminder_sent_at?: string
   review_sent_at?: string
   feest_herinnering_sent_at?: string
+  voorschot_documenten_klaar_op?: string | null
   wedding_meeting_at?: string
   wedding_meeting_note?: string
   vragenlijst_diff?: string
