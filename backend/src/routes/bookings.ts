@@ -551,6 +551,15 @@ bookingsRoutes.get('/', async (c) => {
   try {
     if (!c.env.DB && c.env.STORAGE) {
       const bookings = await readCloudBookings(c.env)
+      // R2-boekingen die al beide documenten bevatten krijgen bij eerste weergave
+      // een startdatum; nieuwe uploads worden exact op het tweede document gestempeld.
+      for (const booking of bookings) {
+        if (booking.contract_pdf && booking.billit_factuur_pdf && !booking.voorschot_documenten_klaar_op && booking.id) {
+          const readyAt = new Date().toISOString()
+          await patchCloudBooking(c.env, booking.id, { voorschot_documenten_klaar_op: readyAt })
+          booking.voorschot_documenten_klaar_op = readyAt
+        }
+      }
       return c.json({ bookings, storage: 'r2' })
     }
     if (c.env.DB) {
