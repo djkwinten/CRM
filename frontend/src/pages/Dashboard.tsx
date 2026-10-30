@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Plus, Calendar, CheckCircle2, XCircle,
   Clock, Users,
-  PartyPopper, Trash2, Copy, RefreshCw, AlertTriangle, CalendarDays, X, Shield, Download, FileDown, Building2, FileText, Camera, Wifi, WifiOff
+  PartyPopper, Trash2, Copy, RefreshCw, AlertTriangle, CalendarDays, X, Shield, Download, FileDown, Building2, FileText, Camera, Wifi, WifiOff, Mail
 } from 'lucide-react'
 import { getBookings, createBooking, updateStatus, deleteBooking, initDb, confirmBooking, rejectBooking, restoreBooking, suggestVenues, previewTemplate, sendTemplate, testSmtp, TemplateKey } from '../lib/api'
 import { VenueSuggestion } from '../types/venue'
@@ -31,6 +31,16 @@ function displayNaam(b: Booking): string {
     return [v1, v2].filter(Boolean).join(' & ')
   }
   return b.naam_organisator || '—'
+}
+
+function daysSinceDepositDocuments(dateStr?: string | null): number {
+  if (!dateStr) return 0
+  const start = new Date(dateStr)
+  if (!Number.isFinite(start.getTime())) return 0
+  const today = new Date()
+  const startDay = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate())
+  const todayDay = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate())
+  return Math.max(1, Math.floor((todayDay - startDay) / 86400000) + 1)
 }
 
 function PhotoConsentBadge({ booking }: { booking: Booking }) {
@@ -1525,6 +1535,16 @@ export function Dashboard() {
                         <AlertTriangle size={13} /> Acties
                       </button>
                       <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
+                        {/* Manuele voorschotherinnering — vanaf de dag dat beide documenten klaarstaan */}
+                        {!b.status_voorschot && b.voorschot_documenten_klaar_op && b.email && (
+                          <button
+                            onClick={() => openMailTemplate(b, 'voorschot_reminder')}
+                            title={`Voorschot nog niet ontvangen · documenten beschikbaar sinds ${new Date(b.voorschot_documenten_klaar_op).toLocaleDateString('nl-BE')}`}
+                            className="flex items-center gap-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg sm:rounded-xl text-xs sm:text-sm font-semibold bg-orange-500 hover:bg-orange-600 text-white shadow-sm transition-colors"
+                          >
+                            <Mail size={14} /> {daysSinceDepositDocuments(b.voorschot_documenten_klaar_op)}d
+                          </button>
+                        )}
                         {/* Feest nadert knop — zichtbaar vanaf exact 3 weken vóór de feestdatum */}
                         {canShowFeestNadert(b.feest_datum) && b.email && (
                           <button
@@ -1573,6 +1593,15 @@ export function Dashboard() {
                           </a>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
+                          {!b.status_voorschot && b.voorschot_documenten_klaar_op && b.email && (
+                            <button
+                              onClick={() => openMailTemplate(b, 'voorschot_reminder')}
+                              title={`Voorschot nog niet ontvangen · documenten beschikbaar sinds ${new Date(b.voorschot_documenten_klaar_op).toLocaleDateString('nl-BE')}`}
+                              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-orange-500 hover:bg-orange-600 text-white shadow-sm transition-colors"
+                            >
+                              <Mail size={13} /> Voorschot · {daysSinceDepositDocuments(b.voorschot_documenten_klaar_op)}d
+                            </button>
+                          )}
                           {canShowFeestNadert(b.feest_datum) && b.email && (
                             <button
                               onClick={() => openMailTemplate(b, 'feest_nadert')}
