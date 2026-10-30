@@ -1,4 +1,4 @@
-export type TemplateKey = 'vragenlijst_reminder' | 'feest_nadert' | 'review_request' | 'aanvraag_followup' | 'afwijzing'
+export type TemplateKey = 'vragenlijst_reminder' | 'feest_nadert' | 'review_request' | 'aanvraag_followup' | 'afwijzing' | 'voorschot_reminder'
 
 export interface EmailTemplate {
   id: number
@@ -74,6 +74,28 @@ Ik wilde even jouw aanvraag voor {{feest_datum}} opvolgen.
 Heb je nog vragen, twijfel je nog ergens over of wil je graag bevestigen? Laat gerust iets weten.
 
 Ik help je graag verder.
+
+Groetjes,
+DJ Kwinten`
+  },
+  voorschot_reminder: {
+    name: 'Voorschot herinnering',
+    subject: 'Automatische herinnering – voorschotfactuur DJ Kwinten',
+    body: `Hey,
+
+Dit is een automatisch berichtje van DJ Kwinten.
+
+Enkele dagen geleden bezorgde ik jullie de overeenkomst en voorschotfactuur. Deze documenten kunnen jullie ook steeds terugvinden op jullie persoonlijke klantenpagina, onder 'Bestanden'.
+
+{{klantenpagina_link}}
+
+Via deze weg wil ik jullie er graag aan herinneren dat het voorschot nog niet ontvangen werd.
+
+De betaling van het voorschot bevestigt de overeenkomst en zorgt ervoor dat jullie datum definitief wordt vastgehouden. Zolang het voorschot niet ontvangen is, kan ik de datum helaas nog niet definitief garanderen.
+
+Is het voorschot ondertussen betaald? Dan mogen jullie dit bericht uiteraard negeren.
+
+Alvast bedankt om dit even in orde te brengen!
 
 Groetjes,
 DJ Kwinten`
