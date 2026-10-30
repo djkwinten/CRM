@@ -1178,6 +1178,7 @@ export function Dashboard() {
         if (key === 'aanvraag_followup') return { ...x, aanvraag_reminder_sent_at: now }
         if (key === 'review_request') return { ...x, review_sent_at: now }
         if (key === 'feest_nadert') return { ...x, feest_herinnering_sent_at: now }
+        if (key === 'voorschot_reminder') return { ...x, voorschot_reminder_sent_at: now }
         if (key === 'vragenlijst_reminder') return { ...x, reminder_sent_at: now } as Booking
         return x
       })
@@ -1527,7 +1528,7 @@ export function Dashboard() {
                           <StatusBadge value={b.status_vragenlijst} label="Vragenlijst" updated={!!b.vragenlijst_updated_at && !!b.vragenlijst_first_submitted_at} />
                         </a>
                       </div>
-                      {!b.status_voorschot && b.voorschot_documenten_klaar_op && b.email && (
+                      {!b.status_voorschot && !b.voorschot_reminder_sent_at && b.voorschot_documenten_klaar_op && b.email && (
                         <button
                           type="button"
                           onClick={() => openMailTemplate(b, 'voorschot_reminder')}
@@ -1553,7 +1554,7 @@ export function Dashboard() {
                       )}
                       <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
                         {/* Manuele voorschotherinnering — vanaf de dag dat beide documenten klaarstaan */}
-                        {!b.status_voorschot && b.voorschot_documenten_klaar_op && b.email && (
+                        {!b.status_voorschot && !b.voorschot_reminder_sent_at && b.voorschot_documenten_klaar_op && b.email && (
                           <button
                             onClick={() => openMailTemplate(b, 'voorschot_reminder')}
                             title={`Voorschot nog niet ontvangen · documenten beschikbaar sinds ${new Date(b.voorschot_documenten_klaar_op).toLocaleDateString('nl-BE')}`}
@@ -1610,7 +1611,7 @@ export function Dashboard() {
                           </a>
                         </div>
                         <div className="grid grid-cols-2 gap-2">
-                          {!b.status_voorschot && b.voorschot_documenten_klaar_op && b.email && (
+                          {!b.status_voorschot && !b.voorschot_reminder_sent_at && b.voorschot_documenten_klaar_op && b.email && (
                             <button
                               onClick={() => openMailTemplate(b, 'voorschot_reminder')}
                               title={`Voorschot nog niet ontvangen · documenten beschikbaar sinds ${new Date(b.voorschot_documenten_klaar_op).toLocaleDateString('nl-BE')}`}
