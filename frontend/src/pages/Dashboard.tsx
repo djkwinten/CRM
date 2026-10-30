@@ -1527,14 +1527,30 @@ export function Dashboard() {
                           <StatusBadge value={b.status_vragenlijst} label="Vragenlijst" updated={!!b.vragenlijst_updated_at && !!b.vragenlijst_first_submitted_at} />
                         </a>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setMobileActionsOpen(mobileActionsOpen === b.id ? null : b.id)}
-                        className={`sm:hidden inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-colors ${mobileActionsOpen === b.id ? 'bg-orange-500 text-white border-orange-500' : 'bg-orange-50 text-orange-600 border-orange-200'}`}
-                        title="Extra acties en aandachtspunten"
-                      >
-                        <AlertTriangle size={13} /> Acties
-                      </button>
+                      {!b.status_voorschot && b.voorschot_documenten_klaar_op && b.email && (
+                        <button
+                          type="button"
+                          onClick={() => openMailTemplate(b, 'voorschot_reminder')}
+                          className="sm:hidden inline-flex h-8 w-8 items-center justify-center rounded-xl border border-orange-200 bg-orange-50 text-orange-600"
+                          title="Voorschot nog niet ontvangen — overeenkomst en voorschotfactuur staan klaar"
+                          aria-label="Stuur herinnering voor het voorschot"
+                        >
+                          <Mail size={16} />
+                        </button>
+                      )}
+                      {canShowFeestNadert(b.feest_datum) && b.email && (
+                        <button
+                          type="button"
+                          onClick={() => openMailTemplate(b, 'feest_nadert')}
+                          className={`sm:hidden inline-flex h-8 w-8 items-center justify-center rounded-xl border ${b.feest_herinnering_sent_at ? 'border-sky-200 bg-sky-50 text-sky-600' : 'border-sky-200 bg-sky-50 text-sky-600'}`}
+                          title={b.feest_herinnering_sent_at
+                            ? `Vragenlijst-herinnering verstuurd op ${new Date(b.feest_herinnering_sent_at).toLocaleDateString('nl-BE')}`
+                            : 'Herinnering: vragenlijst 3 weken vóór het feest opnieuw bekijken of aanvullen'}
+                          aria-label="Herinnering voor de vragenlijst"
+                        >
+                          <CalendarDays size={16} />
+                        </button>
+                      )}
                       <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
                         {/* Manuele voorschotherinnering — vanaf de dag dat beide documenten klaarstaan */}
                         {!b.status_voorschot && b.voorschot_documenten_klaar_op && b.email && (
