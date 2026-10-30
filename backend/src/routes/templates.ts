@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { query, queryOne, execute } from '../lib/db'
 import { DEFAULT_EMAIL_TEMPLATES, EmailTemplate, TemplateKey, readCloudTemplates, upsertCloudTemplate } from '../lib/cloudTemplates'
-import { findCloudBooking } from '../lib/cloudBookings'
+import { findCloudBooking, patchCloudBooking } from '../lib/cloudBookings'
 import { sendTemplateEmail, verifySmtpConnection, SmtpConfig } from '../lib/mailer'
 import { format } from 'date-fns'
 import { nl } from 'date-fns/locale'
@@ -204,6 +204,26 @@ templatesRoutes.post('/:key/send/:bookingId', async (c) => {
     if (!ok) return c.json({ error: 'E-mail service niet bereikbaar' }, 500)
 
     await sendTemplateEmail(cfg, data.to, data.subject, data.html, data.plainTextBody)
+
+    if (key === 'voorschot_reminder') {
+      const sentAt = new Date().toISOString()
+      if (!c.env.DB && c.env.STORAGE) {
+        await patchCloudBooking(c.env, data.booking.id, { voorschot_reminder_sent_at: sentAt })
+      } else {
+        await execute(c.env, `
+          CREATE TABLE IF NOT EXISTS booking_email_reminders (
+            booking_id INTEGER PRIMARY KEY,
+            voorschot_reminder_sent_at TEXT NOT NULL,
+            FOREIGN KEY (booking_id) REFERENCES bookings(id)
+          )
+        `)
+        await execute(c.env, `
+          INSERT INTO booking_email_reminders (booking_id, voorschot_reminder_sent_at)
+          VALUES (?, datetime('now'))
+          ON CONFLICT(booking_id) DO UPDATE SET voorschot_reminder_sent_at = datetime('now')
+        `, [data.booking.id])
+      }
+    }
 
     const fieldByKey: Partial<Record<TemplateKey, string>> = {
       vragenlijst_reminder: 'reminder_sent_at',
