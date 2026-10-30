@@ -1268,9 +1268,9 @@ export function Dashboard() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
           {[
             { label: 'Aanvragen', value: stats.aanvragen, icon: <Clock size={18} />, color: 'text-amber-500 bg-amber-50', active: 'bg-amber-500', filter: 'aanvragen' as const },
-            { label: 'Afgewezen', value: stats.afgewezen, icon: <XCircle size={18} />, color: 'text-red-400 bg-red-50', active: 'bg-red-500', filter: 'afgewezen' as const },
-            { label: 'Komend', value: stats.total, icon: <Calendar size={18} />, color: 'text-[#007AFF] bg-[#007AFF]/10', active: 'bg-[#007AFF]', filter: 'boekingen' as const },
+            { label: 'Aankomend', value: stats.total, icon: <Calendar size={18} />, color: 'text-[#007AFF] bg-[#007AFF]/10', active: 'bg-[#007AFF]', filter: 'boekingen' as const },
             { label: 'Afgelopen', value: stats.afgelopen, icon: <CheckCircle2 size={18} />, color: 'text-gray-400 bg-gray-100', active: 'bg-gray-700', filter: 'afgelopen' as const },
+            { label: 'Afgewezen', value: stats.afgewezen, icon: <XCircle size={18} />, color: 'text-red-400 bg-red-50', active: 'bg-red-500', filter: 'afgewezen' as const },
           ].map(s => {
             const selected = activeFilter === s.filter
             return (
