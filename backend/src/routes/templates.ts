@@ -36,6 +36,9 @@ interface BookingRow {
   is_aanvraag: number
   slug: string | null
   afgewezen_reden?: string | null
+  status_voorschot?: number
+  has_contract_pdf?: number
+  has_billit_factuur_pdf?: number
 }
 
 const DEFAULT_TEMPLATES = DEFAULT_EMAIL_TEMPLATES
@@ -110,10 +113,16 @@ async function buildPreview(env: Bindings, requestUrl: string, key: string, book
   if (!template) throw new Error('Template niet gevonden')
 
   const booking = !env.DB && env.STORAGE
-    ? await findCloudBooking(env, bookingId) as unknown as BookingRow | null
+    ? await findCloudBooking(env, bookingId).then(raw => raw ? ({
+        ...raw,
+        has_contract_pdf: raw.contract_pdf ? 1 : 0,
+        has_billit_factuur_pdf: raw.billit_factuur_pdf ? 1 : 0,
+      } as unknown as BookingRow) : null)
     : await queryOne<BookingRow>(env, `
       SELECT id, feest_datum, type_feest, naam_organisator, naam_partner1, naam_partner2, email,
-             locatie_naam, is_aanvraag, slug, afgewezen_reden
+             locatie_naam, is_aanvraag, slug, afgewezen_reden, status_voorschot,
+             CASE WHEN contract_pdf IS NOT NULL AND contract_pdf != '' THEN 1 ELSE 0 END AS has_contract_pdf,
+             CASE WHEN billit_factuur_pdf IS NOT NULL AND billit_factuur_pdf != '' THEN 1 ELSE 0 END AS has_billit_factuur_pdf
       FROM bookings WHERE id = ?
     `, [bookingId])
   if (!booking) throw new Error('Boeking niet gevonden')
@@ -126,6 +135,7 @@ async function buildPreview(env: Bindings, requestUrl: string, key: string, book
     type_feest: booking.type_feest || '',
     locatie: booking.locatie_naam || '',
     vragenlijst_link: vragenlijstLink,
+    klantenpagina_link: `${base}/event/${booking.slug || booking.id}`,
     review_link: REVIEW_URL,
     dagen_tot_feest: String(daysUntil(booking.feest_datum)),
     afgewezen_reden: booking.afgewezen_reden || ''
@@ -178,6 +188,12 @@ templatesRoutes.post('/:key/send/:bookingId', async (c) => {
     const payload = await c.req.json<{ subject?: string; body?: string }>().catch(() => ({}))
     const data = await buildPreview(c.env, c.req.url, key, c.req.param('bookingId'), payload)
     if (!data.to) return c.json({ error: 'Geen e-mailadres voor deze boeking' }, 400)
+    if (key === 'voorschot_reminder') {
+      if (data.booking.status_voorschot) return c.json({ error: 'Het voorschot staat al als ontvangen geregistreerd.' }, 400)
+      if (!data.booking.has_contract_pdf || !data.booking.has_billit_factuur_pdf) {
+        return c.json({ error: 'De overeenkomst en voorschotfactuur moeten allebei op de klantenpagina staan.' }, 400)
+      }
+    }
 
     const cfg = getSmtpConfig(c.env)
     const ok = await verifySmtpConnection(cfg)
