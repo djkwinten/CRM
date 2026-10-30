@@ -1527,6 +1527,15 @@ export function Dashboard() {
                         <a className="hidden sm:inline-flex" href={`/event/${b.slug || b.id}?section=vragenlijst`} target="_blank" rel="noopener noreferrer" title="Open klantpagina bij vragenlijst">
                           <StatusBadge value={b.status_vragenlijst} label="Vragenlijst" updated={!!b.vragenlijst_updated_at && !!b.vragenlijst_first_submitted_at} />
                         </a>
+                        {b.voorschot_reminder_sent_at && (!b.status_contract || !b.status_voorschot) && (
+                          <span
+                            className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] text-gray-400 whitespace-nowrap"
+                            title={`Voorschot-herinnering verstuurd op ${new Date(b.voorschot_reminder_sent_at).toLocaleDateString('nl-BE')}`}
+                          >
+                            <Mail size={12} />
+                            {new Date(b.voorschot_reminder_sent_at).toLocaleDateString('nl-BE')}
+                          </span>
+                        )}
                       </div>
                       {!b.status_voorschot && !b.voorschot_reminder_sent_at && b.voorschot_documenten_klaar_op && b.email && (
                         <button
