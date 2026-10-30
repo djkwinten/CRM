@@ -141,10 +141,15 @@ async function buildPreview(env: Bindings, requestUrl: string, key: string, book
   }
 
   const subject = renderTemplate(overrides?.subject ?? template.subject, vars)
-  const body = renderTemplate(overrides?.body ?? template.body, vars)
-  const html = `<!DOCTYPE html><html lang="nl"><body style="margin:0;padding:0;background:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"><table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px;"><tr><td align="center"><table width="600" style="max-width:600px;width:100%;background:white;border-radius:18px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.08);"><tr><td style="background:linear-gradient(135deg,#111827,#374151);padding:28px 32px;color:white;"><h1 style="margin:0;font-size:24px;">DJ Kwinten</h1><p style="margin:6px 0 0;color:rgba(255,255,255,.7);font-size:14px;">Boekingsbeheer</p></td></tr><tr><td style="padding:32px;">${bodyToHtml(body.replace(vars.klantenpagina_link, '<a href="' + vars.klantenpagina_link + '" style="color:#007AFF;text-decoration:underline;">klantenpagina</a>'))}</td></tr><tr><td style="background:#f9fafb;padding:16px 32px;border-top:1px solid #e5e7eb;color:#9ca3af;font-size:11px;">Verstuurd door DJ Kwinten via DJ Manager</td></tr></table></td></tr></table></body></html>`
+  const plainTextBody = renderTemplate(overrides?.body ?? template.body, vars)
+  // Toon in de preview enkel het korte label; de HTML-mail maakt er een echte link van.
+  const body = plainTextBody.split(vars.klantenpagina_link).join('klantenpagina')
+  const linkedBody = plainTextBody.split(vars.klantenpagina_link).join(
+    '<a href="' + vars.klantenpagina_link + '" style="color:#007AFF;text-decoration:underline;">klantenpagina</a>'
+  )
+  const html = `<!DOCTYPE html><html lang="nl"><body style="margin:0;padding:0;background:#f5f5f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;"><table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px;"><tr><td align="center"><table width="600" style="max-width:600px;width:100%;background:white;border-radius:18px;overflow:hidden;box-shadow:0 6px 24px rgba(0,0,0,.08);"><tr><td style="background:linear-gradient(135deg,#111827,#374151);padding:28px 32px;color:white;"><h1 style="margin:0;font-size:24px;">DJ Kwinten</h1><p style="margin:6px 0 0;color:rgba(255,255,255,.7);font-size:14px;">Boekingsbeheer</p></td></tr><tr><td style="padding:32px;">${bodyToHtml(linkedBody)}</td></tr><tr><td style="background:#f9fafb;padding:16px 32px;border-top:1px solid #e5e7eb;color:#9ca3af;font-size:11px;">Verstuurd door DJ Kwinten via DJ Manager</td></tr></table></td></tr></table></body></html>`
 
-  return { template, booking, to: booking.email, subject, body, html }
+  return { template, booking, to: booking.email, subject, body, plainTextBody, html }
 }
 
 templatesRoutes.get('/', async (c) => {
@@ -198,7 +203,7 @@ templatesRoutes.post('/:key/send/:bookingId', async (c) => {
     const ok = await verifySmtpConnection(cfg)
     if (!ok) return c.json({ error: 'E-mail service niet bereikbaar' }, 500)
 
-    await sendTemplateEmail(cfg, data.to, data.subject, data.html, data.body)
+    await sendTemplateEmail(cfg, data.to, data.subject, data.html, data.plainTextBody)
 
     const fieldByKey: Partial<Record<TemplateKey, string>> = {
       vragenlijst_reminder: 'reminder_sent_at',
