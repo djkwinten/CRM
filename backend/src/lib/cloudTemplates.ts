@@ -145,7 +145,16 @@ export async function readCloudTemplates(env: CloudEnv | null | undefined): Prom
   try {
     const body = await obj.json() as { templates?: EmailTemplate[] } | EmailTemplate[]
     const templates = Array.isArray(body) ? body : Array.isArray(body.templates) ? body.templates : []
-    if (templates.length > 0) return templates
+    if (templates.length > 0) {
+      // Voeg nieuwe standaardtemplates toe aan bestaande R2-opslag zonder
+      // eerder aangepaste templates te overschrijven.
+      const merged = [...templates]
+      for (const fallback of defaultTemplates()) {
+        if (!merged.some(item => item.key === fallback.key)) merged.push(fallback)
+      }
+      if (merged.length !== templates.length) await writeCloudTemplates(env, merged)
+      return merged
+    }
   } catch { /* fall through to defaults */ }
   const templates = defaultTemplates()
   await writeCloudTemplates(env, templates)
