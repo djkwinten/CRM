@@ -567,6 +567,7 @@ export interface BookingFile {
   id: number
   booking_id: number
   name: string
+  category?: 'overeenkomst' | 'voorschotfactuur' | 'ander' | null
   type?: string | null
   size?: number | null
   visible_to_customer?: number
@@ -583,15 +584,23 @@ export async function getBookingFiles(bookingId: number): Promise<BookingFile[]>
   }
 }
 
-export async function uploadBookingFile(bookingId: number, file: File): Promise<{ success: boolean; error?: string; file?: BookingFile }> {
+export async function uploadBookingFile(bookingId: number, file: File, category: 'overeenkomst' | 'voorschotfactuur' | 'ander' = 'ander'): Promise<{ success: boolean; error?: string; file?: BookingFile }> {
   const form = new FormData()
   form.append('file', file)
+  form.append('category', category)
   try {
     const res = await fetch(`/api/files/${bookingId}`, { method: 'POST', body: form })
     return res.json()
   } catch (e) {
     return { success: false, error: e instanceof Error ? e.message : 'Upload mislukt' }
   }
+}
+
+export async function updateBookingFileCategory(fileId: number, category: 'overeenkomst' | 'voorschotfactuur' | 'ander'): Promise<{ success: boolean; error?: string }> {
+  try {
+    const res = await fetch(`/api/files/${fileId}/category`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ category }) })
+    return res.json()
+  } catch { return { success: false, error: 'Documenttype opslaan mislukt' } }
 }
 
 export async function deleteBookingFile(fileId: number): Promise<{ success: boolean; error?: string }> {

@@ -54,6 +54,15 @@ function getSmtpConfig(env: Bindings): SmtpConfig {
   }
 }
 
+async function ensureBookingFilesTable(env: Bindings) {
+  await execute(env, `CREATE TABLE IF NOT EXISTS booking_files (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, booking_id INTEGER NOT NULL, name TEXT NOT NULL,
+    category TEXT, type TEXT, size INTEGER, data_base64 TEXT NOT NULL,
+    visible_to_customer INTEGER NOT NULL DEFAULT 1, created_at TEXT DEFAULT (datetime('now'))
+  )`)
+  try { await execute(env, `ALTER TABLE booking_files ADD COLUMN category TEXT`) } catch { /* already exists */ }
+}
+
 async function ensureTemplates(env: Bindings) {
   await execute(env, `
     CREATE TABLE IF NOT EXISTS email_templates (
@@ -111,6 +120,7 @@ async function buildPreview(env: Bindings, requestUrl: string, key: string, book
     : await queryOne<EmailTemplate>(env, `SELECT * FROM email_templates WHERE key = ?`, [key])
   if (!template) throw new Error('Template niet gevonden')
 
+  if (env.DB) await ensureBookingFilesTable(env)
   const booking = !env.DB && env.STORAGE
     ? await findCloudBooking(env, bookingId).then(raw => raw ? ({
         ...raw,
@@ -120,8 +130,8 @@ async function buildPreview(env: Bindings, requestUrl: string, key: string, book
     : await queryOne<BookingRow>(env, `
       SELECT id, feest_datum, type_feest, naam_organisator, naam_partner1, naam_partner2, email,
              locatie_naam, is_aanvraag, slug, afgewezen_reden, status_voorschot,
-             CASE WHEN contract_pdf IS NOT NULL AND contract_pdf != '' THEN 1 ELSE 0 END AS has_contract_pdf,
-             CASE WHEN billit_factuur_pdf IS NOT NULL AND billit_factuur_pdf != '' THEN 1 ELSE 0 END AS has_billit_factuur_pdf
+             CASE WHEN contract_pdf IS NOT NULL AND contract_pdf != '' OR EXISTS (SELECT 1 FROM booking_files bf WHERE bf.booking_id = bookings.id AND bf.category = 'overeenkomst' AND bf.visible_to_customer = 1) THEN 1 ELSE 0 END AS has_contract_pdf,
+             CASE WHEN billit_factuur_pdf IS NOT NULL AND billit_factuur_pdf != '' OR EXISTS (SELECT 1 FROM booking_files bf WHERE bf.booking_id = bookings.id AND bf.category = 'voorschotfactuur' AND bf.visible_to_customer = 1) THEN 1 ELSE 0 END AS has_billit_factuur_pdf
       FROM bookings WHERE id = ?
     `, [bookingId])
   if (!booking) throw new Error('Boeking niet gevonden')
