@@ -108,6 +108,7 @@ const bookingListColumns: Record<string, string> = {
   review_sent_at: 'NULL',
   feest_herinnering_sent_at: 'NULL',
   voorschot_documenten_klaar_op: 'NULL',
+  voorschot_reminder_sent_at: 'NULL',
   wedding_meeting_at: '(SELECT meeting_at FROM wedding_meetings wm WHERE wm.booking_id = bookings.id)',
   wedding_meeting_note: '(SELECT note FROM wedding_meetings wm WHERE wm.booking_id = bookings.id)',
   vragenlijst_diff: 'NULL',
@@ -132,6 +133,16 @@ async function ensureVoorschotReadinessTable(env: Bindings) {
   `)
 }
 
+async function ensureBookingEmailRemindersTable(env: Bindings) {
+  await execute(env, `
+    CREATE TABLE IF NOT EXISTS booking_email_reminders (
+      booking_id INTEGER PRIMARY KEY,
+      voorschot_reminder_sent_at TEXT NOT NULL,
+      FOREIGN KEY (booking_id) REFERENCES bookings(id)
+    )
+  `)
+}
+
 async function ensureContractUnlocksTable(env: Bindings) {
   await execute(env, `
     CREATE TABLE IF NOT EXISTS booking_contract_unlocks (
@@ -146,6 +157,9 @@ function bookingSelectField(name: string, fallback: string, existing: Set<string
   if (name === 'voorschot_documenten_klaar_op') {
     const legacyValue = existing.has(name) ? 'bookings.voorschot_documenten_klaar_op' : 'NULL'
     return `COALESCE((SELECT ready_at FROM booking_document_readiness dr WHERE dr.booking_id = bookings.id), ${legacyValue}) AS voorschot_documenten_klaar_op`
+  }
+  if (name === 'voorschot_reminder_sent_at') {
+    return `(SELECT voorschot_reminder_sent_at FROM booking_email_reminders er WHERE er.booking_id = bookings.id) AS voorschot_reminder_sent_at`
   }
   if (name === 'contract_info_unlocked') {
     const legacyValue = existing.has(name) ? 'bookings.contract_info_unlocked' : '0'
@@ -167,6 +181,7 @@ async function setContractUnlockState(env: Bindings, bookingId: string, unlocked
 
 async function bookingListSelectSql(env: Bindings) {
   await ensureVoorschotReadinessTable(env)
+  await ensureBookingEmailRemindersTable(env)
   await ensureWeddingMeetingsTable(env)
   await ensureContractUnlocksTable(env)
   await ensureGmailIntakeTables(env)
