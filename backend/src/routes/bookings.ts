@@ -158,6 +158,13 @@ async function bookingListSelectSql(env: Bindings) {
   const fields = Object.entries(bookingListColumns).map(([name, fallback]) =>
     bookingSelectField(name, fallback, existing)
   )
+  // De dashboardlijst krijgt ook documentvlaggen mee, zonder de grote PDF-data op te halen.
+  fields.push(existing.has('contract_pdf')
+    ? "CASE WHEN contract_pdf IS NOT NULL AND contract_pdf != '' THEN 1 ELSE 0 END AS has_contract_pdf"
+    : '0 AS has_contract_pdf')
+  fields.push(existing.has('billit_factuur_pdf')
+    ? "CASE WHEN billit_factuur_pdf IS NOT NULL AND billit_factuur_pdf != '' THEN 1 ELSE 0 END AS has_billit_factuur_pdf"
+    : '0 AS has_billit_factuur_pdf')
   const orderBy = existing.has('feest_datum') ? 'ORDER BY feest_datum ASC' : 'ORDER BY id ASC'
   return `SELECT ${fields.join(', ')} FROM bookings ${orderBy}`
 }
@@ -570,7 +577,16 @@ bookingsRoutes.get('/', async (c) => {
       }
     }
     const sql = await bookingListSelectSql(c.env)
-    const bookings = await query(c.env, sql)
+    const bookings = await query<Record<string, any>>(c.env, sql)
+    // Backfill ook bij het ophalen van het dashboard: bestaande boekingen met beide
+    // contractdocumenten krijgen zo een startdatum, ook als de eenmalige init al eerder liep.
+    for (const booking of bookings) {
+      if (Number(booking.has_contract_pdf) && Number(booking.has_billit_factuur_pdf) && !booking.voorschot_documenten_klaar_op) {
+        const readyAt = new Date().toISOString()
+        await execute(c.env, "UPDATE bookings SET voorschot_documenten_klaar_op = ? WHERE id = ? AND (voorschot_documenten_klaar_op IS NULL OR voorschot_documenten_klaar_op = '')", [readyAt, booking.id])
+        booking.voorschot_documenten_klaar_op = readyAt
+      }
+    }
     return c.json({ bookings })
   } catch (e: any) {
     return c.json({ bookings: [], error: e?.message || 'Database query failed' }, 500)

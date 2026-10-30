@@ -9,7 +9,6 @@ type BookingFile = {
   id: number
   booking_id: number
   name: string
-  category: string | null
   type: string | null
   size: number | null
   data_base64?: string | null
@@ -25,7 +24,6 @@ async function ensureFilesTable(env: Bindings) {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       booking_id INTEGER NOT NULL,
       name TEXT NOT NULL,
-      category TEXT,
       type TEXT,
       size INTEGER,
       data_base64 TEXT NOT NULL,
@@ -33,17 +31,6 @@ async function ensureFilesTable(env: Bindings) {
       created_at TEXT DEFAULT (datetime('now'))
     )
   `)
-  try { await execute(env, `ALTER TABLE booking_files ADD COLUMN category TEXT`) } catch { /* already exists */ }
-}
-
-async function syncDepositDocumentsReady(env: Bindings, bookingId: string) {
-  await execute(env, `
-    UPDATE bookings
-    SET voorschot_documenten_klaar_op = COALESCE(voorschot_documenten_klaar_op, datetime('now'))
-    WHERE id = ?
-      AND EXISTS (SELECT 1 FROM booking_files WHERE booking_id = ? AND category = 'overeenkomst' AND visible_to_customer = 1)
-      AND EXISTS (SELECT 1 FROM booking_files WHERE booking_id = ? AND category = 'voorschotfactuur' AND visible_to_customer = 1)
-  `, [bookingId, bookingId, bookingId])
 }
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -67,7 +54,7 @@ filesRoutes.get('/:bookingId', async (c) => {
   await ensureFilesTable(c.env)
   const bookingId = c.req.param('bookingId')
   const rows = await query<Omit<BookingFile, 'data_base64'>>(c.env, `
-    SELECT id, booking_id, name, category, type, size, visible_to_customer, created_at
+    SELECT id, booking_id, name, type, size, visible_to_customer, created_at
     FROM booking_files
     WHERE booking_id = ? AND visible_to_customer = 1
     ORDER BY created_at DESC, id DESC
@@ -80,8 +67,6 @@ filesRoutes.post('/:bookingId', async (c) => {
   const bookingId = c.req.param('bookingId')
   const form = await c.req.formData()
   const file = form.get('file') as File | null
-  const categoryValue = String(form.get('category') || 'ander')
-  const category = ['overeenkomst', 'voorschotfactuur', 'ander'].includes(categoryValue) ? categoryValue : 'ander'
   if (!file) return c.json({ success: false, error: 'Geen bestand gekozen' }, 400)
 
   // Hou D1 opslag bewust beperkt. Grote foto's/PDF-bundels horen later in R2.
@@ -92,10 +77,9 @@ filesRoutes.post('/:bookingId', async (c) => {
 
   const data = arrayBufferToBase64(await file.arrayBuffer())
   const result = await execute(c.env, `
-    INSERT INTO booking_files (booking_id, name, category, type, size, data_base64, visible_to_customer)
-    VALUES (?, ?, ?, ?, ?, ?, 1)
-  `, [bookingId, file.name, category, file.type || 'application/octet-stream', file.size, data])
-  if (category === 'overeenkomst' || category === 'voorschotfactuur') await syncDepositDocumentsReady(c.env, bookingId)
+    INSERT INTO booking_files (booking_id, name, type, size, data_base64, visible_to_customer)
+    VALUES (?, ?, ?, ?, ?, 1)
+  `, [bookingId, file.name, file.type || 'application/octet-stream', file.size, data])
 
   return c.json({
     success: true,
@@ -103,29 +87,11 @@ filesRoutes.post('/:bookingId', async (c) => {
       id: result.lastRowId,
       booking_id: Number(bookingId),
       name: file.name,
-      category,
       type: file.type || 'application/octet-stream',
       size: file.size,
       visible_to_customer: 1,
     }
   })
-})
-
-filesRoutes.patch('/:fileId/category', async (c) => {
-  await ensureFilesTable(c.env)
-  const fileId = c.req.param('fileId')
-  const body = await c.req.json<{ category?: string }>()
-  const category = body.category || 'ander'
-  if (!['overeenkomst', 'voorschotfactuur', 'ander'].includes(category)) {
-    return c.json({ success: false, error: 'Ongeldig documenttype' }, 400)
-  }
-  const rows = await query<{ booking_id: number }>(c.env, `SELECT booking_id FROM booking_files WHERE id = ? LIMIT 1`, [fileId])
-  if (!rows[0]) return c.json({ success: false, error: 'Bestand niet gevonden' }, 404)
-  await execute(c.env, `UPDATE booking_files SET category = ? WHERE id = ?`, [category, fileId])
-  if (category === 'overeenkomst' || category === 'voorschotfactuur') {
-    await syncDepositDocumentsReady(c.env, String(rows[0].booking_id))
-  }
-  return c.json({ success: true })
 })
 
 filesRoutes.get('/download/:fileId', async (c) => {
