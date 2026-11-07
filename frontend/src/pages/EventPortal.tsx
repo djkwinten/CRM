@@ -73,7 +73,12 @@ export function EventPortal() {
       setBooking(b)
       if (b) {
         const info = await getContractInfo(b.id)
-        setContractInfo(info)
+        setContractInfo(info ? {
+          ...info,
+          basisprijs: b.basisprijs ?? info.basisprijs,
+          extra_prijzen: b.extra_prijzen ?? info.extra_prijzen,
+          afgesproken_prijs: b.totaalprijs ?? info.afgesproken_prijs,
+        } : null)
         setManualFiles(await getBookingFiles(b.id))
         const gate = getContractGateState(b, info)
         setContractInfoSubmitted(gate.contractCompleted)
