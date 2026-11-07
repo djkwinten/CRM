@@ -112,7 +112,8 @@ export function EventPortal() {
     setContractInfo(info)
     const nextGate = getContractGateState(booking, info, true)
     setContractInfoSubmitted(nextGate.contractCompleted)
-    setShowFirstContractPopup(!nextGate.canAccessQuestionnaire)
+    setShowFirstContractPopup(false)
+    setActiveSection(null)
   }
   const logQuestionnaireGate = (source: string) => {
     console.info('[EventPortal] questionnaire gate', {

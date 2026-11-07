@@ -251,11 +251,6 @@ export async function saveContractInfo(id: number, payload: Partial<BookingContr
     extra_prijzen: _extraPrijzen,
     afgesproken_prijs: _afgesprokenPrijs,
     voorschot_bedrag: _voorschotBedrag,
-    ceremonie_set: _ceremonieSet,
-    digital_booth: _digitalBooth,
-    retro_booth: _retroBooth,
-    draadloze_speaker: _draadlozeSpeaker,
-    karaoke: _karaoke,
     ...safePayload
   } = payload
 
@@ -273,8 +268,11 @@ export async function saveContractInfo(id: number, payload: Partial<BookingContr
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(safePayload)
     })
-    if (!res.ok) return { success: false, error: 'Contractgegevens konden niet op de server worden opgeslagen.' }
-    return res.json()
+    const data = await res.json().catch(() => ({})) as { success?: boolean; error?: string }
+    if (!res.ok || data.success === false) {
+      return { success: false, error: data.error || 'Contractgegevens konden niet op de server worden opgeslagen.' }
+    }
+    return { success: true }
   } catch {
     return { success: false, error: 'Geen verbinding met de server. Probeer opnieuw.' }
   }
