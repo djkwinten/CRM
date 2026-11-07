@@ -210,7 +210,7 @@ export function ContractInfoForm({
           )
         })() : (() => {
           const prices = parseExtraPrices(form.extra_prijzen)
-          const selectedReception = prices._aanwezig_vanaf_receptie === '1' || prices._aanwezig_vanaf_receptie === 1
+          const selectedReception = prices._aanwezig_vanaf_receptie === '1'
           const selectPresence = (value: boolean) => {
             const next = { ...prices, _aanwezig_vanaf_receptie: value ? '1' : '0' }
             update('extra_prijzen', stringifyExtraPrices(next))
