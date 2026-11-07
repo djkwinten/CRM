@@ -267,7 +267,7 @@ export async function saveContractInfo(id: number, payload: Partial<BookingContr
       body: JSON.stringify(safePayload)
     })
     const data = await res.json().catch(() => ({})) as { success?: boolean; error?: string }
-    if (!res.ok || data.success === false) {
+    if (!res.ok || data.success !== true) {
       return { success: false, error: data.error || 'Contractgegevens konden niet op de server worden opgeslagen.' }
     }
     return { success: true }
