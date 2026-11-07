@@ -128,16 +128,18 @@ export async function updateContractInfo(id: number, payload: {
   contract_pdf?: string
   contract_info_unlocked?: number
 }) {
-  updateLocalBooking(id, payload)
   try {
     const res = await fetch(`${BASE}/${id}/contract`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     })
-    return res.json()
+    if (!res.ok) return { success: false, error: 'Formule en prijs konden niet op de server worden opgeslagen.' }
+    const result = await res.json()
+    if (result?.success) updateLocalBooking(id, payload)
+    return result
   } catch {
-    return { success: true, local: true }
+    return { success: false, error: 'Geen verbinding met de server. Formule en prijs zijn niet bevestigd.' }
   }
 }
 
@@ -271,9 +273,10 @@ export async function saveContractInfo(id: number, payload: Partial<BookingContr
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(safePayload)
     })
+    if (!res.ok) return { success: false, error: 'Contractgegevens konden niet op de server worden opgeslagen.' }
     return res.json()
   } catch {
-    return { success: true }
+    return { success: false, error: 'Geen verbinding met de server. Probeer opnieuw.' }
   }
 }
 
