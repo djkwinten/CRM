@@ -37,9 +37,11 @@ export function ContractInfoForm({
     extra_prijzen: stringifyExtraPrices(extraPrices),
     // Alleen standaard op JA zetten als er helemaal geen waarde bestaat.
     // Een expliciete 0 uit de boeking betekent: bewust uitgevinkt, dus behouden.
-    geluid_voorzien: info.contract_ready ? (info.geluid_voorzien ?? 1) : 1,
-    licht_voorzien: info.contract_ready ? (info.licht_voorzien ?? 1) : 1,
-    dj_booth_nodig: info.contract_ready ? (info.dj_booth_nodig ?? 1) : 1,
+    // Standaard JA alleen wanneer er nog geen keuze is opgeslagen.
+    // Een expliciete 0 (NEE) blijft dus behouden, ook vóór de eerste opslag.
+    geluid_voorzien: info.geluid_voorzien ?? 1,
+    licht_voorzien: info.licht_voorzien ?? 1,
+    dj_booth_nodig: info.dj_booth_nodig ?? 1,
   })
   }
   const [form, setForm] = useState<BookingContractInfo>(() => withDefaultTech(initial))
@@ -77,9 +79,11 @@ export function ContractInfoForm({
       return
     }
     setStatus('saving')
-    const payload = notifyOnComplete
-      ? ({ ...current, _notify_contract_complete: 1 } as Partial<BookingContractInfo> & { _notify_contract_complete: number })
-      : current
+    const payload = {
+      ...current,
+      contract_ready: 1,
+      ...(notifyOnComplete ? { _notify_contract_complete: 1 } : {}),
+    } as Partial<BookingContractInfo> & { contract_ready: number; _notify_contract_complete?: number }
     const res = await saveContractInfo(bookingId, payload)
     if (res.success) {
       const extraPrices = parseExtraPrices(current.extra_prijzen)
