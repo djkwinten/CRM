@@ -1214,7 +1214,7 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
         && contractAlreadyCreated
     }
     const source = { ...existing, ...body }
-    const formulaUpgrade = formulaUpgradeRequested ? upgradeWeddingFormulaForHallEntrance(source) : null
+    const formulaUpgrade = upgradeWeddingFormulaForHallEntrance(source)
     formulaUpgraded = !!formulaUpgrade
     const patch: Record<string, unknown> = {
       ...body,
@@ -1400,11 +1400,13 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
   }
 
   const pricingRow = await queryOne<Record<string, unknown>>(c.env, `
-    SELECT type_feest, basisprijs, extra_prijzen, ceremonie_set, digital_booth, retro_booth, draadloze_speaker, karaoke, intrede_zaal_nummer, vroeger_aanwezig_receptie
+    SELECT type_feest, basisprijs, extra_prijzen, ceremonie_set, digital_booth, retro_booth, draadloze_speaker, karaoke,
+      intrede_zaal_nummer, intrede_eretafel_nummer, intrede_bridesmaids_nummer, intrede_groomsmen_nummer,
+      intrede_koppel_nummer, intrede_anders_nummer, vroeger_aanwezig_receptie
     FROM bookings WHERE ${where}
   `, whereParams)
   if (pricingRow) {
-    const formulaUpgrade = formulaUpgradeRequested ? upgradeWeddingFormulaForHallEntrance(pricingRow) : null
+    const formulaUpgrade = upgradeWeddingFormulaForHallEntrance(pricingRow)
     formulaUpgraded = !!formulaUpgrade
     if (formulaUpgrade) {
       await execute(c.env, `
