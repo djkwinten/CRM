@@ -152,7 +152,7 @@ export async function updatePortalSettings(id: number, payload: { portal_title?:
       signal: AbortSignal.timeout(12000),
     })
     const data = await res.json() as { success?: boolean; error?: string }
-    if (!res.ok || data.success === false) {
+    if (!res.ok || data.success !== true) {
       return { success: false, error: data.error || `Serverfout (${res.status})` }
     }
     updateLocalBooking(id, payload)
@@ -247,8 +247,6 @@ export async function getContractInfo(id: number): Promise<BookingContractInfo |
 
 export async function saveContractInfo(id: number, payload: Partial<BookingContractInfo>): Promise<{ success: boolean; error?: string }> {
   const {
-    basisprijs: _basisprijs,
-    extra_prijzen: _extraPrijzen,
     afgesproken_prijs: _afgesprokenPrijs,
     voorschot_bedrag: _voorschotBedrag,
     ...safePayload
@@ -269,7 +267,7 @@ export async function saveContractInfo(id: number, payload: Partial<BookingContr
       body: JSON.stringify(safePayload)
     })
     const data = await res.json().catch(() => ({})) as { success?: boolean; error?: string }
-    if (!res.ok || data.success === false) {
+    if (!res.ok || data.success !== true) {
       return { success: false, error: data.error || 'Contractgegevens konden niet op de server worden opgeslagen.' }
     }
     return { success: true }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Save } from 'lucide-react'
 import { BookingContractInfo } from '../types'
-import { saveContractInfo, suggestVenues, updateContractInfo } from '../../../lib/api'
+import { saveContractInfo, suggestVenues } from '../../../lib/api'
 import { calculateBookingPricing } from '../../../lib/bookingPricing'
 import { WEDDING_FORMULAS, WEDDING_FORMULA_EXTRA_KEY, getWeddingFormula, parseExtraPrices, stringifyExtraPrices } from '../../../config/weddingFormulas'
 import { AutosaveIndicator } from './AutosaveIndicator'
@@ -79,33 +79,31 @@ export function ContractInfoForm({
       return
     }
     setStatus('saving')
+    const extraPrices = parseExtraPrices(current.extra_prijzen)
+    const isWedding = current.event_type === 'Trouw'
+    const formula = isWedding ? getWeddingFormula(extraPrices[WEDDING_FORMULA_EXTRA_KEY]) : null
+    const basisprijs = formula?.price ?? Number(current.basisprijs || 0)
+    const pricingExtraPrices = stringifyExtraPrices(extraPrices)
+    const totaalprijs = calculateBookingPricing({
+      type_feest: current.event_type,
+      basisprijs,
+      extra_prijzen: pricingExtraPrices,
+    }).totaalprijs
+
+    // Bewaar contractinfo én prijs in één serverrequest. Zo kan een tweede,
+    // afzonderlijke prijsupdate de succesvolle opslag niet achteraf doen mislukken.
     const payload = {
       ...current,
+      basisprijs,
+      extra_prijzen: pricingExtraPrices,
       contract_ready: 1,
       ...(notifyOnComplete ? { _notify_contract_complete: 1 } : {}),
     } as Partial<BookingContractInfo> & { contract_ready: number; _notify_contract_complete?: number }
     const res = await saveContractInfo(bookingId, payload)
     if (res.success) {
-      const extraPrices = parseExtraPrices(current.extra_prijzen)
-      const isWedding = current.event_type === 'Trouw'
-      const formula = isWedding ? getWeddingFormula(extraPrices[WEDDING_FORMULA_EXTRA_KEY]) : null
-      const basisprijs = formula?.price ?? Number(current.basisprijs || 0)
-      const pricingExtraPrices = stringifyExtraPrices(extraPrices)
-      const totaalprijs = calculateBookingPricing({
-        type_feest: current.event_type,
-        basisprijs,
-        extra_prijzen: pricingExtraPrices,
-      }).totaalprijs
-      const priceSave = await updateContractInfo(bookingId, {
-        basisprijs,
-        extra_prijzen: pricingExtraPrices,
-        totaalprijs,
-      })
-      if (!priceSave?.success) {
-        setStatus('error')
-        return
-      }
       onSaved?.({ ...current, basisprijs, extra_prijzen: pricingExtraPrices, afgesproken_prijs: totaalprijs })
+    } else {
+      console.error('[ContractInfoForm] Contract Info opslaan mislukt:', res.error)
     }
     setStatus(res.success ? 'saved' : 'error')
   }
@@ -249,7 +247,7 @@ export function ContractInfoForm({
         <div className="flex justify-end pt-1">
           <button
             onClick={() => save()}
-            disabled={requireCompleteBeforeSave && !requiredComplete}
+            disabled={status === 'saving' || (requireCompleteBeforeSave && !requiredComplete)}
             title={requireCompleteBeforeSave && !requiredComplete ? 'Vul eerst alle verplichte velden in' : ''}
             className="flex items-center gap-2 bg-[#007AFF] hover:bg-[#0066CC] disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white px-4 py-2 rounded-xl text-sm font-semibold transition-colors">
             <Save size={14} /> {saveLabel}
