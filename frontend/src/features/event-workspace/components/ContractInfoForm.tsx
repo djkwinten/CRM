@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { Save } from 'lucide-react'
 import { BookingContractInfo } from '../types'
-import { saveContractInfo, suggestVenues } from '../../../lib/api'
+import { saveContractInfo, suggestVenues, updateContractInfo } from '../../../lib/api'
+import { calculateBookingPricing } from '../../../lib/bookingPricing'
+import { WEDDING_FORMULAS, WEDDING_FORMULA_EXTRA_KEY, getWeddingFormula, parseExtraPrices, stringifyExtraPrices } from '../../../config/weddingFormulas'
 import { AutosaveIndicator } from './AutosaveIndicator'
 
 export function ContractInfoForm({
@@ -25,14 +27,24 @@ export function ContractInfoForm({
   notifyOnComplete?: boolean
   enableAutosave?: boolean
 }) {
-  const withDefaultTech = (info: BookingContractInfo): BookingContractInfo => ({
+  const withDefaultTech = (info: BookingContractInfo): BookingContractInfo => {
+    const extraPrices = parseExtraPrices(info.extra_prijzen)
+    if (info.event_type === 'Trouw' && !getWeddingFormula(extraPrices[WEDDING_FORMULA_EXTRA_KEY])) {
+      extraPrices[WEDDING_FORMULA_EXTRA_KEY] = 'avondfeest'
+    }
+    if (info.event_type !== 'Trouw' && extraPrices._aanwezig_vanaf_receptie === undefined) {
+      extraPrices._aanwezig_vanaf_receptie = '0'
+    }
+    return ({
     ...info,
+    extra_prijzen: stringifyExtraPrices(extraPrices),
     // Alleen standaard op JA zetten als er helemaal geen waarde bestaat.
     // Een expliciete 0 uit de boeking betekent: bewust uitgevinkt, dus behouden.
     geluid_voorzien: info.geluid_voorzien ?? 1,
     licht_voorzien: info.licht_voorzien ?? 1,
     dj_booth_nodig: info.dj_booth_nodig ?? 1,
   })
+  }
   const [form, setForm] = useState<BookingContractInfo>(() => withDefaultTech(initial))
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const didMount = useRef(false)
@@ -71,8 +83,29 @@ export function ContractInfoForm({
       ? ({ ...current, _notify_contract_complete: 1 } as Partial<BookingContractInfo> & { _notify_contract_complete: number })
       : current
     const res = await saveContractInfo(bookingId, payload)
+    if (res.success) {
+      const extraPrices = parseExtraPrices(current.extra_prijzen)
+      const isWedding = current.event_type === 'Trouw'
+      const formula = isWedding ? getWeddingFormula(extraPrices[WEDDING_FORMULA_EXTRA_KEY]) : null
+      const basisprijs = formula?.price ?? Number(current.basisprijs || 0)
+      const pricingExtraPrices = stringifyExtraPrices(extraPrices)
+      const totaalprijs = calculateBookingPricing({
+        type_feest: current.event_type,
+        basisprijs,
+        extra_prijzen: pricingExtraPrices,
+      }).totaalprijs
+      const priceSave = await updateContractInfo(bookingId, {
+        basisprijs,
+        extra_prijzen: pricingExtraPrices,
+        totaalprijs,
+      })
+      if (!priceSave?.success) {
+        setStatus('error')
+        return
+      }
+      onSaved?.({ ...current, basisprijs, extra_prijzen: pricingExtraPrices, afgesproken_prijs: totaalprijs })
+    }
     setStatus(res.success ? 'saved' : 'error')
-    if (res.success) onSaved?.(current)
   }
 
   useEffect(() => {
@@ -153,6 +186,52 @@ export function ContractInfoForm({
           <div><label className={label}>Aantal gasten</label><input type="number" min="0" value={form.aantal_gasten ?? ''} onChange={e => update('aantal_gasten', e.target.value === '' ? null : Number(e.target.value))} className={input} disabled={readOnly} placeholder="Bijv. 150" /></div>
           <div><label className={label}>Gewenste start dansfeest</label><input type="time" value={form.uur_dansfeest || ''} onChange={e => update('uur_dansfeest', e.target.value)} className={input} disabled={readOnly} /></div>
         </div>
+      </section>
+
+      <section className="space-y-3">
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Formule / aanwezigheid</p>
+        {form.event_type === 'Trouw' ? (() => {
+          const selected = getWeddingFormula(parseExtraPrices(form.extra_prijzen)[WEDDING_FORMULA_EXTRA_KEY])
+          const selectFormula = (key: string) => {
+            const prices = parseExtraPrices(form.extra_prijzen)
+            prices[WEDDING_FORMULA_EXTRA_KEY] = key
+            delete prices.ceremonie_set
+            update('extra_prijzen', stringifyExtraPrices(prices))
+          }
+          return (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {WEDDING_FORMULAS.map((formula, index) => (
+                <button key={formula.key} type="button" disabled={readOnly} onClick={() => selectFormula(formula.key)}
+                  className={`text-left rounded-xl border p-3 transition-all ${selected?.key === formula.key ? 'bg-pink-50 border-pink-400 ring-2 ring-pink-100' : 'bg-white border-gray-200 hover:border-pink-200'} ${readOnly ? 'opacity-70 cursor-not-allowed' : ''}`}>
+                  <span className="text-lg">{formula.emoji}</span>
+                  <span className="block text-sm font-bold text-gray-900 mt-1">{formula.label}</span>
+                  <span className="block text-xs font-semibold text-pink-700 mt-1">+ € {[0, 100, 350][index]},00</span>
+                </button>
+              ))}
+            </div>
+          )
+        })() : (() => {
+          const prices = parseExtraPrices(form.extra_prijzen)
+          const selectedReception = prices._aanwezig_vanaf_receptie === '1' || prices._aanwezig_vanaf_receptie === 1
+          const selectPresence = (value: boolean) => {
+            const next = { ...prices, _aanwezig_vanaf_receptie: value ? '1' : '0' }
+            update('extra_prijzen', stringifyExtraPrices(next))
+          }
+          return (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button type="button" disabled={readOnly} onClick={() => selectPresence(false)}
+                className={`text-left rounded-xl border p-3 ${!selectedReception ? 'bg-green-50 border-green-300 ring-2 ring-green-100' : 'bg-white border-gray-200'}`}>
+                <span className="block text-sm font-bold text-gray-900">Vanaf het avondfeest</span>
+                <span className="block text-xs font-semibold text-green-700 mt-1">+ € 0,00</span>
+              </button>
+              <button type="button" disabled={readOnly} onClick={() => selectPresence(true)}
+                className={`text-left rounded-xl border p-3 ${selectedReception ? 'bg-green-50 border-green-300 ring-2 ring-green-100' : 'bg-white border-gray-200'}`}>
+                <span className="block text-sm font-bold text-gray-900">Vanaf de receptie</span>
+                <span className="block text-xs font-semibold text-green-700 mt-1">+ € 75,00</span>
+              </button>
+            </div>
+          )
+        })()}
       </section>
 
       <section className="space-y-3">
