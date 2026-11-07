@@ -122,6 +122,39 @@ async function bookingColumnSet(env: Bindings) {
   return new Set(rows.map(r => r.name))
 }
 
+// Deze instellingen staan apart omdat oudere D1-tabellen tegen de SQLite-kolomlimiet zitten.
+async function ensureEarlyReceptionSettingsTable(env: Bindings) {
+  await execute(env, `
+    CREATE TABLE IF NOT EXISTS booking_early_reception_settings (
+      booking_id INTEGER PRIMARY KEY,
+      early_reception INTEGER NOT NULL DEFAULT 0,
+      after_contract INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (booking_id) REFERENCES bookings(id)
+    )
+  `)
+  const columns = await bookingColumnSet(env)
+  if (columns.has('vroeger_aanwezig_receptie') && columns.has('vroeger_aanwezig_receptie_na_contract')) {
+    await execute(env, `
+      INSERT OR IGNORE INTO booking_early_reception_settings (booking_id, early_reception, after_contract)
+      SELECT id, COALESCE(vroeger_aanwezig_receptie, 0), COALESCE(vroeger_aanwezig_receptie_na_contract, 0)
+      FROM bookings
+    `)
+  }
+}
+
+async function saveEarlyReceptionSettings(env: Bindings, bookingId: string, earlyReception: unknown, afterContract: unknown) {
+  await ensureEarlyReceptionSettingsTable(env)
+  await execute(env, `
+    INSERT INTO booking_early_reception_settings (booking_id, early_reception, after_contract, updated_at)
+    VALUES (?, ?, ?, datetime('now'))
+    ON CONFLICT(booking_id) DO UPDATE SET
+      early_reception = excluded.early_reception,
+      after_contract = excluded.after_contract,
+      updated_at = datetime('now')
+  `, [bookingId, enabledFlag(earlyReception) ? 1 : 0, enabledFlag(afterContract) ? 1 : 0])
+}
+
 // Houd de voorschotdocumentdatum buiten bookings: die tabel heeft de SQLite-kolomlimiet bereikt.
 async function ensureVoorschotReadinessTable(env: Bindings) {
   await execute(env, `
@@ -154,6 +187,14 @@ async function ensureContractUnlocksTable(env: Bindings) {
 }
 
 function bookingSelectField(name: string, fallback: string, existing: Set<string>) {
+  if (name === 'vroeger_aanwezig_receptie') {
+    const legacyValue = existing.has(name) ? 'bookings.vroeger_aanwezig_receptie' : 'NULL'
+    return `COALESCE((SELECT early_reception FROM booking_early_reception_settings ers WHERE ers.booking_id = bookings.id), ${legacyValue}, 0) AS vroeger_aanwezig_receptie`
+  }
+  if (name === 'vroeger_aanwezig_receptie_na_contract') {
+    const legacyValue = existing.has(name) ? 'bookings.vroeger_aanwezig_receptie_na_contract' : 'NULL'
+    return `COALESCE((SELECT after_contract FROM booking_early_reception_settings ers WHERE ers.booking_id = bookings.id), ${legacyValue}, 0) AS vroeger_aanwezig_receptie_na_contract`
+  }
   if (name === 'voorschot_documenten_klaar_op') {
     const legacyValue = existing.has(name) ? 'bookings.voorschot_documenten_klaar_op' : 'NULL'
     return `COALESCE((SELECT ready_at FROM booking_document_readiness dr WHERE dr.booking_id = bookings.id), ${legacyValue}) AS voorschot_documenten_klaar_op`
@@ -291,6 +332,7 @@ const bookingDetailColumns: Record<string, string> = {
 }
 
 async function bookingDetailSelectFields(env: Bindings) {
+  await ensureEarlyReceptionSettingsTable(env)
   await ensureWeddingMeetingsTable(env)
   await ensureContractUnlocksTable(env)
   await ensureGmailIntakeTables(env)
@@ -407,8 +449,6 @@ bookingsRoutes.post('/init', async (c) => {
       backup_contact_naam TEXT,
       backup_contact_telefoon TEXT,
       verzoeknummers TEXT DEFAULT 'Ja',
-      vroeger_aanwezig_receptie INTEGER NOT NULL DEFAULT 0,
-      vroeger_aanwezig_receptie_na_contract INTEGER NOT NULL DEFAULT 0,
       -- Zaal & Techniek
       zaal_contact TEXT,
       leveranciers_info TEXT,
@@ -441,8 +481,6 @@ bookingsRoutes.post('/init', async (c) => {
       `ALTER TABLE bookings ADD COLUMN backup_contact_naam TEXT`,
       `ALTER TABLE bookings ADD COLUMN backup_contact_telefoon TEXT`,
       `ALTER TABLE bookings ADD COLUMN verzoeknummers TEXT DEFAULT 'Ja'`,
-      `ALTER TABLE bookings ADD COLUMN vroeger_aanwezig_receptie INTEGER NOT NULL DEFAULT 0`,
-      `ALTER TABLE bookings ADD COLUMN vroeger_aanwezig_receptie_na_contract INTEGER NOT NULL DEFAULT 0`,
       `ALTER TABLE bookings ADD COLUMN access_token TEXT`,
       `ALTER TABLE bookings ADD COLUMN slug TEXT`,
       `ALTER TABLE bookings ADD COLUMN totaalprijs REAL DEFAULT 0`,
@@ -858,14 +896,12 @@ bookingsRoutes.put('/:id/contract-info', async (c) => {
 
   // Zorg dat prijsvelden uit nieuwere CRM-versies bestaan, ook wanneer de klantpagina
   // wordt geopend op een bestaande D1-database die de algemene booking-migraties nog niet uitvoerde.
-  try { await execute(c.env, `ALTER TABLE bookings ADD COLUMN vroeger_aanwezig_receptie INTEGER NOT NULL DEFAULT 0`) } catch { /* bestaat al */ }
-  try { await execute(c.env, `ALTER TABLE bookings ADD COLUMN vroeger_aanwezig_receptie_na_contract INTEGER NOT NULL DEFAULT 0`) } catch { /* bestaat al */ }
-
   // Sla de formule en prijs mee op in dezelfde aanvraag als de Contract Info.
   // Zo is er geen tweede PATCH nodig die de klant achteraf een foutmelding kan geven.
   if (body.basisprijs !== undefined || body.extra_prijzen !== undefined) {
     const existingPricing = await queryOne<Record<string, unknown>>(c.env, `
-      SELECT type_feest, basisprijs, extra_prijzen, ceremonie_set, digital_booth, retro_booth, draadloze_speaker, karaoke, vroeger_aanwezig_receptie
+      SELECT type_feest, basisprijs, extra_prijzen, ceremonie_set, digital_booth, retro_booth, draadloze_speaker, karaoke,
+        COALESCE((SELECT early_reception FROM booking_early_reception_settings ers WHERE ers.booking_id = bookings.id), 0) AS vroeger_aanwezig_receptie
       FROM bookings WHERE id = ?
     `, [id])
     const basisprijs = body.basisprijs !== undefined
@@ -1142,12 +1178,11 @@ async function ensureQuestionnaireColumns(env: Bindings) {
     `ALTER TABLE bookings ADD COLUMN extra_koppel_info TEXT`,
     `ALTER TABLE bookings ADD COLUMN anderstalige_gasten TEXT`,
     `ALTER TABLE bookings ADD COLUMN anderstalige_talen TEXT`,
-    `ALTER TABLE bookings ADD COLUMN vroeger_aanwezig_receptie INTEGER NOT NULL DEFAULT 0`,
-    `ALTER TABLE bookings ADD COLUMN vroeger_aanwezig_receptie_na_contract INTEGER NOT NULL DEFAULT 0`,
   ]
   for (const m of migrations) {
     try { await execute(env, m) } catch { /* column already exists */ }
   }
+  await ensureEarlyReceptionSettingsTable(env)
 }
 
 bookingsRoutes.patch('/:id/status', async (c) => {
@@ -1288,7 +1323,10 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
   const whereParams = isNumeric ? [ref] : [ref, ref]
 
   const currentReceptionState = await queryOne<Record<string, unknown>>(c.env, `
-    SELECT type_feest, vroeger_aanwezig_receptie, vroeger_aanwezig_receptie_na_contract, status_contract, contract_pdf
+    SELECT type_feest,
+      COALESCE((SELECT early_reception FROM booking_early_reception_settings ers WHERE ers.booking_id = bookings.id), 0) AS vroeger_aanwezig_receptie,
+      COALESCE((SELECT after_contract FROM booking_early_reception_settings ers WHERE ers.booking_id = bookings.id), 0) AS vroeger_aanwezig_receptie_na_contract,
+      status_contract, contract_pdf
     FROM bookings WHERE ${where}
   `, whereParams)
   if (earlyReceptionChoiceProvided && currentReceptionState) {
@@ -1322,7 +1360,9 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
     'toestemming_foto','opmerkingen'
   ]
   const oldRow = isUpdate
-    ? await queryOne<Record<string, unknown>>(c.env, `SELECT ${diffFields.join(', ')} FROM bookings WHERE ${where}`, whereParams)
+    ? await queryOne<Record<string, unknown>>(c.env, `SELECT ${diffFields.map(field => field === 'vroeger_aanwezig_receptie'
+      ? 'COALESCE((SELECT early_reception FROM booking_early_reception_settings ers WHERE ers.booking_id = bookings.id), 0) AS vroeger_aanwezig_receptie'
+      : field).join(', ')} FROM bookings WHERE ${where}`, whereParams)
     : null
 
   try {
@@ -1405,15 +1445,11 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
   }
 
   if (earlyReceptionChoiceProvided) {
-    await execute(c.env, `
-      UPDATE bookings
-      SET vroeger_aanwezig_receptie = ?, vroeger_aanwezig_receptie_na_contract = ?
-      WHERE ${where}
-    `, [
-      enabledFlag(body.vroeger_aanwezig_receptie) ? 1 : 0,
-      enabledFlag(body.vroeger_aanwezig_receptie_na_contract) ? 1 : 0,
-      ...whereParams,
-    ])
+    const matchingBooking = await queryOne<{ id: number }>(c.env, `SELECT id FROM bookings WHERE ${where}`, whereParams)
+    if (matchingBooking) {
+      await saveEarlyReceptionSettings(c.env, String(matchingBooking.id),
+        body.vroeger_aanwezig_receptie, body.vroeger_aanwezig_receptie_na_contract)
+    }
   }
 
   const extraQuestionnaireFields = [
@@ -1437,7 +1473,8 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
   const pricingRow = await queryOne<Record<string, unknown>>(c.env, `
     SELECT type_feest, basisprijs, extra_prijzen, ceremonie_set, digital_booth, retro_booth, draadloze_speaker, karaoke,
       intrede_zaal_nummer, intrede_eretafel_nummer, intrede_bridesmaids_nummer, intrede_groomsmen_nummer,
-      intrede_koppel_nummer, intrede_anders_nummer, vroeger_aanwezig_receptie
+      intrede_koppel_nummer, intrede_anders_nummer,
+      COALESCE((SELECT early_reception FROM booking_early_reception_settings ers WHERE ers.booking_id = bookings.id), 0) AS vroeger_aanwezig_receptie
     FROM bookings WHERE ${where}
   `, whereParams)
   if (pricingRow) {
@@ -1564,7 +1601,8 @@ bookingsRoutes.patch('/:id/contract', async (c) => {
   if (body.extra_prijzen !== undefined) { fields.push('extra_prijzen = ?'); values.push(body.extra_prijzen) }
   if (updatesPricing) {
     const existing = await queryOne<Record<string, unknown>>(c.env, `
-      SELECT type_feest, basisprijs, extra_prijzen, ceremonie_set, digital_booth, retro_booth, draadloze_speaker, karaoke, vroeger_aanwezig_receptie
+      SELECT type_feest, basisprijs, extra_prijzen, ceremonie_set, digital_booth, retro_booth, draadloze_speaker, karaoke,
+        COALESCE((SELECT early_reception FROM booking_early_reception_settings ers WHERE ers.booking_id = bookings.id), 0) AS vroeger_aanwezig_receptie
       FROM bookings WHERE id = ?
     `, [id])
     fields.push('totaalprijs = ?')
