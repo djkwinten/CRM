@@ -785,6 +785,7 @@ bookingsRoutes.put('/:id/contract-info', async (c) => {
   try {
   const id = c.req.param('id')
   const body = await c.req.json()
+  await ensureEarlyReceptionSettingsTable(c.env)
   const bool = (v: unknown) => (v ? 1 : 0)
 
   await execute(c.env, `
@@ -1595,6 +1596,7 @@ bookingsRoutes.patch('/:id/contract', async (c) => {
     await patchCloudBooking(c.env, id, patch)
     return c.json({ success: true, storage: 'r2' })
   }
+  if (updatesPricing) await ensureEarlyReceptionSettingsTable(c.env)
   const fields: string[] = []
   const values: unknown[] = []
   if (body.basisprijs !== undefined) { fields.push('basisprijs = ?'); values.push(body.basisprijs) }
