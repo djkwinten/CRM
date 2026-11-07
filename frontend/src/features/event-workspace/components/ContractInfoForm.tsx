@@ -29,9 +29,6 @@ export function ContractInfoForm({
 }) {
   const withDefaultTech = (info: BookingContractInfo): BookingContractInfo => {
     const extraPrices = parseExtraPrices(info.extra_prijzen)
-    if (info.event_type === 'Trouw' && !getWeddingFormula(extraPrices[WEDDING_FORMULA_EXTRA_KEY])) {
-      extraPrices[WEDDING_FORMULA_EXTRA_KEY] = 'avondfeest'
-    }
     if (info.event_type !== 'Trouw' && extraPrices._aanwezig_vanaf_receptie === undefined) {
       extraPrices._aanwezig_vanaf_receptie = '0'
     }
@@ -40,9 +37,9 @@ export function ContractInfoForm({
     extra_prijzen: stringifyExtraPrices(extraPrices),
     // Alleen standaard op JA zetten als er helemaal geen waarde bestaat.
     // Een expliciete 0 uit de boeking betekent: bewust uitgevinkt, dus behouden.
-    geluid_voorzien: info.geluid_voorzien ?? 1,
-    licht_voorzien: info.licht_voorzien ?? 1,
-    dj_booth_nodig: info.dj_booth_nodig ?? 1,
+    geluid_voorzien: info.contract_ready ? (info.geluid_voorzien ?? 1) : 1,
+    licht_voorzien: info.contract_ready ? (info.licht_voorzien ?? 1) : 1,
+    dj_booth_nodig: info.contract_ready ? (info.dj_booth_nodig ?? 1) : 1,
   })
   }
   const [form, setForm] = useState<BookingContractInfo>(() => withDefaultTech(initial))
@@ -69,7 +66,8 @@ export function ContractInfoForm({
     form.event_type?.trim() &&
     form.event_datum?.trim() &&
     form.locatie_naam?.trim() &&
-    form.locatie_adres?.trim()
+    form.locatie_adres?.trim() &&
+    (form.event_type !== 'Trouw' || !!getWeddingFormula(parseExtraPrices(form.extra_prijzen)[WEDDING_FORMULA_EXTRA_KEY]))
   )
 
   const save = async (current = form) => {
