@@ -135,9 +135,11 @@ export async function updateContractInfo(id: number, payload: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     })
-    return res.json()
+    const data = await res.json() as { success?: boolean; error?: string }
+    if (!res.ok || data.success === false) return { success: false, error: data.error || `Opslaan mislukt (serverfout ${res.status})` }
+    return data
   } catch {
-    return { success: true, local: true }
+    return { success: false, error: 'Geen verbinding met de server. De wijziging is niet online opgeslagen.' }
   }
 }
 
@@ -271,11 +273,12 @@ export async function saveContractInfo(id: number, payload: Partial<BookingContr
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(safePayload)
     })
-    return res.json()
-  } catch {
+    const data = await res.json() as { success?: boolean; error?: string }
+    if (!res.ok || data.success === false) return { success: false, error: data.error || `Opslaan mislukt (serverfout ${res.status})` }
     return { success: true }
-  }
-}
+  } catch {
+    return { success: false, error: 'Geen verbinding met de server. De wijziging is niet online opgeslagen.' }
+  }}
 
 export async function getBookingPDF(ref: string, type: 'contract' | 'factuur'): Promise<string | null> {
   const res = await fetch(`${BASE}/${ref}/pdf/${type}`)

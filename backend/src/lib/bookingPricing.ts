@@ -8,6 +8,12 @@ export type ServerPricingSource = Record<string, unknown> & {
   draadloze_speaker?: unknown
   karaoke?: unknown
   vroeger_aanwezig_receptie?: unknown
+  intrede_zaal_nummer?: unknown
+  intrede_eretafel_nummer?: unknown
+  intrede_bridesmaids_nummer?: unknown
+  intrede_groomsmen_nummer?: unknown
+  intrede_koppel_nummer?: unknown
+  intrede_anders_nummer?: unknown
 }
 
 export const EARLY_RECEPTION_SURCHARGE = 75
@@ -51,9 +57,14 @@ export function upgradeWeddingFormulaForHallEntrance(source: ServerPricingSource
   totaalprijs: number
 } | null {
   const prices = extraPrices(source.extra_prijzen)
+  const hasHallEntrance = enabledFlag(source.intrede_zaal_nummer)
+    || [source.intrede_eretafel_nummer, source.intrede_bridesmaids_nummer, source.intrede_groomsmen_nummer,
+      source.intrede_koppel_nummer, source.intrede_anders_nummer]
+      .some(value => value != null && String(value).trim() !== '' && String(value).trim() !== 'n.v.t.')
+
   if (String(source.type_feest || '') !== 'Trouw'
     || prices._trouw_formule !== 'avondfeest'
-    || source.intrede_zaal_nummer !== 'Ja') {
+    || !hasHallEntrance) {
     return null
   }
 
