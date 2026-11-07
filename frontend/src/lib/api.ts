@@ -266,13 +266,20 @@ export async function saveContractInfo(id: number, payload: Partial<BookingContr
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(safePayload)
     })
-    const data = await res.json().catch(() => ({})) as { success?: boolean; error?: string }
+    const responseText = await res.text()
+    let data: { success?: boolean; error?: string } = {}
+    try {
+      data = responseText ? JSON.parse(responseText) as { success?: boolean; error?: string } : {}
+    } catch {
+      // Cloudflare/proxy errors can be plain text or HTML.
+    }
     if (!res.ok || data.success !== true) {
-      return { success: false, error: data.error || 'Contractgegevens konden niet op de server worden opgeslagen.' }
+      const serverMessage = data.error || (responseText && !responseText.trim().startsWith('<') ? responseText.trim().slice(0, 240) : '')
+      return { success: false, error: serverMessage || 'Opslaan mislukt (HTTP ' + res.status + '). Controleer de serververbinding of probeer later opnieuw.' }
     }
     return { success: true }
-  } catch {
-    return { success: false, error: 'Geen verbinding met de server. Probeer opnieuw.' }
+  } catch (error) {
+    return { success: false, error: error instanceof Error ? error.message : 'Geen verbinding met de server. Probeer opnieuw.' }
   }
 }
 

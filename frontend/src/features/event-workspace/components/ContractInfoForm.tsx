@@ -46,6 +46,7 @@ export function ContractInfoForm({
   }
   const [form, setForm] = useState<BookingContractInfo>(() => withDefaultTech(initial))
   const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [saveError, setSaveError] = useState('')
   const didMount = useRef(false)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -75,9 +76,11 @@ export function ContractInfoForm({
   const save = async (current = form) => {
     if (readOnly) return
     if (requireCompleteBeforeSave && !requiredComplete) {
+      setSaveError('Vul eerst alle verplichte velden (*) in. Controleer vooral e-mailadres, klantadres en zaaladres.')
       setStatus('error')
       return
     }
+    setSaveError('')
     setStatus('saving')
     const extraPrices = parseExtraPrices(current.extra_prijzen)
     const isWedding = current.event_type === 'Trouw'
@@ -99,13 +102,24 @@ export function ContractInfoForm({
       contract_ready: 1,
       ...(notifyOnComplete ? { _notify_contract_complete: 1 } : {}),
     } as Partial<BookingContractInfo> & { contract_ready: number; _notify_contract_complete?: number }
-    const res = await saveContractInfo(bookingId, payload)
-    if (res.success) {
-      onSaved?.({ ...current, basisprijs, extra_prijzen: pricingExtraPrices, afgesproken_prijs: totaalprijs })
-    } else {
-      console.error('[ContractInfoForm] Contract Info opslaan mislukt:', res.error)
+    try {
+      const res = await saveContractInfo(bookingId, payload)
+      if (res.success) {
+        setSaveError('')
+        onSaved?.({ ...current, basisprijs, extra_prijzen: pricingExtraPrices, afgesproken_prijs: totaalprijs })
+        setStatus('saved')
+      } else {
+        const message = res.error || 'De server heeft de opslag geweigerd.'
+        console.error('[ContractInfoForm] Contract Info opslaan mislukt:', message)
+        setSaveError(message)
+        setStatus('error')
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Onbekende fout tijdens het opslaan.'
+      console.error('[ContractInfoForm] Onverwachte opslagfout:', error)
+      setSaveError(message)
+      setStatus('error')
     }
-    setStatus(res.success ? 'saved' : 'error')
   }
 
   useEffect(() => {
@@ -163,7 +177,10 @@ export function ContractInfoForm({
             </p>
           )}
         </div>
-        <AutosaveIndicator status={status} />
+        <div className="flex flex-col items-end gap-1">
+          <AutosaveIndicator status={status} />
+          {status === 'error' && saveError && <p role="alert" className="max-w-xs text-right text-xs text-red-600">{saveError}</p>}
+        </div>
       </div>
 
       <section className="space-y-3">
