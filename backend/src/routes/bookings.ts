@@ -1178,7 +1178,6 @@ bookingsRoutes.put('/:ref/questionnaire', async (c) => {
     return c.json({ success: false, error: 'Invalid JSON: ' + String(e) }, 400)
   }
 
-  const formulaUpgradeRequested = body._formula_upgrade_reason === 'intrede_zaal'
   const earlyReceptionChoiceProvided = Object.prototype.hasOwnProperty.call(body, 'vroeger_aanwezig_receptie')
   const earlyReceptionRequested = enabledFlag(body.vroeger_aanwezig_receptie)
   const questionnaireIsUpdate = body._is_update === 1
