@@ -5,6 +5,7 @@ import { bookingFileDownloadUrl, BookingFile, getBooking, getBookingFiles, getCo
 import { getContractGateState } from '../lib/contractGate'
 import { Booking } from '../types/booking'
 import { BookingContractInfo } from '../features/event-workspace/types'
+import { parseExtraPrices, stringifyExtraPrices } from '../config/weddingFormulas'
 
 type QuestionnaireUpload = { naam: string; type: string; key: string; category?: 'uitnodiging' | 'zaal_foto' | 'grondplan' }
 function parseQuestionnaireUploads(raw?: string): QuestionnaireUpload[] {
@@ -73,7 +74,18 @@ export function EventPortal() {
       setBooking(b)
       if (b) {
         const info = await getContractInfo(b.id)
-        setContractInfo(info)
+        if (info) {
+          const prices = parseExtraPrices(b.extra_prijzen ?? info.extra_prijzen)
+          if (b.type_feest !== 'Trouw' && prices._aanwezig_vanaf_receptie === undefined) {
+            prices._aanwezig_vanaf_receptie = b.vroeger_aanwezig_receptie ? '1' : '0'
+          }
+          setContractInfo({
+            ...info,
+            basisprijs: b.basisprijs ?? info.basisprijs,
+            extra_prijzen: stringifyExtraPrices(prices),
+            afgesproken_prijs: b.totaalprijs ?? info.afgesproken_prijs,
+          })
+        } else setContractInfo(null)
         setManualFiles(await getBookingFiles(b.id))
         const gate = getContractGateState(b, info)
         setContractInfoSubmitted(gate.contractCompleted)

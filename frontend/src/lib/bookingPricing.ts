@@ -38,6 +38,7 @@ export const EDITABLE_EXTRA_PRICES = [
 const LEGACY_CEREMONY_PRICE = 250
 export const EARLY_RECEPTION_SURCHARGE = 75
 export const EARLY_RECEPTION_SURCHARGE_KEY = 'vroeger_aanwezig_receptie'
+export const CONTRACT_RECEPTION_CHOICE_KEY = '_aanwezig_vanaf_receptie'
 
 function positiveAmount(value: unknown): number {
   const amount = Number(value)
@@ -75,7 +76,11 @@ export function calculateBookingPricing(source: PricingSource): BookingPricing {
   const kilometervergoeding = getManualKilometervergoeding(extraPrijzen._km_vergoeding)
 
   const extras: BookingPriceLine[] = []
-  if (eventType !== 'Trouw' && enabledFlag(source.vroeger_aanwezig_receptie)) {
+  const hasContractReceptionChoice = extraPrijzen[CONTRACT_RECEPTION_CHOICE_KEY] !== undefined
+  const receptionSelected = hasContractReceptionChoice
+    ? enabledFlag(extraPrijzen[CONTRACT_RECEPTION_CHOICE_KEY])
+    : enabledFlag(source.vroeger_aanwezig_receptie)
+  if (eventType !== 'Trouw' && receptionSelected) {
     extras.push({
       key: EARLY_RECEPTION_SURCHARGE_KEY,
       label: 'Vroeger aanwezig vanaf receptie',
