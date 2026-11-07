@@ -51,9 +51,21 @@ export function upgradeWeddingFormulaForHallEntrance(source: ServerPricingSource
   totaalprijs: number
 } | null {
   const prices = extraPrices(source.extra_prijzen)
+  const hallEntranceFields = [
+    'intrede_eretafel_nummer',
+    'intrede_bridesmaids_nummer',
+    'intrede_groomsmen_nummer',
+    'intrede_koppel_nummer',
+    'intrede_anders_nummer',
+  ]
+  const hasHallEntrance = source.intrede_zaal_nummer === 'Ja'
+    || hallEntranceFields.some((field) => {
+      const value = source[field]
+      return value != null && String(value).trim() !== '' && String(value).trim() !== 'n.v.t.'
+    })
   if (String(source.type_feest || '') !== 'Trouw'
     || prices._trouw_formule !== 'avondfeest'
-    || source.intrede_zaal_nummer !== 'Ja') {
+    || !hasHallEntrance) {
     return null
   }
 
