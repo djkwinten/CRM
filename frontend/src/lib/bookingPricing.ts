@@ -76,7 +76,11 @@ export function calculateBookingPricing(source: PricingSource): BookingPricing {
   const kilometervergoeding = getManualKilometervergoeding(extraPrijzen._km_vergoeding)
 
   const extras: BookingPriceLine[] = []
-  if (eventType !== 'Trouw' && (enabledFlag(source.vroeger_aanwezig_receptie) || enabledFlag(extraPrijzen[CONTRACT_RECEPTION_CHOICE_KEY]))) {
+  const hasContractReceptionChoice = extraPrijzen[CONTRACT_RECEPTION_CHOICE_KEY] !== undefined
+  const receptionSelected = hasContractReceptionChoice
+    ? enabledFlag(extraPrijzen[CONTRACT_RECEPTION_CHOICE_KEY])
+    : enabledFlag(source.vroeger_aanwezig_receptie)
+  if (eventType !== 'Trouw' && receptionSelected) {
     extras.push({
       key: EARLY_RECEPTION_SURCHARGE_KEY,
       label: 'Vroeger aanwezig vanaf receptie',
