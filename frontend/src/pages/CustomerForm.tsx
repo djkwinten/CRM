@@ -760,6 +760,7 @@ function GenreSelector({ label, sublabel, pillsValue, onPillsChange, extraValue,
 
 function StepMuziek({ form, setForm, isTrouw }: { form: FormState; setForm: (u: Partial<FormState>) => void; isTrouw: boolean }) {
   const [showFormulaUpgrade, setShowFormulaUpgrade] = useState(false)
+  const [pendingHallEntranceField, setPendingHallEntranceField] = useState<keyof FormState | null>(null)
   const hallEntranceFields: (keyof FormState)[] = [
     'intrede_eretafel_nummer',
     'intrede_bridesmaids_nummer',
@@ -773,10 +774,20 @@ function StepMuziek({ form, setForm, isTrouw }: { form: FormState; setForm: (u: 
 
   const selectHallEntrance = () => {
     if (currentFormula?.key === 'avondfeest') {
+      setPendingHallEntranceField(null)
       setShowFormulaUpgrade(true)
       return
     }
     setForm({ intrede_zaal_nummer: 'Ja' })
+  }
+
+  const toggleHallEntranceField = (fieldKey: keyof FormState, checked: boolean) => {
+    if (!checked && currentFormula?.key === 'avondfeest') {
+      setPendingHallEntranceField(fieldKey)
+      setShowFormulaUpgrade(true)
+      return
+    }
+    setForm({ intrede_zaal_nummer: 'Ja', [fieldKey]: checked ? '' : '__checked__' } as Partial<FormState>)
   }
 
   const removeHallEntrance = () => {
@@ -794,11 +805,13 @@ function StepMuziek({ form, setForm, isTrouw }: { form: FormState; setForm: (u: 
     const upgraded = selectMinimumWeddingFormula(form.extra_prijzen, 'receptie_avondfeest')
     setForm({
       intrede_zaal_nummer: 'Ja',
+      ...(pendingHallEntranceField ? { [pendingHallEntranceField]: '__checked__' } : {}),
       basisprijs: upgraded.basisprijs,
       extra_prijzen: upgraded.extra_prijzen,
       ceremonie_set: upgraded.ceremonie_set,
       _formula_upgrade_reason: 'intrede_zaal',
-    })
+    } as Partial<FormState>)
+    setPendingHallEntranceField(null)
     setShowFormulaUpgrade(false)
   }
 
@@ -937,10 +950,7 @@ function StepMuziek({ form, setForm, isTrouw }: { form: FormState; setForm: (u: 
                       className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-all ${
                         checked ? 'border-pink-500 bg-pink-500' : 'border-pink-300 bg-white'
                       }`}
-                      onClick={() => {
-                        if (checked) setForm({ [fieldKey]: '' } as Partial<FormState>)
-                        else setForm({ [fieldKey]: '__checked__' } as Partial<FormState>)
-                      }}
+                      onClick={() => toggleHallEntranceField(fieldKey, checked)}
                     >
                       {checked && <CheckCircle2 size={12} className="text-white" />}
                     </div>
