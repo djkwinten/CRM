@@ -856,6 +856,11 @@ bookingsRoutes.put('/:id/contract-info', async (c) => {
     await execute(c.env, `UPDATE bookings SET ${syncFields.join(', ')} WHERE id = ?`, syncValues)
   }
 
+  // Zorg dat prijsvelden uit nieuwere CRM-versies bestaan, ook wanneer de klantpagina
+  // wordt geopend op een bestaande D1-database die de algemene booking-migraties nog niet uitvoerde.
+  try { await execute(c.env, `ALTER TABLE bookings ADD COLUMN vroeger_aanwezig_receptie INTEGER NOT NULL DEFAULT 0`) } catch { /* bestaat al */ }
+  try { await execute(c.env, `ALTER TABLE bookings ADD COLUMN vroeger_aanwezig_receptie_na_contract INTEGER NOT NULL DEFAULT 0`) } catch { /* bestaat al */ }
+
   // Sla de formule en prijs mee op in dezelfde aanvraag als de Contract Info.
   // Zo is er geen tweede PATCH nodig die de klant achteraf een foutmelding kan geven.
   if (body.basisprijs !== undefined || body.extra_prijzen !== undefined) {
