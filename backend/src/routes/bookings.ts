@@ -855,6 +855,32 @@ bookingsRoutes.put('/:id/contract-info', async (c) => {
     await execute(c.env, `UPDATE bookings SET ${syncFields.join(', ')} WHERE id = ?`, syncValues)
   }
 
+  // Sla de formule en prijs mee op in dezelfde aanvraag als de Contract Info.
+  // Zo is er geen tweede PATCH nodig die de klant achteraf een foutmelding kan geven.
+  if (body.basisprijs !== undefined || body.extra_prijzen !== undefined) {
+    const existingPricing = await queryOne<Record<string, unknown>>(c.env, `
+      SELECT type_feest, basisprijs, extra_prijzen, ceremonie_set, digital_booth, retro_booth, draadloze_speaker, karaoke, vroeger_aanwezig_receptie
+      FROM bookings WHERE id = ?
+    `, [id])
+    const basisprijs = body.basisprijs !== undefined
+      ? Number(body.basisprijs)
+      : Number(existingPricing?.basisprijs || 0)
+    const extra_prijzen = body.extra_prijzen !== undefined
+      ? String(body.extra_prijzen)
+      : String(existingPricing?.extra_prijzen || '{}')
+    const totaalprijs = calculateStoredBookingTotal({
+      ...(existingPricing || {}),
+      type_feest: body.event_type || existingPricing?.type_feest,
+      basisprijs,
+      extra_prijzen,
+    })
+    await execute(c.env, `
+      UPDATE bookings
+      SET basisprijs = ?, extra_prijzen = ?, totaalprijs = ?, updated_at = datetime('now')
+      WHERE id = ?
+    `, [basisprijs, extra_prijzen, totaalprijs, id])
+  }
+
   // Stuur één automatische mail naar DJ zodra het contractformulier volledig is ingevuld.
   // Belangrijk: ContractInfoForm autosavet na volledige invulling; daarom bewaren we
   // contract_info_notified_at zodat dezelfde boeking niet bij elke latere autosave opnieuw mailt.
