@@ -744,6 +744,7 @@ bookingsRoutes.get('/:id/contract-info', async (c) => {
 })
 
 bookingsRoutes.put('/:id/contract-info', async (c) => {
+  try {
   const id = c.req.param('id')
   const body = await c.req.json()
   const bool = (v: unknown) => (v ? 1 : 0)
@@ -926,8 +927,12 @@ bookingsRoutes.put('/:id/contract-info', async (c) => {
   }
 
   return c.json({ success: true })
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error)
+    console.error('Contract Info opslaan mislukt:', message, error)
+    return c.json({ success: false, error: message || 'Onbekende serverfout bij opslaan Contract Info.' }, 500)
+  }
 })
-
 // Get single booking — accepts either numeric id OR slug OR access_token
 bookingsRoutes.get('/:ref', async (c) => {
   const ref = c.req.param('ref')
